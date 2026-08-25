@@ -51,9 +51,8 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between w-64 border-r border-slate-200/80 bg-white text-slate-800 transition-all duration-200 select-none ${
-          mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
-        }`}
+        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between w-64 border-r border-slate-200/80 bg-white text-slate-800 transition-all duration-200 select-none ${mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+          }`}
       >
         {/* Top Logo & Platform Title */}
         <div className="p-5 pb-3">
@@ -66,14 +65,7 @@ export default function Sidebar({
                 className="max-h-9 max-w-full object-contain"
               />
             </div>
-            <div>
-              <div className="text-sm font-bold tracking-tight leading-none text-slate-900 uppercase">
-                TILTMETER
-              </div>
-              <div className="text-[10px] font-medium text-slate-400 mt-1 leading-none">
-                Monitoring System
-              </div>
-            </div>
+
           </div>
         </div>
 
@@ -96,11 +88,10 @@ export default function Sidebar({
                   navigate(item.path);
                   onCloseMobile?.();
                 }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                  active
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${active
                     ? 'bg-blue-50 text-blue-600 font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-slate-500'}`} />

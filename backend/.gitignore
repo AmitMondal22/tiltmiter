@@ -4,6 +4,11 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
+# Docker
+Dockerfile*
+*.dockerfile
+.dockerignore
+
 # Logs
 logs
 *.log

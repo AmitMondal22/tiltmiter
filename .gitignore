@@ -10,6 +10,13 @@ pnpm-lock.yaml
 shimulator/
 simulator/
 
+# Docker Files & Compose (Ignored)
+Dockerfile*
+*.dockerfile
+docker-compose*.yml
+docker-compose*.yaml
+.dockerignore
+
 # Production Builds
 dist/
 dist-ssr/

@@ -5,7 +5,7 @@ import {
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock
 } from 'lucide-react';
-import { getDevices, getDeviceTelemetry, configureDeviceTelemetry } from '../api/apiClient';
+import { getDevices, getDeviceTelemetry, configureDeviceTelemetry, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
@@ -106,8 +106,7 @@ export default function DeviceDetailPage() {
   useEffect(() => {
     let ws;
     try {
-      const wsPort = window.location.port === '8080' ? '5001' : (window.location.port || '5001');
-      const wsUrl = `ws://${window.location.hostname}:${wsPort}/ws/telemetry`;
+      const wsUrl = getWsUrl('/ws/telemetry');
       ws = new WebSocket(wsUrl);
 
       ws.onmessage = (event) => {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { getSites, getDevices } from './api/apiClient';
+import { getSites, getDevices, getWsUrl } from './api/apiClient';
 import { Menu } from 'lucide-react';
 
 // Core Page Components
@@ -55,8 +55,7 @@ function MainLayout() {
     let ws;
     const connectWs = () => {
       try {
-        const wsPort = window.location.port === '8080' ? '5001' : (window.location.port || '5001');
-        const wsUrl = `ws://${window.location.hostname}:${wsPort}/ws/telemetry`;
+        const wsUrl = getWsUrl('/ws/telemetry');
         ws = new WebSocket(wsUrl);
 
         ws.onmessage = (event) => {

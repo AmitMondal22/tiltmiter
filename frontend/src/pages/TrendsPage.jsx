@@ -4,7 +4,7 @@ import {
   Activity, Layers, BarChart2, TrendingUp, Thermometer, Zap, Clock
 } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-import { getDevices, getTelemetryHistory } from '../api/apiClient';
+import { getDevices, getTelemetryHistory, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 
 // Helper to format local Date object to `YYYY-MM-DDTHH:mm` for datetime-local inputs
@@ -95,8 +95,7 @@ export default function TrendsPage() {
     if (!selectedDeviceId) return;
     let ws;
     try {
-      const wsPort = window.location.port === '8080' ? '5001' : (window.location.port || '5001');
-      const wsUrl = `ws://${window.location.hostname}:${wsPort}/ws/telemetry`;
+      const wsUrl = getWsUrl('/ws/telemetry');
       ws = new WebSocket(wsUrl);
 
       ws.onmessage = (event) => {

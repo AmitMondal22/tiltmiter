@@ -1,7 +1,17 @@
+const envApiUrl = import.meta.env?.VITE_API_BASE_URL;
 const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
 const hostname = typeof window !== 'undefined' ? (window.location.hostname || 'localhost') : 'localhost';
 const port = typeof window !== 'undefined' && window.location.port === '8080' ? '5001' : (typeof window !== 'undefined' && window.location.port ? window.location.port : '5001');
-const API_BASE_URL = `${protocol}//${hostname}:${port}/api`;
+export const API_BASE_URL = envApiUrl ? (envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl) : `${protocol}//${hostname}:${port}/api`;
+
+export const getWsUrl = (path = '/ws/telemetry') => {
+  if (import.meta.env?.VITE_WS_URL) {
+    return import.meta.env.VITE_WS_URL;
+  }
+  const wsProtocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsPort = typeof window !== 'undefined' && window.location.port === '8080' ? '5001' : (typeof window !== 'undefined' && window.location.port ? window.location.port : '5001');
+  return `${wsProtocol}//${hostname}:${wsPort}${path}`;
+};
 
 let isRefreshing = false;
 let refreshSubscribers = [];

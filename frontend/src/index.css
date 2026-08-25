@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --color-label: oklch(44.6% 0.043 257.281);
+}
+
+:root {
+  --app-content-color: oklch(44.6% 0.043 257.281);
+  --app-value-color: #000000;
+}
+
+* {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.font-mono, [class*="font-mono"] {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Consolas', monospace !important;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: #f8fafc;
+  color: oklch(44.6% 0.043 257.281);
+  font-weight: 400;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Titles: Solid Crisp Black */
+h1, h2, h3, h4 {
+  color: #000000;
+  font-weight: 600 !important;
+  letter-spacing: -0.01em;
+}
+
+/* All Table Row Values, Headers, and Content: oklch(44.6% .043 257.281) */
+table th,
+table td,
+table tr td,
+table td div,
+table td span:not([class*="bg-"]),
+table td p,
+tbody tr td {
+  color: oklch(44.6% 0.043 257.281) !important;
+  font-weight: 500;
+}
+
+table th {
+  font-weight: 600 !important;
+  color: oklch(44.6% 0.043 257.281) !important;
+}
+
+/* Page Content, Labels, Descriptions: oklch(44.6% .043 257.281) */
+p, label, .text-content, .text-slate-400, .text-slate-500, .text-slate-600 {
+  color: oklch(44.6% 0.043 257.281);
+}
+
+/* Inputs & Form Controls */
+select, input {
+  color: oklch(44.6% 0.043 257.281);
+  border-color: #e2e8f0;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Recharts tooltip override */
+.recharts-default-tooltip {
+  border-radius: 10px !important;
+  font-size: 11px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06) !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  color: oklch(44.6% 0.043 257.281) !important;
+}

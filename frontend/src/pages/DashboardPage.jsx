@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Shield, Battery, Signal, Sun, ExternalLink
+  Shield, Battery, Signal, Sun, ExternalLink, Clock
 } from 'lucide-react';
 import TiltmeterStatCards from '../components/TiltmeterStatCards';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -20,6 +20,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     battery: '92%',
     signalStrength: '-65 dBm',
   };
+
+  const lastSyncTime = activeDevice.timestamp 
+    ? new Date(activeDevice.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+    : 'Just now';
 
   return (
     <div className="space-y-3 font-sans text-slate-900">
@@ -77,6 +81,12 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
             <span>ONLINE (2.5 Hz)</span>
+          </div>
+
+          {/* Last Live Packet Time */}
+          <div className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 font-mono font-medium shadow-2xs">
+            <Clock className="w-3.5 h-3.5 text-blue-500" />
+            <span>{lastSyncTime}</span>
           </div>
 
           {/* Battery Level */}

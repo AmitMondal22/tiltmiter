@@ -27,7 +27,19 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const dirC = d.tiltDirectionCardinal || 'NW';
   const totD = n(d.totalDisplacement, 30.00);
 
-  const lastTime = d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : '12:45:32 PM';
+  const formatFullDateTime = (ts) => {
+    if (!ts) return new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    try {
+      const dateObj = new Date(ts);
+      return isNaN(dateObj.getTime())
+        ? new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+        : dateObj.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    } catch (e) {
+      return String(ts);
+    }
+  };
+
+  const lastFullDateTime = formatFullDateTime(d.timestamp);
 
   // Primary 7 Stat Cards (Row 1)
   const primary = [
@@ -82,13 +94,13 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
     },
   ];
 
-  // Secondary Sensor Diagnostic Pills (Clean, real telemetry without redundant AK09918/GX3-45)
+  // Secondary Sensor Diagnostic Pills
   const secondary = [
     { label: 'Vibration Peak', val: `${n(d.vibPeak, 0.1040).toFixed(4)} g`, icon: Zap, iconColor: 'text-amber-500 bg-amber-50' },
     { label: 'Vibration RMS', val: `${n(d.vibRMS, 0.0450).toFixed(4)} g`, icon: Activity, iconColor: 'text-purple-500 bg-purple-50' },
     { label: 'Acceleration Mag', val: `${n(d.accMag, 0.982).toFixed(3)} g`, icon: Activity, iconColor: 'text-blue-500 bg-blue-50' },
     { label: 'Ambient Temp.', val: `${n(d.temp, 28.6).toFixed(1)} °C`, icon: Thermometer, iconColor: 'text-orange-500 bg-orange-50' },
-    { label: 'Last Packet Time', val: lastTime, icon: Clock, iconColor: 'text-blue-500 bg-blue-50' },
+    { label: 'Last Sync Date & Time', val: lastFullDateTime, icon: Clock, iconColor: 'text-blue-500 bg-blue-50' },
   ];
 
   return (

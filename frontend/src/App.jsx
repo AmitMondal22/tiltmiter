@@ -20,6 +20,7 @@ import ReportsPage from './pages/ReportsPage';
 import AlarmsPage from './pages/AlarmsPage';
 import SettingsPage from './pages/SettingsPage';
 import { parseTelemetry } from './utils/telemetryHelper';
+import { telemetryService } from './services/telemetryManager';
 
 function MainLayout() {
   const location = useLocation();
@@ -43,52 +44,49 @@ function MainLayout() {
       .then(data => {
         if (data?.devices?.length) {
           setDevices(data.devices);
-          setCurrentDevice(data.devices[0]);
+          setCurrentDevice(prev => prev || data.devices[0]);
         }
       })
       .catch(() => {});
   }, [user]);
 
-  // Connect live WebSocket stream for exact hardware packet updates
+  // Connect robust live telemetry stream using centralized telemetryService
   useEffect(() => {
-    if (!user) return;
-    let ws;
-    const connectWs = () => {
-      try {
-        const wsUrl = getWsUrl('/ws/telemetry');
-        ws = new WebSocket(wsUrl);
+    if (!user) {
+      telemetryService.disconnect();
+      return;
+    }
 
-        ws.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            const liveData = msg.data || msg;
-            if (liveData && (liveData.deviceId || liveData.tilt || liveData.displacement)) {
-              const parsed = parseTelemetry(liveData);
-              setDevices(prev => prev.map(dev => {
-                if (dev.id === parsed.deviceId) {
-                  return { ...dev, ...parsed };
-                }
-                return dev;
-              }));
-              if (currentDevice?.id === parsed.deviceId) {
-                setCurrentDevice(prev => ({ ...prev, ...parsed }));
-              }
-            }
-          } catch (e) {}
-        };
-      } catch (e) {}
-    };
+    telemetryService.connect();
 
-    connectWs();
+    const unsubscribe = telemetryService.subscribe((parsed) => {
+      if (!parsed || (!parsed.deviceId && !parsed.id && !parsed.tilt && !parsed.xTilt)) return;
+
+      const targetId = parsed.deviceId || parsed.id;
+
+      setDevices(prevDevices => {
+        const index = prevDevices.findIndex(d => d.id === targetId || d.serialNumber === targetId);
+        if (index !== -1) {
+          const next = [...prevDevices];
+          next[index] = { ...next[index], ...parsed };
+          return next;
+        }
+        return prevDevices;
+      });
+
+      setCurrentDevice(prev => {
+        if (!prev) return parsed;
+        if (prev.id === targetId || prev.serialNumber === targetId || !targetId) {
+          return { ...prev, ...parsed };
+        }
+        return prev;
+      });
+    });
+
     return () => {
-      if (ws) ws.close();
+      unsubscribe();
     };
-  }, [user, currentDevice?.id]);
-
-  useEffect(() => {
-    const u = devices.find(d => d.id === currentDevice?.id);
-    if (u) setCurrentDevice(u);
-  }, [devices, currentDevice?.id]);
+  }, [user]);
 
   if (authLoading) {
     return (

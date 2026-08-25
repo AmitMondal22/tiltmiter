@@ -38,7 +38,7 @@ export default function TiltmeterChartsRow({ currentDevice }) {
       const updated = [...prev, newPoint];
       return updated.slice(-15); // keep latest 15 telemetry points
     });
-  }, [currentDevice?.timestamp, currentDevice?.tilt?.tilt, currentDevice?.displacement?.totalDisplacement_mm]);
+  }, [currentDevice?.timestamp, currentDevice?.resultantTilt, currentDevice?.xTilt, currentDevice?.yTilt, currentDevice?.totalDisplacement, currentDevice?.tilt, currentDevice?.displacement]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">

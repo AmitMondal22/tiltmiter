@@ -1,16 +1,32 @@
 const envApiUrl = import.meta.env?.VITE_API_BASE_URL;
 const protocol = typeof window !== 'undefined' ? window.location.protocol : 'http:';
 const hostname = typeof window !== 'undefined' ? (window.location.hostname || 'localhost') : 'localhost';
-const port = typeof window !== 'undefined' && window.location.port === '8080' ? '5001' : (typeof window !== 'undefined' && window.location.port ? window.location.port : '5001');
-export const API_BASE_URL = envApiUrl ? (envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl) : `${protocol}//${hostname}:${port}/api`;
+const isDevLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const port = isDevLocal ? '5001' : (typeof window !== 'undefined' && window.location.port ? window.location.port : '');
+export const API_BASE_URL = envApiUrl 
+  ? (envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl) 
+  : `${protocol}//${hostname}${port ? `:${port}` : ''}/api`;
 
 export const getWsUrl = (path = '/ws/telemetry') => {
   if (import.meta.env?.VITE_WS_URL) {
-    return import.meta.env.VITE_WS_URL;
+    const wsEnv = import.meta.env.VITE_WS_URL.trim();
+    return wsEnv.endsWith('/') ? wsEnv.slice(0, -1) : wsEnv;
   }
+
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+  // If API_BASE_URL is defined, derive WS url directly from it
+  if (API_BASE_URL && (API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://'))) {
+    try {
+      const parsed = new URL(API_BASE_URL);
+      const wsProto = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${wsProto}//${parsed.host}${cleanPath}`;
+    } catch (e) {}
+  }
+
   const wsProtocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsPort = typeof window !== 'undefined' && window.location.port === '8080' ? '5001' : (typeof window !== 'undefined' && window.location.port ? window.location.port : '5001');
-  return `${wsProtocol}//${hostname}:${wsPort}${path}`;
+  const portPart = isDevLocal ? ':5001' : (window.location.port && window.location.port !== '80' && window.location.port !== '443' ? `:${window.location.port}` : '');
+  return `${wsProtocol}//${hostname}${portPart}${cleanPath}`;
 };
 
 let isRefreshing = false;
@@ -63,39 +79,47 @@ async function request(endpoint, options = {}, isRetry = false) {
     ...options.headers,
   };
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  // Handle 401 Token Expiration with Automatic Refresh Retry
-  if (response.status === 401 && !isRetry && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {
-    if (!isRefreshing) {
-      isRefreshing = true;
-      try {
-        const newAccessToken = await refreshAccessToken();
-        isRefreshing = false;
-        onRefreshed(newAccessToken);
-        return await request(endpoint, options, true);
-      } catch (err) {
-        isRefreshing = false;
-        throw err;
-      }
-    } else {
-      return new Promise((resolve) => {
-        subscribeTokenRefresh(async (newToken) => {
-          options.headers = { ...options.headers, Authorization: `Bearer ${newToken}` };
-          resolve(await request(endpoint, options, true));
+    // Handle 401 Token Expiration with Automatic Refresh Retry
+    if (response.status === 401 && !isRetry && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        try {
+          const newAccessToken = await refreshAccessToken();
+          isRefreshing = false;
+          onRefreshed(newAccessToken);
+          return await request(endpoint, options, true);
+        } catch (err) {
+          isRefreshing = false;
+          throw err;
+        }
+      } else {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh(async (newToken) => {
+            options.headers = { ...options.headers, Authorization: `Bearer ${newToken}` };
+            resolve(await request(endpoint, options, true));
+          });
         });
-      });
+      }
     }
-  }
 
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.message || `API Request failed with status ${response.status}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || `API Request failed with status ${response.status}`);
+    }
+    return data;
+  } catch (err) {
+    if (err.name === 'TypeError' || err.message?.includes('fetch') || err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+      console.warn(`[API] Connection refused / network offline to ${API_BASE_URL}${endpoint}`);
+      return { ok: false, error: err.message, devices: [], history: [] };
+    }
+    throw err;
   }
-  return data;
 }
 
 // Authentication API

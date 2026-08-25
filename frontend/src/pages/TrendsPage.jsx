@@ -6,6 +6,7 @@ import {
 import { ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { getDevices, getTelemetryHistory, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
+import { telemetryService } from '../services/telemetryManager';
 
 // Helper to format local Date object to `YYYY-MM-DDTHH:mm` for datetime-local inputs
 const formatLocalDatetime = (d) => {
@@ -90,45 +91,38 @@ export default function TrendsPage() {
     }
   }, [selectedDeviceId]);
 
-  // 3. Connect WebSocket for live packet streaming into history
+  // 3. Subscribe to live telemetry stream for live packet streaming into history
   useEffect(() => {
     if (!selectedDeviceId) return;
-    let ws;
-    try {
-      const wsUrl = getWsUrl('/ws/telemetry');
-      ws = new WebSocket(wsUrl);
 
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          const packet = msg.data || msg;
-          if (packet && (packet.deviceId === selectedDeviceId || packet.id === selectedDeviceId)) {
-            const parsed = parseTelemetry(packet);
-            setTelemetryLogs(prev => {
-              const newPoint = {
-                time: new Date(parsed.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                timestamp: parsed.timestamp,
-                resultant: parsed.resultantTilt,
-                xTilt: parsed.xTilt,
-                yTilt: parsed.yTilt,
-                totalDisp: parsed.totalDisplacement,
-                xDisp: parsed.xDisplacement,
-                yDisp: parsed.yDisplacement,
-                zDisp: parsed.zDisplacement || 0,
-                accMag: parsed.accMag || 0.98,
-                vibRMS: parsed.vibRMS || 0.045,
-                vibPeak: parsed.vibPeak || 0.104,
-                temperature: parsed.temp || 28.7,
-              };
-              return [...prev, newPoint].slice(-80);
-            });
-          }
-        } catch (e) {}
-      };
-    } catch (e) {}
+    const unsubscribe = telemetryService.subscribe((packet) => {
+      if (!packet) return;
+      const pktId = packet.deviceId || packet.id;
+      if (pktId === selectedDeviceId || !selectedDeviceId) {
+        const parsed = parseTelemetry(packet);
+        setTelemetryLogs(prev => {
+          const newPoint = {
+            time: new Date(parsed.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            timestamp: parsed.timestamp,
+            resultant: parsed.resultantTilt,
+            xTilt: parsed.xTilt,
+            yTilt: parsed.yTilt,
+            totalDisp: parsed.totalDisplacement,
+            xDisp: parsed.xDisplacement,
+            yDisp: parsed.yDisplacement,
+            zDisp: parsed.zDisplacement || 0,
+            accMag: parsed.accMag || 0.98,
+            vibRMS: parsed.vibRMS || 0.045,
+            vibPeak: parsed.vibPeak || 0.104,
+            temperature: parsed.temp || 28.7,
+          };
+          return [...prev, newPoint].slice(-80);
+        });
+      }
+    });
 
     return () => {
-      if (ws) ws.close();
+      unsubscribe();
     };
   }, [selectedDeviceId]);
 

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getDevices, getDeviceTelemetry, configureDeviceTelemetry, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
+import { telemetryService } from '../services/telemetryManager';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
 // Helper to format local Date object to `YYYY-MM-DDTHH:mm` for datetime-local inputs
@@ -102,43 +103,35 @@ export default function DeviceDetailPage() {
       });
   };
 
-  // 2. Connect WebSocket stream for live hardware updates
+  // 2. Subscribe to centralized telemetry stream for live hardware updates
   useEffect(() => {
-    let ws;
-    try {
-      const wsUrl = getWsUrl('/ws/telemetry');
-      ws = new WebSocket(wsUrl);
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          const packet = msg.data || msg;
-          if (packet && (packet.deviceId === deviceId || packet.id === deviceId)) {
-            const parsed = parseTelemetry(packet);
-            setLiveData(parsed);
-            setTelemetryHistory(prev => {
-              const newPoint = {
-                time: new Date(parsed.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                timestamp: parsed.timestamp,
-                resultant: parsed.resultantTilt,
-                xTilt: parsed.xTilt,
-                yTilt: parsed.yTilt,
-                totalDisp: parsed.totalDisplacement,
-                xDisp: parsed.xDisplacement,
-                yDisp: parsed.yDisplacement,
-                zDisp: parsed.zDisplacement || 0,
-                vibRMS: parsed.vibRMS || 0.045,
-                vibPeak: parsed.vibPeak || 0.104,
-              };
-              return [...prev, newPoint].slice(-60);
-            });
-          }
-        } catch (e) { }
-      };
-    } catch (e) { }
+    const unsubscribe = telemetryService.subscribe((packet) => {
+      if (!packet) return;
+      const pktId = packet.deviceId || packet.id;
+      if (pktId === deviceId || !deviceId) {
+        const parsed = parseTelemetry(packet);
+        setLiveData(parsed);
+        setTelemetryHistory(prev => {
+          const newPoint = {
+            time: new Date(parsed.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            timestamp: parsed.timestamp,
+            resultant: parsed.resultantTilt,
+            xTilt: parsed.xTilt,
+            yTilt: parsed.yTilt,
+            totalDisp: parsed.totalDisplacement,
+            xDisp: parsed.xDisplacement,
+            yDisp: parsed.yDisplacement,
+            zDisp: parsed.zDisplacement || 0,
+            vibRMS: parsed.vibRMS || 0.045,
+            vibPeak: parsed.vibPeak || 0.104,
+          };
+          return [...prev, newPoint].slice(-60);
+        });
+      }
+    });
 
     return () => {
-      if (ws) ws.close();
+      unsubscribe();
     };
   }, [deviceId]);
 
@@ -207,7 +200,7 @@ export default function DeviceDetailPage() {
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg font-bold text-slate-900 leading-tight">
                 {device?.name || deviceId}
               </h1>
@@ -216,6 +209,10 @@ export default function DeviceDetailPage() {
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[10px]">
                 {device?.status || 'ONLINE (2.5 Hz)'}
+              </span>
+              <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
+                <Clock className="w-3 h-3 text-slate-400" />
+                <span>Last Updated: {d.timestamp ? new Date(d.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -334,7 +331,7 @@ export default function DeviceDetailPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100 text-xs font-mono">
+          <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-slate-100 text-xs font-mono">
             <div className="flex justify-between py-1">
               <span className="text-slate-500 font-medium font-sans">Total Displacement:</span>
               <span className="font-semibold text-slate-900">{(d.totalDisplacement ?? 4.67).toFixed(2)} mm</span>
@@ -342,6 +339,10 @@ export default function DeviceDetailPage() {
             <div className="flex justify-between py-1">
               <span className="text-slate-500 font-medium font-sans">Ambient Temp:</span>
               <span className="font-semibold text-slate-900">{(d.temp ?? 28.7).toFixed(1)} °C</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span className="text-slate-500 font-medium font-sans">Last Packet:</span>
+              <span className="font-semibold text-blue-600 truncate">{d.timestamp ? new Date(d.timestamp).toLocaleTimeString('en-IN') : 'Just now'}</span>
             </div>
           </div>
         </div>

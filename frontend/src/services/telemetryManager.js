@@ -131,8 +131,8 @@ class TelemetryManager {
           }
         }
       }
-      const queryParam = targetId ? `?deviceId=${encodeURIComponent(targetId)}` : '';
-      const wsUrl = getWsUrl(`/ws/telemetry${queryParam}`);
+      const wsPath = targetId ? `/api/ws/telemetry/${encodeURIComponent(targetId)}` : '/api/ws/telemetry';
+      const wsUrl = getWsUrl(wsPath);
       this.socket = new WebSocket(wsUrl);
 
       this.socket.onopen = () => {

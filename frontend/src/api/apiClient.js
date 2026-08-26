@@ -7,13 +7,18 @@ export const API_BASE_URL = envApiUrl
   ? (envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl) 
   : `${protocol}//${hostname}${port ? `:${port}` : ''}/api`;
 
-export const getWsUrl = (path = '/ws/telemetry') => {
+export const getWsUrl = (path = '/api/ws/telemetry') => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+
   if (import.meta.env?.VITE_WS_URL) {
     const wsEnv = import.meta.env.VITE_WS_URL.trim();
-    return wsEnv.endsWith('/') ? wsEnv.slice(0, -1) : wsEnv;
+    try {
+      const parsedEnv = new URL(wsEnv);
+      return `${parsedEnv.protocol}//${parsedEnv.host}${cleanPath}`;
+    } catch (e) {
+      return `${wsEnv.endsWith('/') ? wsEnv.slice(0, -1) : wsEnv}${cleanPath}`;
+    }
   }
-
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
   // If API_BASE_URL is defined, derive WS url directly from it
   if (API_BASE_URL && (API_BASE_URL.startsWith('http://') || API_BASE_URL.startsWith('https://'))) {

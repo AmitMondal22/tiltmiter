@@ -5,7 +5,7 @@ import {
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock
 } from 'lucide-react';
-import { getDevices, getDeviceTelemetry, configureDeviceTelemetry, getWsUrl } from '../api/apiClient';
+import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
@@ -38,21 +38,21 @@ export default function DeviceDetailPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
-  // 1. Load device metadata & historical telemetry
+  // 1. Load individual device metadata using getDevice(deviceId)
   useEffect(() => {
-    getDevices().then(res => {
-      if (res?.devices) {
-        const found = res.devices.find(d => d.id === deviceId);
-        if (found) {
-          setDevice(found);
-          setConfigForm({
-            sleep_count: Math.max(60, found.sleep_count || 60),
-            wake_count: found.wake_count || 30,
-            calibrate: found.calibrate || false,
-          });
-          const parsed = parseTelemetry(found);
-          setLiveData(parsed);
-        }
+    if (!deviceId) return;
+
+    getDevice(deviceId).then(res => {
+      const dev = res?.device || res;
+      if (dev && (dev.id || dev.name)) {
+        setDevice(dev);
+        setConfigForm({
+          sleep_count: Math.max(60, dev.sleep_count || 60),
+          wake_count: dev.wake_count || 30,
+          calibrate: dev.calibrate || false,
+        });
+        const parsed = parseTelemetry(dev);
+        setLiveData(parsed);
       }
     }).catch(() => { });
 

@@ -270,6 +270,14 @@ export async function getDevices() {
   return await request('/devices');
 }
 
+export async function getDevice(id) {
+  return await request(`/devices/${id}`);
+}
+
+export async function getDeviceById(id) {
+  return await getDevice(id);
+}
+
 export async function createDevice(data) {
   return await request('/devices', {
     method: 'POST',

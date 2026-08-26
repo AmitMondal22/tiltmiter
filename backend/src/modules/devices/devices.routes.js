@@ -34,6 +34,39 @@ export async function devicesRoutes(fastify) {
     }
   });
 
+  // Query individual device by ID (for individual device dashboard)
+  fastify.get('/api/devices/:id', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const device = await Device.findByPk(id, {
+        include: [
+          {
+            model: Site,
+            include: [Project, Organization]
+          },
+          Structure
+        ]
+      });
+      if (!device) {
+        return reply.status(404).send({
+          statusCode: 404,
+          error: 'Not Found',
+          message: `Device with ID ${id} not found.`
+        });
+      }
+      return reply.send({
+        statusCode: 200,
+        device
+      });
+    } catch (err) {
+      return reply.status(500).send({
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: err.message
+      });
+    }
+  });
+
   // Create Device (with minimum sleep_count >= 60 validation)
   fastify.post('/api/devices', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
     try {

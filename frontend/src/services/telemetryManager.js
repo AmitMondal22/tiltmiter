@@ -18,7 +18,7 @@ class TelemetryManager {
     this.subIdCounter = 0;
   }
 
-  // Subscribe to live telemetry packets with optional device filter
+  // Subscribe to live telemetry packets with dynamic device filter
   // Automatically connects WebSocket on 1st subscriber, and disconnects when all subscribers leave
   subscribe(callback, targetDeviceId = null) {
     const id = ++this.subIdCounter;
@@ -26,7 +26,10 @@ class TelemetryManager {
 
     // Auto-connect WebSocket when a telemetry page opens (first subscriber)
     if (!this.isConnected && !this.isConnecting) {
-      this.connect();
+      this.connect(targetDeviceId);
+    } else if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      // Dynamic device stream subscription switch
+      this.requestLatest(targetDeviceId);
     }
 
     // Instantly provide cached telemetry if available for this device
@@ -38,11 +41,6 @@ class TelemetryManager {
       try {
         callback(this.lastPacket);
       } catch (e) {}
-    }
-
-    // If already open, request fresh latest data
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-      this.requestLatest(targetDeviceId);
     }
 
     // Return clean unsubscribe function
@@ -93,10 +91,16 @@ class TelemetryManager {
     });
   }
 
-  // Request latest data for a specific device or all devices
+  // Request latest data and dynamically subscribe to a specific device
   requestLatest(deviceId = null) {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       try {
+        if (deviceId) {
+          this.socket.send(JSON.stringify({
+            type: 'SUBSCRIBE_DEVICE',
+            deviceId
+          }));
+        }
         this.socket.send(JSON.stringify({
           type: 'REQUEST_LATEST',
           deviceId
@@ -105,9 +109,12 @@ class TelemetryManager {
     }
   }
 
-  connect() {
+  connect(initialDeviceId = null) {
     this.shouldStayConnected = true;
     if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) {
+      if (initialDeviceId) {
+        this.requestLatest(initialDeviceId);
+      }
       return;
     }
 
@@ -115,7 +122,17 @@ class TelemetryManager {
     this.notifyStatus();
 
     try {
-      const wsUrl = getWsUrl('/ws/telemetry');
+      let targetId = initialDeviceId;
+      if (!targetId) {
+        for (const sub of this.subscribers.values()) {
+          if (sub.targetDeviceId) {
+            targetId = sub.targetDeviceId;
+            break;
+          }
+        }
+      }
+      const queryParam = targetId ? `?deviceId=${encodeURIComponent(targetId)}` : '';
+      const wsUrl = getWsUrl(`/ws/telemetry${queryParam}`);
       this.socket = new WebSocket(wsUrl);
 
       this.socket.onopen = () => {
@@ -124,7 +141,7 @@ class TelemetryManager {
         this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.notifyStatus();
-        console.log('⚡ Telemetry WebSocket connected:', wsUrl);
+        console.log(`⚡ Telemetry WebSocket connected (Device: ${targetId || 'ALL'}):`, wsUrl);
 
         // Fast initial data request for any active subscribers
         this.subscribers.forEach(({ targetDeviceId }) => {

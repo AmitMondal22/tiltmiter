@@ -15,6 +15,8 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const totalDisp = rawPayload.displacement?.totalDisplacement_mm ?? rawPayload.totalDisplacement ?? Math.sqrt(xDisp * xDisp + yDisp * yDisp);
 
   const temp = rawPayload.environment?.temperature ?? rawPayload.tempVal ?? 29.69;
+  const batteryVoltage = rawPayload.power?.batteryVoltage ?? rawPayload.batteryVoltage ?? 13.03;
+  const csq = rawPayload.network?.csq ?? rawPayload.csq ?? 19;
 
   const telemetryData = {
     // Preserve raw nested payload
@@ -48,7 +50,13 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     temperature: `${temp} °C`,
     tempVal: temp,
 
-    calibration: rawPayload.calibration || { calibrated: true },
+    power: rawPayload.power || { batteryVoltage },
+    batteryVoltage,
+
+    network: rawPayload.network || { csq },
+    csq,
+
+    calibration: rawPayload.calibration || { calibrated: false },
     timestamp: rawPayload.timestamp || new Date().toISOString(),
   };
 

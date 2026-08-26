@@ -26,6 +26,8 @@ export async function saveTelemetryPoint(data) {
   const zDisplacement = typeof data.zDisplacement === 'number' ? data.zDisplacement : (data.displacement?.zDisplacement_mm ?? 0);
   const totalDisplacement = typeof data.totalDisplacement === 'number' ? data.totalDisplacement : (data.displacement?.totalDisplacement_mm ?? Math.sqrt(xDisplacement * xDisplacement + yDisplacement * yDisplacement));
   const tempVal = parseFloat(data.tempVal ?? data.environment?.temperature ?? 25.0);
+  const batteryVoltage = parseFloat(data.batteryVoltage ?? data.power?.batteryVoltage ?? 13.03);
+  const csq = parseInt(data.csq ?? data.network?.csq ?? 19);
 
   const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
 
@@ -41,6 +43,8 @@ export async function saveTelemetryPoint(data) {
       .floatField('z_displacement', zDisplacement)
       .floatField('total_displacement', totalDisplacement)
       .floatField('temperature', tempVal)
+      .floatField('battery_voltage', batteryVoltage)
+      .intField('csq', csq)
       .floatField('acc_mag', data.acceleration?.accMag || 9.82)
       .floatField('gyro_mag', data.gyroscope?.gyroMag || 0.008)
       .floatField('vib_rms', data.vibration?.vibrationRMS || 0.045)
@@ -81,6 +85,8 @@ export async function saveTelemetryPoint(data) {
       yDisplacement,
       totalDisplacement,
       temperature: tempVal,
+      battery: `${batteryVoltage} V`,
+      signalStrength: `${csq} CSQ`,
       status: data.tiltStatus || 'ONLINE',
       lastSeen: timestamp,
     });

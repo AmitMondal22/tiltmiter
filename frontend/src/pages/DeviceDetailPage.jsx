@@ -128,7 +128,7 @@ export default function DeviceDetailPage() {
           return [...prev, newPoint].slice(-60);
         });
       }
-    });
+    }, deviceId);
 
     return () => {
       unsubscribe();

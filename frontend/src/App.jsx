@@ -50,42 +50,11 @@ function MainLayout() {
       .catch(() => {});
   }, [user]);
 
-  // Connect robust live telemetry stream using centralized telemetryService
+  // Cleanup on logout
   useEffect(() => {
     if (!user) {
       telemetryService.disconnect();
-      return;
     }
-
-    telemetryService.connect();
-
-    const unsubscribe = telemetryService.subscribe((parsed) => {
-      if (!parsed || (!parsed.deviceId && !parsed.id && !parsed.tilt && !parsed.xTilt)) return;
-
-      const targetId = parsed.deviceId || parsed.id;
-
-      setDevices(prevDevices => {
-        const index = prevDevices.findIndex(d => d.id === targetId || d.serialNumber === targetId);
-        if (index !== -1) {
-          const next = [...prevDevices];
-          next[index] = { ...next[index], ...parsed };
-          return next;
-        }
-        return prevDevices;
-      });
-
-      setCurrentDevice(prev => {
-        if (!prev) return parsed;
-        if (prev.id === targetId || prev.serialNumber === targetId || !targetId) {
-          return { ...prev, ...parsed };
-        }
-        return prev;
-      });
-    });
-
-    return () => {
-      unsubscribe();
-    };
   }, [user]);
 
   if (authLoading) {

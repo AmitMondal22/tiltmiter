@@ -4,7 +4,7 @@ import { parseTelemetry } from '../utils/telemetryHelper';
 class TelemetryManager {
   constructor() {
     this.socket = null;
-    this.subscribers = new Map(); // id -> { callback, deviceId }
+    this.subscribers = new Map(); // id -> { callback, targetDeviceId }
     this.statusListeners = new Set();
     this.reconnectTimer = null;
     this.heartbeatTimer = null;
@@ -19,9 +19,15 @@ class TelemetryManager {
   }
 
   // Subscribe to live telemetry packets with optional device filter
+  // Automatically connects WebSocket on 1st subscriber, and disconnects when all subscribers leave
   subscribe(callback, targetDeviceId = null) {
     const id = ++this.subIdCounter;
     this.subscribers.set(id, { callback, targetDeviceId });
+
+    // Auto-connect WebSocket when a telemetry page opens (first subscriber)
+    if (!this.isConnected && !this.isConnecting) {
+      this.connect();
+    }
 
     // Instantly provide cached telemetry if available for this device
     if (targetDeviceId && this.latestByDevice.has(targetDeviceId)) {
@@ -34,9 +40,20 @@ class TelemetryManager {
       } catch (e) {}
     }
 
+    // If already open, request fresh latest data
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.requestLatest(targetDeviceId);
+    }
+
     // Return clean unsubscribe function
     return () => {
       this.subscribers.delete(id);
+
+      // Auto-disconnect WebSocket when user navigates away from telemetry pages (0 subscribers)
+      if (this.subscribers.size === 0) {
+        console.log('🔌 Page changed / no telemetry subscribers: Closing WebSocket connection.');
+        this.disconnect();
+      }
     };
   }
 
@@ -107,10 +124,12 @@ class TelemetryManager {
         this.reconnectAttempts = 0;
         this.startHeartbeat();
         this.notifyStatus();
-        console.log('⚡ Single Common Telemetry WebSocket connected:', wsUrl);
+        console.log('⚡ Telemetry WebSocket connected:', wsUrl);
 
-        // Fast initial data request
-        this.requestLatest();
+        // Fast initial data request for any active subscribers
+        this.subscribers.forEach(({ targetDeviceId }) => {
+          this.requestLatest(targetDeviceId);
+        });
       };
 
       this.socket.onmessage = (event) => {
@@ -146,7 +165,8 @@ class TelemetryManager {
         this.notifyStatus();
         this.socket = null;
 
-        if (this.shouldStayConnected) {
+        // Only reconnect if we still have active page subscribers
+        if (this.shouldStayConnected && this.subscribers.size > 0) {
           this.scheduleReconnect();
         }
       };
@@ -155,7 +175,7 @@ class TelemetryManager {
       this.isConnecting = false;
       this.socket = null;
       this.notifyStatus();
-      if (this.shouldStayConnected) {
+      if (this.shouldStayConnected && this.subscribers.size > 0) {
         this.scheduleReconnect();
       }
     }
@@ -163,11 +183,13 @@ class TelemetryManager {
 
   scheduleReconnect() {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.subscribers.size === 0) return;
+
     const delay = Math.min(this.baseDelay * Math.pow(1.4, this.reconnectAttempts), 8000);
     this.reconnectAttempts++;
 
     this.reconnectTimer = setTimeout(() => {
-      if (this.shouldStayConnected) {
+      if (this.shouldStayConnected && this.subscribers.size > 0) {
         this.connect();
       }
     }, delay);

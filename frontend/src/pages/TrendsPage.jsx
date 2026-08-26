@@ -119,7 +119,7 @@ export default function TrendsPage() {
           return [...prev, newPoint].slice(-80);
         });
       }
-    });
+    }, selectedDeviceId);
 
     return () => {
       unsubscribe();

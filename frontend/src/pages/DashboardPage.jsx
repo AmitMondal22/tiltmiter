@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Shield, Battery, Signal, Sun, ExternalLink, Clock
 } from 'lucide-react';
@@ -9,9 +9,13 @@ import TiltPositionVisualizer from '../components/TiltPositionVisualizer';
 import AlarmSummaryWidget from '../components/AlarmSummaryWidget';
 import SensorHealthWidget from '../components/SensorHealthWidget';
 import RecentEventsWidget from '../components/RecentEventsWidget';
+import { telemetryService } from '../services/telemetryManager';
+import { parseTelemetry } from '../utils/telemetryHelper';
 
 export default function DashboardPage({ devices = [], currentDevice, onSelectDevice }) {
-  const activeDevice = currentDevice || devices[0] || {
+  const [liveOverride, setLiveOverride] = useState(null);
+
+  const baseDevice = currentDevice || devices[0] || {
     id: 'TILTM00001',
     name: 'Tilt Meter 001',
     siteId: 'SITE-KB01',
@@ -20,6 +24,29 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     battery: '92%',
     signalStrength: '-65 dBm',
   };
+
+  const activeDevice = liveOverride && (liveOverride.id === baseDevice.id || liveOverride.deviceId === baseDevice.id)
+    ? { ...baseDevice, ...liveOverride }
+    : baseDevice;
+
+  // Real-time WebSocket connection while Dashboard is open; automatically disconnects on page change
+  useEffect(() => {
+    const unsubscribe = telemetryService.subscribe((packet) => {
+      if (!packet) return;
+      const targetId = packet.deviceId || packet.id;
+      if (!targetId || targetId === baseDevice.id || targetId === baseDevice.serialNumber) {
+        const parsed = parseTelemetry(packet);
+        setLiveOverride(parsed);
+        if (onSelectDevice) {
+          onSelectDevice(prev => (prev ? { ...prev, ...parsed } : parsed));
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [baseDevice.id]);
 
   const lastSyncTime = activeDevice.timestamp 
     ? new Date(activeDevice.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })

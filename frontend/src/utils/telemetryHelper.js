@@ -54,9 +54,16 @@ export function parseTelemetry(data) {
   const temp = data.environment?.temperature ?? (typeof data.temperature === 'number' ? data.temperature : parseFloat(data.temperature) || 28.12);
   const calibrated = data.calibration?.calibrated ?? false;
 
-  // Power & Network Diagnostics
-  const batteryVoltage = data.power?.batteryVoltage ?? (typeof data.batteryVoltage === 'number' ? data.batteryVoltage : parseFloat(data.batteryVoltage) || 13.03);
-  const csq = data.network?.csq ?? (typeof data.csq === 'number' ? data.csq : parseInt(data.csq) || 19);
+  // Power & Battery Percentage calculation: 13V is 100%, 0V is 0%, min 0%, max 100%
+  const batteryVoltage = data.power?.batteryVoltage ?? (typeof data.batteryVoltage === 'number' ? data.batteryVoltage : parseFloat(data.batteryVoltage) || (typeof data.battery === 'number' ? data.battery : parseFloat(data.battery)) || 13.03);
+  const batteryPercent = Math.min(100, Math.max(0, Math.round((batteryVoltage / 13) * 100)));
+  const batteryStr = `${batteryPercent}%`;
+
+  // Network & CSQ Percentage calculation: 31 CSQ is 100%, 0 CSQ is 0%, min 0%, max 100%
+  const csq = data.network?.csq ?? (typeof data.csq === 'number' ? data.csq : parseInt(data.csq) || (typeof data.signal === 'number' ? data.signal : parseInt(data.signal)) || 19);
+  const csqPercent = Math.min(100, Math.max(0, Math.round((csq / 31) * 100)));
+  const csqStr = `${csqPercent}%`;
+  const signalStr = `${csqPercent}% (${csq} CSQ)`;
 
   // Calculate cardinal tilt direction angle
   const angleRad = Math.atan2(pitch, roll);
@@ -119,10 +126,21 @@ export function parseTelemetry(data) {
     // Environment & Power & Network & Calibration
     temp,
     temperature: typeof temp === 'number' ? `${temp} °C` : temp,
+
+    // Power
+    battery: batteryStr,
+    batteryPercent,
     batteryVoltage,
+    batteryVoltageFormatted: `${batteryVoltage.toFixed(2)} V`,
+    power: { batteryVoltage, batteryPercent },
+
+    // Network
+    signal: csqStr,
+    signalStrength: signalStr,
     csq,
-    power: { batteryVoltage },
-    network: { csq },
+    csqPercent,
+    network: { csq, csqPercent },
+
     calibrated,
     environment: { temperature: temp },
     calibration: { calibrated },

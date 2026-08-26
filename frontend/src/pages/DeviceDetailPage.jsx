@@ -238,12 +238,12 @@ export default function DeviceDetailPage() {
         <div className="flex items-center gap-2 text-xs">
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{device?.battery || '100%'}</span>
+            <span>{d.battery || device?.battery || '100%'}</span>
           </div>
 
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Signal className="w-3.5 h-3.5 text-blue-600" />
-            <span>{device?.signalStrength || device?.signal || '14'}</span>
+            <span>{d.signalStrength || d.signal || device?.signalStrength || '100%'}</span>
           </div>
 
           <button

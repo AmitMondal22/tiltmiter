@@ -119,13 +119,13 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           {/* Battery Level */}
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold shadow-2xs">
             <Battery className="w-4 h-4 text-emerald-600" />
-            <span>{activeDevice.battery || '92%'}</span>
+            <span>{activeDevice.battery || '100%'}</span>
           </div>
 
           {/* Signal Strength */}
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-semibold shadow-2xs">
             <Signal className="w-4 h-4 text-blue-600" />
-            <span>{activeDevice.signalStrength || '-65 dBm'}</span>
+            <span>{activeDevice.signalStrength || activeDevice.signal || '100%'}</span>
           </div>
 
           {/* Sun Icon */}

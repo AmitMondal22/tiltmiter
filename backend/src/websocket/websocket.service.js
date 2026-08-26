@@ -75,8 +75,13 @@ async function sendInitialData(socket, targetDeviceId) {
 
 function handleClientConnection(connection, req) {
   const socket = connection.socket || connection;
-  const urlObj = new URL(req.url, 'http://localhost');
-  const targetDeviceId = urlObj.searchParams.get('deviceId') || null;
+  let targetDeviceId = req.params?.deviceId || req.query?.deviceId || null;
+  if (!targetDeviceId && req.url) {
+    try {
+      const urlObj = new URL(req.url, 'http://localhost');
+      targetDeviceId = urlObj.searchParams.get('deviceId') || null;
+    } catch (e) {}
+  }
 
   socket.targetDeviceId = targetDeviceId;
   clients.add(socket);
@@ -120,9 +125,12 @@ function handleClientConnection(connection, req) {
 }
 
 export function registerWebSocketHandler(fastify) {
-  // Support standard and proxy routing paths
+  // Support standard, query-string and path-parameter routing paths
   fastify.get('/ws/telemetry', { websocket: true }, handleClientConnection);
+  fastify.get('/ws/telemetry/:deviceId', { websocket: true }, handleClientConnection);
   fastify.get('/api/ws/telemetry', { websocket: true }, handleClientConnection);
+  fastify.get('/api/ws/telemetry/:deviceId', { websocket: true }, handleClientConnection);
+  fastify.get('/ws/:deviceId', { websocket: true }, handleClientConnection);
   fastify.get('/ws', { websocket: true }, handleClientConnection);
 
   // Keepalive heartbeat ping every 25 seconds

@@ -7,12 +7,7 @@ import { ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, To
 import { getDevices, getTelemetryHistory, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
-
-// Helper to format local Date object to `YYYY-MM-DDTHH:mm` for datetime-local inputs
-const formatLocalDatetime = (d) => {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+import { formatLocalDatetime, formatTimeString } from '../utils/dateHelper';
 
 export default function TrendsPage() {
   const cardCls = 'rounded-2xl border border-slate-200/80 bg-white p-4 text-slate-800 shadow-xs';

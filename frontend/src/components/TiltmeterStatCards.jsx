@@ -18,6 +18,8 @@ function Spark({ data, color, width = 64, height = 20 }) {
 
 const n = (val, def = 0) => (typeof val === 'number' && !isNaN(val) ? val : (parseFloat(val) || def));
 
+import { formatFullDateTime } from '../utils/dateHelper';
+
 export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const d = parseTelemetry(rawDevice);
 
@@ -26,18 +28,6 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const resT = n(d.resultantTilt, 1.83);
   const dirC = d.tiltDirectionCardinal || 'NW';
   const totD = n(d.totalDisplacement, 30.00);
-
-  const formatFullDateTime = (ts) => {
-    if (!ts) return new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-    try {
-      const dateObj = new Date(ts);
-      return isNaN(dateObj.getTime())
-        ? new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
-        : dateObj.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-    } catch (e) {
-      return String(ts);
-    }
-  };
 
   const lastFullDateTime = formatFullDateTime(d.timestamp);
 

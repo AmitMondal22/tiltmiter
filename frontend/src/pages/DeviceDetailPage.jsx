@@ -8,13 +8,8 @@ import {
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
+import { formatLocalDatetime, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
-
-// Helper to format local Date object to `YYYY-MM-DDTHH:mm` for datetime-local inputs
-const formatLocalDatetime = (d) => {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 export default function DeviceDetailPage() {
   const { deviceId } = useParams();

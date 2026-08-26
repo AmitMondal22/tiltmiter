@@ -67,7 +67,7 @@ export async function devicesRoutes(fastify) {
     }
   });
 
-  // Create Device (with minimum sleep_count >= 60 validation)
+  // Create Device (with minimum sleep_count >= 15 validation)
   fastify.post('/api/devices', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
     try {
       const {
@@ -78,12 +78,12 @@ export async function devicesRoutes(fastify) {
         sleep_count, wake_count, calibrate
       } = req.body;
 
-      const parsedSleep = sleep_count !== undefined ? parseInt(sleep_count) : 60;
-      if (parsedSleep < 60) {
+      const parsedSleep = sleep_count !== undefined ? parseInt(sleep_count) : 15;
+      if (parsedSleep < 15) {
         return reply.status(400).send({
           statusCode: 400,
           error: 'Validation Error',
-          message: 'Sleep count must be at least 60 minutes.'
+          message: 'Sleep count must be at least 15 minutes.'
         });
       }
 
@@ -125,7 +125,7 @@ export async function devicesRoutes(fastify) {
     }
   });
 
-  // Update Device / Configure (with minimum sleep_count >= 60 validation)
+  // Update Device / Configure (with minimum sleep_count >= 15 validation)
   fastify.put('/api/devices/:id', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -134,11 +134,11 @@ export async function devicesRoutes(fastify) {
 
       if (req.body.sleep_count !== undefined) {
         const parsedSleep = parseInt(req.body.sleep_count);
-        if (parsedSleep < 60) {
+        if (parsedSleep < 15) {
           return reply.status(400).send({
             statusCode: 400,
             error: 'Validation Error',
-            message: 'Sleep count must be at least 60 minutes.'
+            message: 'Sleep count must be at least 15 minutes.'
           });
         }
       }

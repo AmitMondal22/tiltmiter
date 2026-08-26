@@ -28,14 +28,14 @@ export default function DevicesPage() {
     structureId: '',
     macAddress: '',
     status: 'ONLINE',
-    sleep_count: 60,
+    sleep_count: 15,
     wake_count: 30,
     calibrate: false,
   });
 
   const [configForm, setConfigForm] = useState({
-    sleep_count: 60,
-    wake_count: 30,
+    sleep_count: '',
+    wake_count: '',
     calibrate: false,
   });
 
@@ -71,7 +71,7 @@ export default function DevicesPage() {
       structureId: '',
       macAddress: 'AA:BB:CC:DD:EE:FF',
       status: 'ONLINE',
-      sleep_count: 60,
+      sleep_count: 15,
       wake_count: 30,
       calibrate: false,
     });
@@ -89,9 +89,9 @@ export default function DevicesPage() {
       structureId: dev.structureId || '',
       macAddress: dev.macAddress || '',
       status: dev.status || 'ONLINE',
-      sleep_count: Math.max(60, dev.sleep_count || 60),
-      wake_count: dev.wake_count || 30,
-      calibrate: dev.calibrate || false,
+      sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
+      wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
+      calibrate: Boolean(dev.calibrate),
     });
     setModalOpen(true);
   };
@@ -100,29 +100,35 @@ export default function DevicesPage() {
     e?.stopPropagation();
     setSelectedDevice(dev);
     setConfigForm({
-      sleep_count: Math.max(60, dev.sleep_count || 60),
-      wake_count: dev.wake_count || 30,
-      calibrate: dev.calibrate || false,
+      sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
+      wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
+      calibrate: Boolean(dev.calibrate),
     });
     setConfigModalOpen(true);
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    if (formData.sleep_count < 60) {
-      setMsg({ type: 'error', text: 'Sleep count must be at least 60 minutes (60M minimum).' });
+    const sleepVal = Number(formData.sleep_count);
+    if (!sleepVal || sleepVal < 15) {
+      setMsg({ type: 'error', text: 'Sleep count must be at least 15 minutes (15M minimum).' });
       return;
     }
+    const payload = {
+      ...formData,
+      sleep_count: sleepVal,
+      wake_count: Number(formData.wake_count) || 30,
+    };
     try {
       if (editingDevice) {
-        await updateDevice(editingDevice.id, formData);
-        setDevicesList(prev => prev.map(d => d.id === editingDevice.id ? { ...d, ...formData } : d));
-        setMsg({ type: 'success', text: `Device ${formData.id} updated.` });
+        await updateDevice(editingDevice.id, payload);
+        setDevicesList(prev => prev.map(d => d.id === editingDevice.id ? { ...d, ...payload } : d));
+        setMsg({ type: 'success', text: `Device ${payload.id} updated.` });
       } else {
-        const res = await createDevice(formData);
-        const newDev = res?.device || { ...formData, battery: '100%', signal: '14' };
+        const res = await createDevice(payload);
+        const newDev = res?.device || { ...payload, battery: '100%', signal: '14' };
         setDevicesList(prev => [...prev, newDev]);
-        setMsg({ type: 'success', text: `Device ${formData.id} created successfully.` });
+        setMsg({ type: 'success', text: `Device ${payload.id} created successfully.` });
       }
       setModalOpen(false);
     } catch (err) {
@@ -134,13 +140,20 @@ export default function DevicesPage() {
 
   const handleSaveConfig = async (e) => {
     e.preventDefault();
-    if (configForm.sleep_count < 60) {
-      setMsg({ type: 'error', text: 'Sleep count must be at least 60 minutes (60M minimum).' });
+    const sleepVal = Number(configForm.sleep_count);
+    const wakeVal = Number(configForm.wake_count);
+    if (!sleepVal || sleepVal < 15) {
+      setMsg({ type: 'error', text: 'Sleep count must be at least 15 minutes (15M minimum).' });
       return;
     }
+    const payload = {
+      ...configForm,
+      sleep_count: sleepVal,
+      wake_count: wakeVal > 0 ? wakeVal : 30,
+    };
     try {
-      await configureDeviceTelemetry(selectedDevice.id, configForm);
-      setDevicesList(prev => prev.map(d => d.id === selectedDevice.id ? { ...d, ...configForm } : d));
+      await configureDeviceTelemetry(selectedDevice.id, payload);
+      setDevicesList(prev => prev.map(d => d.id === selectedDevice.id ? { ...d, ...payload } : d));
       setMsg({ type: 'success', text: `Configuration deployed to ${selectedDevice.id}.` });
       setConfigModalOpen(false);
     } catch (err) {
@@ -383,7 +396,7 @@ export default function DevicesPage() {
                 <h3 className="text-base font-bold text-slate-900">
                   Configure Device {selectedDevice.id}
                 </h3>
-                <p className="text-xs text-slate-500 font-medium">Sampling Rate (Min 60M) & Calibration Parameters</p>
+                <p className="text-xs text-slate-500 font-medium">Sampling Interval (Min 15M) & Parameters</p>
               </div>
               <button onClick={() => setConfigModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer">
                 <X className="w-5 h-5" />
@@ -396,33 +409,45 @@ export default function DevicesPage() {
                   <label className="font-semibold text-slate-700">
                     Sleep Count (Minutes)
                   </label>
-                  <span className="text-[10px] font-mono text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded">
-                    Min 60M
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                      Current: {selectedDevice?.sleep_count !== undefined ? selectedDevice.sleep_count : '-'}M
+                    </span>
+                    <span className="text-[10px] font-mono text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                      Min 15M
+                    </span>
+                  </div>
+                </div>
+                <input
+                  type="number"
+                  required
+                  min="15"
+                  max="1440"
+                  placeholder="e.g. 15"
+                  value={configForm.sleep_count}
+                  onChange={e => setConfigForm({ ...configForm, sleep_count: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Minimum allowed interval is 15 minutes.</p>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-slate-700 font-semibold">
+                    Wake Count (Seconds)
+                  </label>
+                  <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                    Current: {selectedDevice?.wake_count !== undefined ? selectedDevice.wake_count : '-'}s
                   </span>
                 </div>
                 <input
                   type="number"
                   required
-                  min="60"
-                  max="1440"
-                  value={configForm.sleep_count}
-                  onChange={e => setConfigForm({ ...configForm, sleep_count: parseInt(e.target.value) || 60 })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Minimum allowed value is 60 minutes.</p>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">
-                  Wake Count (Seconds)
-                </label>
-                <input
-                  type="number"
-                  required
                   min="1"
                   max="3600"
+                  placeholder="e.g. 30"
                   value={configForm.wake_count}
-                  onChange={e => setConfigForm({ ...configForm, wake_count: parseInt(e.target.value) || 30 })}
+                  onChange={e => setConfigForm({ ...configForm, wake_count: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
               </div>
@@ -430,7 +455,9 @@ export default function DevicesPage() {
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-slate-900">Calibrate Zero Offset</div>
-                  <div className="text-[11px] text-slate-500">Recalibrate MEMS zero tilt reference</div>
+                  <div className="text-[11px] text-slate-500">
+                    Current: {selectedDevice?.calibrate ? 'Calibrated (Active)' : 'Standard / Uncalibrated'}
+                  </div>
                 </div>
                 <input
                   type="checkbox"

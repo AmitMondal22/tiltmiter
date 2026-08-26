@@ -15,7 +15,7 @@ import {
   CheckCircle,
   ChevronsUpDown
 } from 'lucide-react';
-import appLogo from '../assets/logo/logo.png';
+import appLogo from '../assets/logo/logo250x150.png';
 
 const NAV_ITEMS = [
   { id: 'dashboard', path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -55,14 +55,14 @@ export default function Sidebar({
           }`}
       >
         {/* Top Logo & Platform Title */}
-        <div className="p-5 pb-3">
+        <div className="p-4 pb-2">
           <div className="flex items-center gap-3">
             {/* Logo Image */}
-            <div className="h-10 flex items-center justify-start">
+            <div className="h-12 flex items-center justify-start">
               <img
                 src={appLogo}
                 alt="Logo"
-                className="max-h-10 max-w-full object-contain"
+                className="max-h-12 max-w-full object-contain"
               />
             </div>
           </div>

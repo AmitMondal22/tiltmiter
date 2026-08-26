@@ -63,7 +63,7 @@ export function parseTelemetry(data) {
   const csq = data.network?.csq ?? (typeof data.csq === 'number' ? data.csq : parseInt(data.csq) || (typeof data.signal === 'number' ? data.signal : parseInt(data.signal)) || 19);
   const csqPercent = Math.min(100, Math.max(0, Math.round((csq / 31) * 100)));
   const csqStr = `${csqPercent}%`;
-  const signalStr = `${csqPercent}% (${csq} CSQ)`;
+  const signalStr = `${csqPercent}%`;
 
   // Calculate cardinal tilt direction angle
   const angleRad = Math.atan2(pitch, roll);

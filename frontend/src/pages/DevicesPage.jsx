@@ -250,11 +250,11 @@ export default function DevicesPage() {
                         <div className="text-slate-800">{struct?.name || 'No Asset Attached'}</div>
                         <div className="text-[11px] text-slate-500">{site?.name || dev.siteId || 'Standalone'}</div>
                       </td>
-                      <td className="py-3.5 px-3.5 font-mono">
-                        {dev.battery || '100%'}
+                      <td className="py-3.5 px-3.5 font-mono text-emerald-600 font-semibold">
+                        {dev.battery?.includes('%') ? dev.battery : `${Math.min(100, Math.max(0, Math.round(((parseFloat(dev.battery) || 13) / 13) * 100)))}%`}
                       </td>
-                      <td className="py-3.5 px-3.5 font-mono">
-                        {dev.signalStrength || dev.signal || '14'}
+                      <td className="py-3.5 px-3.5 font-mono text-blue-600 font-semibold">
+                        {dev.signal?.includes('%') ? dev.signal : (dev.signalStrength?.includes('%') ? dev.signalStrength : `${Math.min(100, Math.max(0, Math.round(((parseInt(dev.signal || dev.signalStrength) || 19) / 31) * 100)))}%`)}
                       </td>
                       <td className="py-3.5 px-3.5 font-mono text-[11px]">
                         {dev.sleep_count || 60}M / {dev.wake_count || 30}S

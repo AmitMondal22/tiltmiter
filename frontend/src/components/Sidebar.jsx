@@ -55,16 +55,13 @@ export default function Sidebar({
           }`}
       >
         {/* Top Logo & Platform Title */}
-        <div className="p-4 pb-2">
-          <div className="flex items-center gap-3">
-            {/* Logo Image */}
-            <div className="h-12 flex items-center justify-start">
-              <img
-                src={appLogo}
-                alt="Logo"
-                className="max-h-12 max-w-full object-contain"
-              />
-            </div>
+        <div className="p-4 pb-3 border-b border-slate-100 flex items-center justify-center w-full">
+          <div className="w-full flex items-center justify-center">
+            <img
+              src={appLogo}
+              alt="Logo"
+              className="w-full max-h-16 object-contain"
+            />
           </div>
         </div>
 

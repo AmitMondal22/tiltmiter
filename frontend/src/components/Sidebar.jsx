@@ -15,7 +15,7 @@ import {
   CheckCircle,
   ChevronsUpDown
 } from 'lucide-react';
-import till360Logo from '../assets/logo/till360.png';
+import appLogo from '../assets/logo/logo.png';
 
 const NAV_ITEMS = [
   { id: 'dashboard', path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -58,14 +58,13 @@ export default function Sidebar({
         <div className="p-5 pb-3">
           <div className="flex items-center gap-3">
             {/* Logo Image */}
-            <div className="h-10 flex items-center justify-center">
+            <div className="h-10 flex items-center justify-start">
               <img
-                src={till360Logo}
-                alt="Tilt360 Logo"
-                className="max-h-9 max-w-full object-contain"
+                src={appLogo}
+                alt="Logo"
+                className="max-h-10 max-w-full object-contain"
               />
             </div>
-
           </div>
         </div>
 

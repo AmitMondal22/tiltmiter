@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Lock, User, CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import till360Logo from '../assets/logo/till360.png';
+import appLogo from '../assets/logo/logo.png';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -44,9 +44,9 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center space-y-3">
           <div className="h-16 flex items-center justify-center">
             <img
-              src={till360Logo}
-              alt="Tilt360 Logo"
-              className="max-h-14 max-w-full object-contain"
+              src={appLogo}
+              alt="Logo"
+              className="max-h-16 max-w-full object-contain"
             />
           </div>
           <div>

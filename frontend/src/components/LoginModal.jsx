@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Lock, User, CheckCircle2, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import appLogo from '../assets/logo/logo.png';
 
 export default function LoginModal({ isOpen, onClose, forceOpen }) {
   const { login } = useAuth();
@@ -42,20 +43,16 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
         {/* Logo & Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-black text-white flex items-center justify-center shadow-xs flex-shrink-0">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" />
-                <path d="M12 3v3" />
-                <path d="M12 18v3" />
-                <path d="M3 12h3" />
-                <path d="M18 12h3" />
-                <circle cx="12" cy="12" r="2.5" fill="currentColor" />
-                <path d="M8 8l8 8" strokeWidth="1.5" strokeDasharray="1 1.5" />
-              </svg>
+            <div className="h-10 flex items-center justify-center">
+              <img
+                src={appLogo}
+                alt="Logo"
+                className="max-h-10 max-w-full object-contain"
+              />
             </div>
             <div>
-              <h2 className="text-lg font-black text-black">TiltMeter Sign In</h2>
-              <p className="text-xs text-slate-600 font-bold">Inclinometer Monitoring Platform</p>
+              <h2 className="text-base font-bold text-slate-900">Sign In</h2>
+              <p className="text-xs text-slate-500 font-medium">Inclinometer Monitoring Platform</p>
             </div>
           </div>
           {!forceOpen && onClose && (

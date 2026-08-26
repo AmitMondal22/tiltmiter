@@ -232,26 +232,30 @@ class TelemetryManager {
 
   disconnect() {
     this.shouldStayConnected = false;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.stopHeartbeat();
 
     if (this.socket) {
-      if (this.socket.readyState === WebSocket.CONNECTING) {
-        const s = this.socket;
-        s.onopen = () => {
-          try { s.close(); } catch (e) {}
-        };
-      } else if (this.socket.readyState === WebSocket.OPEN) {
-        try {
-          this.socket.close();
-        } catch (e) {}
-      }
+      const s = this.socket;
       this.socket = null;
+      try {
+        s.onopen = null;
+        s.onmessage = null;
+        s.onerror = null;
+        s.onclose = null;
+        if (s.readyState === WebSocket.OPEN || s.readyState === WebSocket.CONNECTING) {
+          s.close();
+        }
+      } catch (e) {}
     }
 
     this.isConnected = false;
     this.isConnecting = false;
     this.notifyStatus();
+    console.log('🔌 WebSocket disconnected and resources released.');
   }
 }
 

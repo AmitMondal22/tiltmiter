@@ -30,6 +30,22 @@ export async function saveTelemetryPoint(data) {
   const csq = parseInt(data.csq ?? data.network?.csq ?? 19);
 
   const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+  if (isNaN(timestamp.getTime())) {
+    console.warn(`[Telemetry] Invalid timestamp received for ${deviceId}, skipping storage.`);
+    return;
+  }
+  const isoTimestamp = timestamp.toISOString();
+
+  // Check in-memory store for duplicate timestamp
+  if (!inMemoryTelemetryStore.has(deviceId)) {
+    inMemoryTelemetryStore.set(deviceId, []);
+  }
+  const deviceHistory = inMemoryTelemetryStore.get(deviceId);
+  const isDuplicate = deviceHistory.some(pt => pt.timestamp === isoTimestamp);
+  if (isDuplicate) {
+    // Skip duplicate point with identical timestamp
+    return;
+  }
 
   // 1. Write Telemetry Point to InfluxDB OSS Database
   try {
@@ -52,28 +68,34 @@ export async function saveTelemetryPoint(data) {
 
     writeApi.writePoint(point);
   } catch (err) {
-    // InfluxDB OSS connection fallback
+    console.warn(`[InfluxDB OSS Write Error] Device ${deviceId}: ${err.message}`);
   }
 
   // 2. Mirror into PostgreSQL for relational audit table & Device status
   try {
-    await TelemetryRecord.create({
-      deviceId,
-      timestamp,
-      xTilt,
-      yTilt,
-      resultantTilt,
-      xDisplacement,
-      yDisplacement,
-      zDisplacement,
-      totalDisplacement,
-      temperature: tempVal,
-      acceleration: data.acceleration || null,
-      gyroscope: data.gyroscope || null,
-      vibration: data.vibration || null,
-      displacement: data.displacement || null,
-      rawPayload: data.rawPayload || data,
+    const existing = await TelemetryRecord.findOne({
+      where: { deviceId, timestamp }
     });
+
+    if (!existing) {
+      await TelemetryRecord.create({
+        deviceId,
+        timestamp,
+        xTilt,
+        yTilt,
+        resultantTilt,
+        xDisplacement,
+        yDisplacement,
+        zDisplacement,
+        totalDisplacement,
+        temperature: tempVal,
+        acceleration: data.acceleration || null,
+        gyroscope: data.gyroscope || null,
+        vibration: data.vibration || null,
+        displacement: data.displacement || null,
+        rawPayload: data.rawPayload || data,
+      });
+    }
 
     await Device.upsert({
       id: deviceId,
@@ -90,16 +112,14 @@ export async function saveTelemetryPoint(data) {
       status: data.tiltStatus || 'ONLINE',
       lastSeen: timestamp,
     });
-  } catch (err) {}
-
-  // 3. Save in in-memory time-series ring buffer (last 100 points)
-  if (!inMemoryTelemetryStore.has(deviceId)) {
-    inMemoryTelemetryStore.set(deviceId, []);
+  } catch (err) {
+    console.error(`[PostgreSQL Telemetry Error] Failed to persist ${deviceId} at ${isoTimestamp}:`, err.message);
   }
-  const deviceHistory = inMemoryTelemetryStore.get(deviceId);
+
+  // 3. Save in in-memory time-series ring buffer (last 100 distinct points)
   deviceHistory.push({
     time: timestamp.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-    timestamp: timestamp.toISOString(),
+    timestamp: isoTimestamp,
     deviceId,
     tiltX: xTilt,
     tiltY: yTilt,

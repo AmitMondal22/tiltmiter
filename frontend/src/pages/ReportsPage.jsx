@@ -84,14 +84,28 @@ export default function ReportsPage({ currentDevice }) {
     getReportsAnalytics(filters)
       .then(res => {
         if (res?.timeSeriesData?.length) {
-          setReportRows(res.timeSeriesData);
+          const seen = new Set();
+          const uniqueRows = res.timeSeriesData.filter(r => {
+            const ts = r.timestamp || r.time;
+            if (ts && seen.has(ts)) return false;
+            if (ts) seen.add(ts);
+            return true;
+          });
+          setReportRows(uniqueRows);
           setSummaryStats(res.summary || null);
         } else {
           // Fallback to getTelemetryHistory
           getTelemetryHistory(devId, utcFrom, utcTo)
             .then(tRes => {
               if (tRes?.history?.length) {
-                setReportRows(tRes.history);
+                const seen = new Set();
+                const uniqueRows = tRes.history.filter(r => {
+                  const ts = r.timestamp || r.time;
+                  if (ts && seen.has(ts)) return false;
+                  if (ts) seen.add(ts);
+                  return true;
+                });
+                setReportRows(uniqueRows);
               } else {
                 setReportRows([]);
               }
@@ -104,7 +118,14 @@ export default function ReportsPage({ currentDevice }) {
         getTelemetryHistory(devId, utcFrom, utcTo)
           .then(tRes => {
             if (tRes?.history?.length) {
-              setReportRows(tRes.history);
+              const seen = new Set();
+              const uniqueRows = tRes.history.filter(r => {
+                const ts = r.timestamp || r.time;
+                if (ts && seen.has(ts)) return false;
+                if (ts) seen.add(ts);
+                return true;
+              });
+              setReportRows(uniqueRows);
             } else {
               setReportRows([]);
             }

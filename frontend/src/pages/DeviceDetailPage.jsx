@@ -64,19 +64,26 @@ export default function DeviceDetailPage() {
     getDeviceTelemetry(id, utcFrom, utcTo)
       .then(res => {
         if (res?.history?.length) {
-          const mapped = res.history.map(pt => ({
-            time: pt.time || formatTimeString(pt.timestamp),
-            timestamp: pt.timestamp || pt.time,
-            resultant: parseFloat(pt.resultant || pt.resultantTilt || 0),
-            xTilt: parseFloat(pt.xTilt || pt.tiltX || 0),
-            yTilt: parseFloat(pt.yTilt || pt.tiltY || 0),
-            totalDisp: parseFloat(pt.totalDisp || pt.totalDisplacement || 0),
-            xDisp: parseFloat(pt.xDisp || pt.xDisplacement || 0),
-            yDisp: parseFloat(pt.yDisp || pt.yDisplacement || 0),
-            zDisp: parseFloat(pt.zDisp || pt.zDisplacement || 0),
-            vibRMS: parseFloat(pt.vibRMS || pt.vibrationRMS || 0.045),
-            vibPeak: parseFloat(pt.vibPeak || pt.vibrationPeak || 0.104),
-          }));
+          const seen = new Set();
+          const mapped = [];
+          for (const pt of res.history) {
+            const ts = pt.timestamp || pt.time;
+            if (ts && seen.has(ts)) continue;
+            if (ts) seen.add(ts);
+            mapped.push({
+              time: pt.time || formatTimeString(pt.timestamp),
+              timestamp: pt.timestamp || pt.time,
+              resultant: parseFloat(pt.resultant || pt.resultantTilt || 0),
+              xTilt: parseFloat(pt.xTilt || pt.tiltX || 0),
+              yTilt: parseFloat(pt.yTilt || pt.tiltY || 0),
+              totalDisp: parseFloat(pt.totalDisp || pt.totalDisplacement || 0),
+              xDisp: parseFloat(pt.xDisp || pt.xDisplacement || 0),
+              yDisp: parseFloat(pt.yDisp || pt.yDisplacement || 0),
+              zDisp: parseFloat(pt.zDisp || pt.zDisplacement || 0),
+              vibRMS: parseFloat(pt.vibRMS || pt.vibrationRMS || 0.045),
+              vibPeak: parseFloat(pt.vibPeak || pt.vibrationPeak || 0.104),
+            });
+          }
           setTelemetryHistory(mapped);
           const lastPoint = mapped[mapped.length - 1];
           if (lastPoint) {
@@ -103,6 +110,9 @@ export default function DeviceDetailPage() {
         const parsed = parseTelemetry(packet);
         setLiveData(parsed);
         setTelemetryHistory(prev => {
+          if (prev.some(p => p.timestamp === parsed.timestamp)) {
+            return prev; // Skip duplicate timestamp
+          }
           const newPoint = {
             time: formatTimeString(parsed.timestamp),
             timestamp: parsed.timestamp,

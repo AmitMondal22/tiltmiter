@@ -65,6 +65,7 @@ export const TelemetryRecord = sequelize.define('TelemetryRecord', {
   timestamps: false,
   indexes: [
     {
+      unique: true,
       fields: ['deviceId', 'timestamp'],
     },
     {

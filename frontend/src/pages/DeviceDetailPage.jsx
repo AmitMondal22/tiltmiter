@@ -57,17 +57,17 @@ export default function DeviceDetailPage() {
         setDevice({ id: deviceId, name: `Tiltmeter ${deviceId}`, status: 'ONLINE' });
       });
 
-    loadHistory(deviceId, fromDateTime, toDateTime);
+    loadHistory(deviceId, null, null, activeFilter);
   }, [deviceId]);
 
-  const loadHistory = (id, fromDt = fromDateTime, toDt = toDateTime) => {
+  const loadHistory = (id, fromDt = null, toDt = null, rangeKey = activeFilter) => {
     if (!id) return;
     setLoading(true);
 
-    const utcFrom = istDatetimeToUTC(fromDt);
-    const utcTo = istDatetimeToUTC(toDt);
+    const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
+    const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
 
-    getDeviceTelemetry(id, utcFrom, utcTo)
+    getDeviceTelemetry(id, utcFrom, utcTo, rangeKey)
       .then(res => {
         if (res?.history?.length) {
           const seen = new Set();
@@ -92,7 +92,12 @@ export default function DeviceDetailPage() {
             });
           }
           setTelemetryHistory(mapped);
+          const firstPoint = mapped[0];
           const lastPoint = mapped[mapped.length - 1];
+          if (firstPoint?.timestamp && lastPoint?.timestamp && rangeKey) {
+            setFromDateTime(formatISTDatetimeLocal(new Date(firstPoint.timestamp)));
+            setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
+          }
           if (lastPoint) {
             setLiveData(prev => prev || parseTelemetry(lastPoint));
           }
@@ -144,43 +149,16 @@ export default function DeviceDetailPage() {
     };
   }, [deviceId]);
 
-  // Get the most recent available telemetry timestamp for this device
-  const getLatestAvailableTime = () => {
-    if (telemetryHistory.length > 0) {
-      const last = telemetryHistory[telemetryHistory.length - 1];
-      const ts = last?.timestamp || last?.time;
-      if (ts) {
-        const dt = new Date(ts);
-        if (!isNaN(dt.getTime())) return dt;
-      }
-    }
-    if (liveData?.timestamp) {
-      const dt = new Date(liveData.timestamp);
-      if (!isNaN(dt.getTime())) return dt;
-    }
-    if (device?.lastSeen) {
-      const dt = new Date(device.lastSeen);
-      if (!isNaN(dt.getTime())) return dt;
-    }
-    return new Date();
-  };
-
-  // Handle Preset Selection: 1h, 6h, 24h, 7d (Week) relative to last available data
-  const handleRangeSelect = (presetKey, hours) => {
+  // Handle Preset Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
+  const handleRangeSelect = (presetKey) => {
     setActiveFilter(presetKey);
-    const end = getLatestAvailableTime();
-    const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
-    const startLocal = formatISTDatetimeLocal(start);
-    const endLocal = formatISTDatetimeLocal(end);
-    setFromDateTime(startLocal);
-    setToDateTime(endLocal);
-    loadHistory(deviceId, startLocal, endLocal);
+    loadHistory(deviceId, null, null, presetKey);
   };
 
   const handleCustomDateSubmit = (e) => {
     e.preventDefault();
     setActiveFilter('custom');
-    loadHistory(deviceId, fromDateTime, toDateTime);
+    loadHistory(deviceId, fromDateTime, toDateTime, null);
   };
 
   const handleOpenConfigModal = () => {
@@ -304,15 +282,15 @@ export default function DeviceDetailPage() {
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] font-semibold text-slate-500 mr-1">Time Preset:</span>
             {[
-              { id: '1h', label: '1h', hours: 1 },
-              { id: '6h', label: '6h', hours: 6 },
-              { id: '24h', label: '24h', hours: 24 },
-              { id: '7d', label: '7d', hours: 168 },
-              { id: '30d', label: '30d', hours: 720 },
+              { id: '1h', label: '1h' },
+              { id: '6h', label: '6h' },
+              { id: '24h', label: '24h' },
+              { id: '7d', label: '7d' },
+              { id: '30d', label: '30d' },
             ].map(b => (
               <button
                 key={b.id}
-                onClick={() => handleRangeSelect(b.id, b.hours)}
+                onClick={() => handleRangeSelect(b.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${activeFilter === b.id
                     ? 'bg-blue-600 text-white shadow-2xs'
                     : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -509,7 +487,7 @@ export default function DeviceDetailPage() {
                     formatter={(val) => [`${Number(val).toFixed(4)}°`, '']}
                     labelFormatter={(label, items) => {
                       const row = items?.[0]?.payload;
-                      return row?.fullTime ? `IST: ${row.fullTime}` : `Time: ${label}`;
+                      return row?.fullTime ? `${row.fullTime}` : `Time: ${label}`;
                     }}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
                   />
@@ -555,7 +533,7 @@ export default function DeviceDetailPage() {
                     formatter={(val) => [`${Number(val).toFixed(4)} mm`, '']}
                     labelFormatter={(label, items) => {
                       const row = items?.[0]?.payload;
-                      return row?.fullTime ? `IST: ${row.fullTime}` : `Time: ${label}`;
+                      return row?.fullTime ? `${row.fullTime}` : `Time: ${label}`;
                     }}
                     contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
                   />

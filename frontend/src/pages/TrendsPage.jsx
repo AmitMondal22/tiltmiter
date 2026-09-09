@@ -37,14 +37,14 @@ export default function TrendsPage() {
   }, []);
 
   // 2. Fetch historical logs for selected device & range (converting IST user input to UTC ISO string for backend query)
-  const loadHistory = (devId = selectedDeviceId, fromDt = fromDateTime, toDt = toDateTime) => {
+  const loadHistory = (devId = selectedDeviceId, fromDt = null, toDt = null, rangeKey = activePreset) => {
     if (!devId) return;
     setLoading(true);
 
-    const utcFrom = istDatetimeToUTC(fromDt);
-    const utcTo = istDatetimeToUTC(toDt);
+    const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
+    const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
 
-    getTelemetryHistory(devId, utcFrom, utcTo)
+    getTelemetryHistory(devId, utcFrom, utcTo, rangeKey)
       .then(res => {
         if (res?.history?.length) {
           const seen = new Set();
@@ -70,6 +70,12 @@ export default function TrendsPage() {
             });
           }
           setTelemetryLogs(mapped);
+          const firstPoint = mapped[0];
+          const lastPoint = mapped[mapped.length - 1];
+          if (firstPoint?.timestamp && lastPoint?.timestamp && rangeKey) {
+            setFromDateTime(formatISTDatetimeLocal(new Date(firstPoint.timestamp)));
+            setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
+          }
         } else {
           setTelemetryLogs([]);
         }
@@ -84,7 +90,7 @@ export default function TrendsPage() {
 
   useEffect(() => {
     if (selectedDeviceId) {
-      loadHistory(selectedDeviceId, fromDateTime, toDateTime);
+      loadHistory(selectedDeviceId, null, null, activePreset);
     }
   }, [selectedDeviceId]);
 
@@ -126,44 +132,16 @@ export default function TrendsPage() {
     };
   }, [selectedDeviceId]);
 
-  // Get the most recent available telemetry timestamp
-  const getLatestAvailableTime = (devId = selectedDeviceId) => {
-    if (telemetryLogs.length > 0) {
-      const last = telemetryLogs[telemetryLogs.length - 1];
-      const ts = last?.timestamp || last?.time;
-      if (ts) {
-        const dt = new Date(ts);
-        if (!isNaN(dt.getTime())) return dt;
-      }
-    }
-    const dev = devices.find(d => d.id === devId);
-    if (dev?.timestamp) {
-      const dt = new Date(dev.timestamp);
-      if (!isNaN(dt.getTime())) return dt;
-    }
-    if (dev?.lastSeen) {
-      const dt = new Date(dev.lastSeen);
-      if (!isNaN(dt.getTime())) return dt;
-    }
-    return new Date();
-  };
-
   // Handle Preset Time Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
-  const handlePresetSelect = (presetKey, hours) => {
+  const handlePresetSelect = (presetKey) => {
     setActivePreset(presetKey);
-    const end = getLatestAvailableTime();
-    const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
-    const startLocal = formatISTDatetimeLocal(start);
-    const endLocal = formatISTDatetimeLocal(end);
-    setFromDateTime(startLocal);
-    setToDateTime(endLocal);
-    loadHistory(selectedDeviceId, startLocal, endLocal);
+    loadHistory(selectedDeviceId, null, null, presetKey);
   };
 
   const handleCustomQuery = (e) => {
     e.preventDefault();
     setActivePreset('custom');
-    loadHistory(selectedDeviceId, fromDateTime, toDateTime);
+    loadHistory(selectedDeviceId, fromDateTime, toDateTime, null);
   };
 
   // CSV Export

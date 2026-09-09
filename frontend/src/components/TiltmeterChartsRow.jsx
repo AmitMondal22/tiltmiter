@@ -71,7 +71,7 @@ export default function TiltmeterChartsRow({ currentDevice }) {
     const start = new Date(end.getTime() - rangeObj.hours * 60 * 60 * 1000);
 
     try {
-      const res = await getDeviceTelemetry(deviceId, start.toISOString(), end.toISOString());
+      const res = await getDeviceTelemetry(deviceId, start.toISOString(), end.toISOString(), rangeKey);
       if (res?.history && res.history.length > 0) {
         const seen = new Set();
         const cleanList = [];

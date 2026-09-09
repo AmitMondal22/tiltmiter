@@ -311,17 +311,18 @@ export async function configureDeviceTelemetry(id, config) {
 }
 
 // Historical Telemetry API
-export async function getDeviceTelemetry(deviceId, fromDate, toDate) {
+export async function getDeviceTelemetry(deviceId, fromDate, toDate, range) {
   let query = `/telemetry/${deviceId}`;
   const params = new URLSearchParams();
   if (fromDate) params.append('fromDate', fromDate);
   if (toDate) params.append('toDate', toDate);
+  if (range) params.append('range', range);
   if (params.toString()) query += `?${params.toString()}`;
   return await request(query);
 }
 
-export async function getTelemetryHistory(deviceId, fromDate, toDate) {
-  return await getDeviceTelemetry(deviceId, fromDate, toDate);
+export async function getTelemetryHistory(deviceId, fromDate, toDate, range) {
+  return await getDeviceTelemetry(deviceId, fromDate, toDate, range);
 }
 
 // Project-wise, Site-wise, Device-wise Reports & Analytics API

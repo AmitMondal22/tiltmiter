@@ -126,10 +126,23 @@ export default function TrendsPage() {
     };
   }, [selectedDeviceId]);
 
-  // Handle Preset Time Selection: 1h, 6h, 24h, 7d (Week)
+  // Get the most recent available telemetry timestamp
+  const getLatestAvailableTime = () => {
+    if (telemetryLogs.length > 0) {
+      const last = telemetryLogs[telemetryLogs.length - 1];
+      const ts = last?.timestamp || last?.time;
+      if (ts) {
+        const dt = new Date(ts);
+        if (!isNaN(dt.getTime())) return dt;
+      }
+    }
+    return new Date();
+  };
+
+  // Handle Preset Time Selection: 1h, 6h, 24h, 7d (Week) relative to last available data
   const handlePresetSelect = (presetKey, hours) => {
     setActivePreset(presetKey);
-    const end = new Date();
+    const end = getLatestAvailableTime();
     const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
     const startLocal = formatISTDatetimeLocal(start);
     const endLocal = formatISTDatetimeLocal(end);

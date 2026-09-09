@@ -144,10 +144,31 @@ export default function DeviceDetailPage() {
     };
   }, [deviceId]);
 
-  // Handle Preset Selection: 1h, 6h, 24h, 7d (Week)
+  // Get the most recent available telemetry timestamp for this device
+  const getLatestAvailableTime = () => {
+    if (telemetryHistory.length > 0) {
+      const last = telemetryHistory[telemetryHistory.length - 1];
+      const ts = last?.timestamp || last?.time;
+      if (ts) {
+        const dt = new Date(ts);
+        if (!isNaN(dt.getTime())) return dt;
+      }
+    }
+    if (liveData?.timestamp) {
+      const dt = new Date(liveData.timestamp);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    if (device?.lastSeen) {
+      const dt = new Date(device.lastSeen);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    return new Date();
+  };
+
+  // Handle Preset Selection: 1h, 6h, 24h, 7d (Week) relative to last available data
   const handleRangeSelect = (presetKey, hours) => {
     setActiveFilter(presetKey);
-    const end = new Date();
+    const end = getLatestAvailableTime();
     const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
     const startLocal = formatISTDatetimeLocal(start);
     const endLocal = formatISTDatetimeLocal(end);

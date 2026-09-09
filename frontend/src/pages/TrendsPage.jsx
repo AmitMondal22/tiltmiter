@@ -7,7 +7,7 @@ import { ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, To
 import { getDevices, getTelemetryHistory, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
-import { formatLocalDatetime, formatTimeString } from '../utils/dateHelper';
+import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
 
 export default function TrendsPage() {
   const cardCls = 'rounded-2xl border border-slate-200/80 bg-white p-4 text-slate-800 shadow-xs';
@@ -20,8 +20,8 @@ export default function TrendsPage() {
   
   const now = new Date();
   const initFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const [fromDateTime, setFromDateTime] = useState(formatLocalDatetime(initFrom));
-  const [toDateTime, setToDateTime] = useState(formatLocalDatetime(now));
+  const [fromDateTime, setFromDateTime] = useState(formatISTDatetimeLocal(initFrom));
+  const [toDateTime, setToDateTime] = useState(formatISTDatetimeLocal(now));
 
   const [telemetryLogs, setTelemetryLogs] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -36,24 +36,19 @@ export default function TrendsPage() {
     }).catch(() => {});
   }, []);
 
-  // 2. Fetch historical logs for selected device & range (converting system timezone to UTC ISO string)
+  // 2. Fetch historical logs for selected device & range (converting IST user input to UTC ISO string for backend query)
   const loadHistory = (devId = selectedDeviceId, fromDt = fromDateTime, toDt = toDateTime) => {
     if (!devId) return;
     setLoading(true);
 
-    // Convert local system datetime to UTC ISO string
-    let utcFrom = null;
-    let utcTo = null;
-    try {
-      if (fromDt) utcFrom = new Date(fromDt).toISOString();
-      if (toDt) utcTo = new Date(toDt).toISOString();
-    } catch (e) {}
+    const utcFrom = istDatetimeToUTC(fromDt);
+    const utcTo = istDatetimeToUTC(toDt);
 
     getTelemetryHistory(devId, utcFrom, utcTo)
       .then(res => {
         if (res?.history?.length) {
           const mapped = res.history.map(pt => ({
-            time: pt.time || new Date(pt.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: pt.time || formatTimeString(pt.timestamp),
             timestamp: pt.timestamp || pt.time,
             resultant: parseFloat(pt.resultant || pt.resultantTilt || 0),
             xTilt: parseFloat(pt.xTilt || pt.tiltX || 0),
@@ -97,7 +92,7 @@ export default function TrendsPage() {
         const parsed = parseTelemetry(packet);
         setTelemetryLogs(prev => {
           const newPoint = {
-            time: new Date(parsed.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: formatTimeString(parsed.timestamp),
             timestamp: parsed.timestamp,
             resultant: parsed.resultantTilt,
             xTilt: parsed.xTilt,
@@ -126,8 +121,8 @@ export default function TrendsPage() {
     setActivePreset(presetKey);
     const end = new Date();
     const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
-    const startLocal = formatLocalDatetime(start);
-    const endLocal = formatLocalDatetime(end);
+    const startLocal = formatISTDatetimeLocal(start);
+    const endLocal = formatISTDatetimeLocal(end);
     setFromDateTime(startLocal);
     setToDateTime(endLocal);
     loadHistory(selectedDeviceId, startLocal, endLocal);
@@ -145,9 +140,9 @@ export default function TrendsPage() {
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp,Device_ID,ResultantTilt_deg,XTilt_deg,YTilt_deg,TotalDisplacement_mm,XDisp_mm,YDisp_mm,ZDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,ResultantTilt_deg,XTilt_deg,YTilt_deg,TotalDisplacement_mm,XDisp_mm,YDisp_mm,ZDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C';
     const rows = telemetryLogs.map(r =>
-      `${r.timestamp || r.time},${selectedDeviceId},${r.resultant.toFixed(4)},${r.xTilt.toFixed(4)},${r.yTilt.toFixed(4)},${r.totalDisp.toFixed(4)},${r.xDisp.toFixed(4)},${r.yDisp.toFixed(4)},${r.zDisp.toFixed(4)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temperature.toFixed(2)}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedDeviceId},${r.resultant.toFixed(4)},${r.xTilt.toFixed(4)},${r.yTilt.toFixed(4)},${r.totalDisp.toFixed(4)},${r.xDisp.toFixed(4)},${r.yDisp.toFixed(4)},${r.zDisp.toFixed(4)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temperature.toFixed(2)}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -439,7 +434,7 @@ export default function TrendsPage() {
                 telemetryLogs.map((r, i) => (
                   <tr key={i} className="hover:bg-slate-50/80 transition-colors font-mono">
                     <td className="py-2 px-3 text-slate-600">
-                      {r.timestamp || r.time}
+                      {formatFullDateTime(r.timestamp || r.time)}
                     </td>
                     <td className="py-2 px-3 font-semibold text-purple-700">
                       {r.resultant.toFixed(4)}°

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { getAlarms } from '../api/apiClient';
+import { formatFullDateTime } from '../utils/dateHelper';
 
 export default function AlarmsPage() {
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-xs';
@@ -158,7 +159,7 @@ export default function AlarmsPage() {
                 <div key={a.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50/70 flex items-center justify-between">
                   <div>
                     <div className="font-bold text-xs text-black">{a.message}</div>
-                    <div className="text-[10px] text-slate-700 font-mono font-bold mt-0.5">{a.id} • {a.deviceId} • {a.time}</div>
+                    <div className="text-[10px] text-slate-700 font-mono font-bold mt-0.5">{a.id} • {a.deviceId} • {formatFullDateTime(a.createdAt || a.timestamp || a.time)}</div>
                   </div>
                   <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-950 border border-red-300 font-extrabold text-[10px]">
                     {a.severity}

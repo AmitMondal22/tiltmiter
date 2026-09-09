@@ -14,6 +14,7 @@ import DashboardPage from './pages/DashboardPage';
 const OrganizationsPage = lazy(() => import('./pages/OrganizationsPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const SitesPage = lazy(() => import('./pages/SitesPage'));
+const SiteDetailPage = lazy(() => import('./pages/SiteDetailPage'));
 const StructuresPage = lazy(() => import('./pages/StructuresPage'));
 const DevicesPage = lazy(() => import('./pages/DevicesPage'));
 const DeviceDetailPage = lazy(() => import('./pages/DeviceDetailPage'));
@@ -116,7 +117,9 @@ function MainLayout() {
               <Route path="/organizations" element={<OrganizationsPage isDark={false} />} />
               <Route path="/projects" element={<ProjectsPage isDark={false} />} />
               <Route path="/sites" element={<SitesPage isDark={false} />} />
+              <Route path="/sites/:siteId" element={<SiteDetailPage />} />
               <Route path="/locations" element={<SitesPage isDark={false} />} />
+              <Route path="/locations/:siteId" element={<SiteDetailPage />} />
               <Route path="/structures" element={<StructuresPage isDark={false} />} />
               <Route path="/assets" element={<StructuresPage isDark={false} />} />
               <Route path="/devices" element={<DevicesPage isDark={false} />} />

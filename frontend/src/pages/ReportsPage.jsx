@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Calendar, Filter, RefreshCw, BarChart2, Activity, ShieldCheck, Thermometer, Zap } from 'lucide-react';
-import { getTelemetryHistory, getProjects, getSites, getDevices } from '../api/apiClient';
+import { Download, Calendar, Filter, RefreshCw, BarChart2, Activity, ShieldCheck, Thermometer, Zap, Clock, FileSpreadsheet, MapPin } from 'lucide-react';
+import { getTelemetryHistory, getReportsAnalytics, getProjects, getSites, getDevices } from '../api/apiClient';
+import { formatISTDateInput, istDatetimeToUTC, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
 
 export default function ReportsPage({ currentDevice }) {
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
@@ -9,17 +10,22 @@ export default function ReportsPage({ currentDevice }) {
   const [sites, setSites] = useState([]);
   const [devices, setDevices] = useState([]);
 
-  // Date range defaults: 7 days ago to today
-  const todayStr = new Date().toISOString().split('T')[0];
-  const lastWeekDate = new Date();
-  lastWeekDate.setDate(lastWeekDate.getDate() - 7);
-  const lastWeekStr = lastWeekDate.toISOString().split('T')[0];
+  // Time presets: '24h', '7d', '30d', '90d', 'custom'
+  const [timePreset, setTimePreset] = useState('7d');
+
+  // Date range defaults in IST: 7 days ago to today
+  const now = new Date();
+  const todayStr = formatISTDateInput(now);
+  const lastWeekDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const lastWeekStr = formatISTDateInput(lastWeekDate);
 
   const [selectedDevice, setSelectedDevice] = useState(currentDevice?.id || '');
+  const [selectedSite, setSelectedSite] = useState('ALL');
   const [fromDate, setFromDate] = useState(lastWeekStr);
   const [toDate, setToDate] = useState(todayStr);
   const [paramCategory, setParamCategory] = useState('ALL'); // 'ALL', 'TILT', 'DISPLACEMENT', 'VIBRATION', 'ENVIRONMENT'
   const [reportRows, setReportRows] = useState([]);
+  const [summaryStats, setSummaryStats] = useState(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -33,19 +39,77 @@ export default function ReportsPage({ currentDevice }) {
     }).catch(() => {});
   }, []);
 
-  const fetchReport = (devId = selectedDevice, from = fromDate, to = toDate) => {
-    if (!devId) return;
+  // Handle Preset Switching
+  const handlePresetSelect = (preset) => {
+    setTimePreset(preset);
+    const curr = new Date();
+    const to = formatISTDateInput(curr);
+    let from = todayStr;
+
+    if (preset === '24h') {
+      const d = new Date(curr.getTime() - 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    } else if (preset === '7d') {
+      const d = new Date(curr.getTime() - 7 * 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    } else if (preset === '30d') {
+      const d = new Date(curr.getTime() - 30 * 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    } else if (preset === '90d') {
+      const d = new Date(curr.getTime() - 90 * 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    }
+
+    setFromDate(from);
+    setToDate(to);
+    if (selectedDevice) {
+      fetchReport(selectedDevice, from, to);
+    }
+  };
+
+  const fetchReport = (devId = selectedDevice, from = fromDate, to = toDate, siteId = selectedSite) => {
+    if (!devId && siteId === 'ALL') return;
     setLoading(true);
-    getTelemetryHistory(devId, from, to)
+
+    const utcFrom = istDatetimeToUTC(from, false);
+    const utcTo = istDatetimeToUTC(to, true);
+
+    const filters = {
+      deviceId: devId,
+      siteId: siteId !== 'ALL' ? siteId : undefined,
+      fromDate: utcFrom,
+      toDate: utcTo,
+    };
+
+    getReportsAnalytics(filters)
       .then(res => {
-        if (res?.history?.length) {
-          setReportRows(res.history);
+        if (res?.timeSeriesData?.length) {
+          setReportRows(res.timeSeriesData);
+          setSummaryStats(res.summary || null);
         } else {
-          setReportRows([]);
+          // Fallback to getTelemetryHistory
+          getTelemetryHistory(devId, utcFrom, utcTo)
+            .then(tRes => {
+              if (tRes?.history?.length) {
+                setReportRows(tRes.history);
+              } else {
+                setReportRows([]);
+              }
+            })
+            .catch(() => setReportRows([]));
         }
       })
       .catch(() => {
-        setReportRows([]);
+        // Direct telemetry history query fallback
+        getTelemetryHistory(devId, utcFrom, utcTo)
+          .then(tRes => {
+            if (tRes?.history?.length) {
+              setReportRows(tRes.history);
+            } else {
+              setReportRows([]);
+            }
+          })
+          .catch(() => setReportRows([]));
       })
       .finally(() => {
         setLoading(false);
@@ -54,17 +118,26 @@ export default function ReportsPage({ currentDevice }) {
 
   useEffect(() => {
     if (selectedDevice) {
-      fetchReport(selectedDevice, fromDate, toDate);
+      fetchReport(selectedDevice, fromDate, toDate, selectedSite);
     }
-  }, [selectedDevice]);
+  }, [selectedDevice, selectedSite]);
 
   const handleApplyFilter = (e) => {
     e.preventDefault();
-    fetchReport(selectedDevice, fromDate, toDate);
+    fetchReport(selectedDevice, fromDate, toDate, selectedSite);
   };
 
   // Calculated Stats
   const stats = useMemo(() => {
+    if (summaryStats && summaryStats.totalDataPoints > 0) {
+      return {
+        count: summaryStats.totalDataPoints,
+        maxTilt: summaryStats.maxResultantTilt || 0,
+        maxDisp: summaryStats.maxTotalDisplacement_mm || 0,
+        maxVib: summaryStats.maxVibrationPeak_g || 0.104,
+        avgTemp: summaryStats.averageTemperature_C || 28.5,
+      };
+    }
     if (!reportRows || reportRows.length === 0) {
       return { count: 0, maxTilt: 0, maxDisp: 0, maxVib: 0, avgTemp: 0 };
     }
@@ -77,7 +150,7 @@ export default function ReportsPage({ currentDevice }) {
       const t = parseFloat(r.resultant || r.resultantTilt || 0);
       const d = parseFloat(r.totalDisp || r.totalDisplacement || 0);
       const v = parseFloat(r.vibPeak || r.vibrationPeak || 0.104);
-      const temp = parseFloat(r.temperature || r.temp || 28.7);
+      const temp = parseFloat(r.temperature || r.temp || 28.5);
 
       if (t > maxTilt) maxTilt = t;
       if (d > maxDisp) maxDisp = d;
@@ -92,7 +165,7 @@ export default function ReportsPage({ currentDevice }) {
       maxVib,
       avgTemp: (tempSum / reportRows.length).toFixed(1),
     };
-  }, [reportRows]);
+  }, [reportRows, summaryStats]);
 
   const handleExportCSV = () => {
     if (reportRows.length === 0) {
@@ -100,7 +173,8 @@ export default function ReportsPage({ currentDevice }) {
       return;
     }
     const headers = [
-      'Timestamp',
+      'Timestamp_IST',
+      'Timestamp_UTC',
       'Device_ID',
       'Resultant_Tilt_deg',
       'Roll_X_Tilt_deg',
@@ -113,96 +187,149 @@ export default function ReportsPage({ currentDevice }) {
       'Vibration_RMS_g',
       'Vibration_Peak_g',
       'Temperature_C',
-      'Calibration_Status'
+      'Stability_Status'
     ].join(',');
 
-    const rows = reportRows.map(r => [
-      r.timestamp || r.time,
-      selectedDevice,
-      (r.resultant || r.resultantTilt || 0).toFixed(4),
-      (r.xTilt || 0).toFixed(4),
-      (r.yTilt || 0).toFixed(4),
-      (r.totalDisp || r.totalDisplacement || 0).toFixed(4),
-      (r.xDisp || r.xDisplacement || 0).toFixed(4),
-      (r.yDisp || r.yDisplacement || 0).toFixed(4),
-      (r.zDisp || r.zDisplacement || 0).toFixed(4),
-      (r.accMag || 0.98).toFixed(3),
-      (r.vibRMS || r.vibrationRMS || 0.045).toFixed(4),
-      (r.vibPeak || r.vibrationPeak || 0.104).toFixed(4),
-      (r.temperature || r.temp || 28.7),
-      'CALIBRATED'
-    ].join(','));
+    const rows = reportRows.map(r => {
+      const t = r.resultant || r.resultantTilt || 0;
+      const d = r.totalDisp || r.totalDisplacement || 0;
+      const status = d >= 15 ? 'CRITICAL RISK' : (d >= 5 ? 'WARNING CREEP' : 'STABLE');
+
+      return [
+        `"${formatFullDateTime(r.timestamp || r.time)}"`,
+        r.timestamp || '',
+        r.deviceId || selectedDevice,
+        Number(t).toFixed(4),
+        Number(r.xTilt || 0).toFixed(4),
+        Number(r.yTilt || 0).toFixed(4),
+        Number(d).toFixed(4),
+        Number(r.xDisp || r.xDisplacement || 0).toFixed(4),
+        Number(r.yDisp || r.yDisplacement || 0).toFixed(4),
+        Number(r.zDisp || r.zDisplacement || 0).toFixed(4),
+        Number(r.accMag || 0.982).toFixed(3),
+        Number(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4),
+        Number(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4),
+        Number(r.temperature || r.temp || 28.5).toFixed(1),
+        status
+      ].join(',');
+    });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `telemetry_analytics_${selectedDevice}_${fromDate}_to_${toDate}.csv`);
+    link.setAttribute('download', `telemetry_report_${selectedDevice}_${fromDate}_to_${toDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
   return (
-    <div className="space-y-4 font-sans text-black">
+    <div className="space-y-4 font-sans text-black animate-fadeIn">
       {/* Top Header Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Reports & Analytics
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+            <span>Reports & Historical Analytics</span>
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Statistical multi-parameter inclinometer telemetry reports & data exports
+            Statistical multi-parameter inclinometer telemetry reports, time-range queries & CSV data exports
           </p>
         </div>
 
         {/* Export Button */}
         <button
           onClick={handleExportCSV}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
         >
           <Download className="w-4 h-4" />
-          <span>Export Full Analytics (CSV)</span>
+          <span>Export Analytics (CSV)</span>
         </button>
       </div>
 
       {/* Summary KPI Cards Row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Data Points</div>
           <div className="text-lg font-bold text-slate-900 font-mono mt-0.5">{stats.count}</div>
           <div className="text-[10px] text-blue-600 font-medium mt-0.5">Filtered Range</div>
         </div>
 
-        <div className="p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Resultant Tilt</div>
-          <div className="text-lg font-bold text-purple-600 font-mono mt-0.5">{stats.maxTilt.toFixed(3)}°</div>
+          <div className="text-lg font-bold text-purple-600 font-mono mt-0.5">{Number(stats.maxTilt).toFixed(3)}°</div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5">Peak Incline</div>
         </div>
 
-        <div className="p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Displacement</div>
-          <div className="text-lg font-bold text-pink-600 font-mono mt-0.5">{stats.maxDisp.toFixed(2)} mm</div>
+          <div className="text-lg font-bold text-pink-600 font-mono mt-0.5">{Number(stats.maxDisp).toFixed(2)} mm</div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5">3D Vector Total</div>
         </div>
 
-        <div className="p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Vibration Peak</div>
-          <div className="text-lg font-bold text-amber-600 font-mono mt-0.5">{stats.maxVib.toFixed(3)} g</div>
+          <div className="text-lg font-bold text-amber-600 font-mono mt-0.5">{Number(stats.maxVib).toFixed(3)} g</div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5">Dynamic Shock</div>
         </div>
 
-        <div className="p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Avg Temperature</div>
           <div className="text-lg font-bold text-emerald-600 font-mono mt-0.5">{stats.avgTemp} °C</div>
           <div className="text-[10px] text-slate-400 font-medium mt-0.5">Thermal Baseline</div>
         </div>
       </div>
 
-      {/* Date Range & Parameter Filter Toolbar */}
+      {/* Filter & Time-Range Toolbar */}
       <div className={cardCls}>
         <form onSubmit={handleApplyFilter} className="space-y-3 text-xs">
-          <div className="flex flex-wrap items-end gap-3">
+          {/* Quick Time Presets Bar */}
+          <div className="flex items-center gap-1.5 pb-2.5 border-b border-slate-100 flex-wrap">
+            <span className="text-[11px] font-semibold text-slate-500 mr-1.5 flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Time Range Presets:</span>
+            </span>
+            {[
+              { id: '24h', label: 'Last 24 Hours' },
+              { id: '7d', label: 'Last 7 Days' },
+              { id: '30d', label: 'Last 30 Days' },
+              { id: '90d', label: 'Last 90 Days' },
+              { id: 'custom', label: 'Custom Date Range' },
+            ].map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handlePresetSelect(p.id)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  timePreset === p.id
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3 pt-1">
+            {/* Site Filter */}
+            <div className="min-w-[180px]">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Monitored Location
+              </label>
+              <select
+                value={selectedSite}
+                onChange={e => setSelectedSite(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+              >
+                <option value="ALL">All Locations ({sites.length})</option>
+                {sites.map(s => (
+                  <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Device Selection */}
             <div className="flex-1 min-w-[200px]">
               <label className="block text-[11px] font-semibold text-slate-600 mb-1">
@@ -211,11 +338,13 @@ export default function ReportsPage({ currentDevice }) {
               <select
                 value={selectedDevice}
                 onChange={e => setSelectedDevice(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
               >
-                {devices.map(d => (
-                  <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
-                ))}
+                {devices
+                  .filter(d => selectedSite === 'ALL' || d.siteId === selectedSite)
+                  .map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
+                  ))}
                 {devices.length === 0 && <option value="">No Devices Available</option>}
               </select>
             </div>
@@ -230,8 +359,11 @@ export default function ReportsPage({ currentDevice }) {
                 type="date"
                 required
                 value={fromDate}
-                onChange={e => setFromDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onChange={e => {
+                  setTimePreset('custom');
+                  setFromDate(e.target.value);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
               />
             </div>
 
@@ -245,8 +377,11 @@ export default function ReportsPage({ currentDevice }) {
                 type="date"
                 required
                 value={toDate}
-                onChange={e => setToDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                onChange={e => {
+                  setTimePreset('custom');
+                  setToDate(e.target.value);
+                }}
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
               />
             </div>
 
@@ -254,7 +389,7 @@ export default function ReportsPage({ currentDevice }) {
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-black hover:bg-neutral-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
             >
               {loading ? (
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -279,9 +414,9 @@ export default function ReportsPage({ currentDevice }) {
                 key={tab.id}
                 type="button"
                 onClick={() => setParamCategory(tab.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
                   paramCategory === tab.id
-                    ? 'bg-blue-50 text-blue-600 font-semibold border border-blue-200'
+                    ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
                     : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -295,138 +430,120 @@ export default function ReportsPage({ currentDevice }) {
       {/* Multi-Parameter Telemetry Report Table */}
       <div className={cardCls}>
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
-          <div className="text-xs font-semibold text-slate-800">
-            Records for <span className="font-mono text-blue-600">{selectedDevice || '--'}</span> ({fromDate} to {toDate})
+          <div className="text-xs font-bold text-slate-800">
+            Records for <span className="font-mono text-blue-600">{selectedDevice || '--'}</span> ({fromDate} to {toDate}) &bull; {reportRows.length} Points
           </div>
-          <span className="text-[11px] font-mono text-slate-500">
-            {reportRows.length} Data Points Logged
-          </span>
+          {loading && (
+            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              <span>Fetching telemetry data...</span>
+            </div>
+          )}
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-slate-200 uppercase text-[10px] tracking-wider bg-slate-50/50">
-                <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3">Device ID</th>
+              <tr className="border-b-2 border-slate-200 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider">
+                <th className="py-2.5 px-3">Timestamp / Time</th>
+                <th className="py-2.5 px-3 font-mono">Node ID</th>
 
-                {/* Tilt Parameters */}
                 {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
                   <>
-                    <th className="py-2.5 px-3 text-purple-700">Resultant Tilt</th>
-                    <th className="py-2.5 px-3 text-blue-700">Roll (X)</th>
-                    <th className="py-2.5 px-3 text-emerald-700">Pitch (Y)</th>
+                    <th className="py-2.5 px-3 text-purple-700">Resultant Tilt θ</th>
+                    <th className="py-2.5 px-3 text-purple-600">Roll X θ</th>
+                    <th className="py-2.5 px-3 text-purple-600">Pitch Y θ</th>
                   </>
                 )}
 
-                {/* Displacement Parameters */}
                 {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                   <>
-                    <th className="py-2.5 px-3 text-pink-700">Total Disp</th>
-                    <th className="py-2.5 px-3">X Disp</th>
-                    <th className="py-2.5 px-3">Y Disp</th>
-                    <th className="py-2.5 px-3">Z Disp</th>
+                    <th className="py-2.5 px-3 text-pink-700">Total Disp Δ</th>
+                    <th className="py-2.5 px-3 text-pink-600">ΔX (mm)</th>
+                    <th className="py-2.5 px-3 text-pink-600">ΔY (mm)</th>
+                    <th className="py-2.5 px-3 text-pink-600">ΔZ (mm)</th>
                   </>
                 )}
 
-                {/* Dynamic & Vibration Parameters */}
                 {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
                   <>
-                    <th className="py-2.5 px-3">Accel Mag</th>
-                    <th className="py-2.5 px-3">Vib RMS</th>
-                    <th className="py-2.5 px-3 text-amber-700">Vib Peak</th>
+                    <th className="py-2.5 px-3 text-amber-700">Accel Mag</th>
+                    <th className="py-2.5 px-3 text-amber-600">Vib RMS</th>
+                    <th className="py-2.5 px-3 text-amber-600">Vib Peak</th>
                   </>
                 )}
 
-                {/* Environmental & Diagnostics */}
                 {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
                   <>
-                    <th className="py-2.5 px-3">Ambient Temp</th>
-                    <th className="py-2.5 px-3">Zero Offset</th>
+                    <th className="py-2.5 px-3 text-emerald-700">Temperature</th>
+                    <th className="py-2.5 px-3 text-emerald-700">Stability Risk</th>
                   </>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono text-[11px]">
               {reportRows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs">
-                    {loading ? 'Fetching telemetry records...' : 'No telemetry records found for the selected date range.'}
+                  <td colSpan={12} className="py-8 text-center text-slate-400 font-sans text-xs">
+                    {loading ? 'Querying records from telemetry store...' : 'No telemetry data points found for this range. Try adjusting the date range.'}
                   </td>
                 </tr>
               ) : (
-                reportRows.map((r, i) => (
-                  <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-2.5 px-3 font-mono">
-                      {r.timestamp || r.time}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono font-medium">
-                      {selectedDevice}
-                    </td>
+                reportRows.map((r, i) => {
+                  const t = parseFloat(r.resultant || r.resultantTilt || 0);
+                  const d = parseFloat(r.totalDisp || r.totalDisplacement || 0);
+                  const status = d >= 15 ? 'CRITICAL RISK' : (d >= 5 ? 'WARNING' : 'STABLE');
+                  const statusBadge = d >= 15
+                    ? 'bg-rose-100 text-rose-800'
+                    : (d >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
 
-                    {/* Tilt Parameters */}
-                    {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
-                      <>
-                        <td className="py-2.5 px-3 font-mono font-semibold text-purple-700">
-                          {(r.resultant || r.resultantTilt || 0).toFixed(4)}°
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-blue-700">
-                          {(r.xTilt || 0).toFixed(4)}°
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-emerald-700">
-                          {(r.yTilt || 0).toFixed(4)}°
-                        </td>
-                      </>
-                    )}
+                  return (
+                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-2 px-3 text-slate-900 font-sans font-medium">
+                        {formatFullDateTime(r.timestamp || r.time)}
+                      </td>
+                      <td className="py-2 px-3 text-slate-800 font-bold">
+                        {r.deviceId || selectedDevice}
+                      </td>
 
-                    {/* Displacement Parameters */}
-                    {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
-                      <>
-                        <td className="py-2.5 px-3 font-mono font-semibold text-pink-700">
-                          {(r.totalDisp || r.totalDisplacement || 0).toFixed(3)} mm
-                        </td>
-                        <td className="py-2.5 px-3 font-mono">
-                          {(r.xDisp || r.xDisplacement || 0).toFixed(3)} mm
-                        </td>
-                        <td className="py-2.5 px-3 font-mono">
-                          {(r.yDisp || r.yDisplacement || 0).toFixed(3)} mm
-                        </td>
-                        <td className="py-2.5 px-3 font-mono">
-                          {(r.zDisp || r.zDisplacement || 0).toFixed(3)} mm
-                        </td>
-                      </>
-                    )}
+                      {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
+                        <>
+                          <td className="py-2 px-3 font-bold text-purple-700">{t.toFixed(4)}°</td>
+                          <td className="py-2 px-3 text-purple-600">{(r.xTilt || 0).toFixed(4)}°</td>
+                          <td className="py-2 px-3 text-purple-600">{(r.yTilt || 0).toFixed(4)}°</td>
+                        </>
+                      )}
 
-                    {/* Dynamic & Vibration Parameters */}
-                    {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
-                      <>
-                        <td className="py-2.5 px-3 font-mono">
-                          {(r.accMag || 0.98).toFixed(3)} g
-                        </td>
-                        <td className="py-2.5 px-3 font-mono">
-                          {(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4)} g
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-semibold text-amber-700">
-                          {(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4)} g
-                        </td>
-                      </>
-                    )}
+                      {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
+                        <>
+                          <td className="py-2 px-3 font-bold text-pink-700">{d.toFixed(4)} mm</td>
+                          <td className="py-2 px-3 text-pink-600">{(r.xDisp || r.xDisplacement || 0).toFixed(4)}</td>
+                          <td className="py-2 px-3 text-pink-600">{(r.yDisp || r.yDisplacement || 0).toFixed(4)}</td>
+                          <td className="py-2 px-3 text-pink-600">{(r.zDisp || r.zDisplacement || 0).toFixed(4)}</td>
+                        </>
+                      )}
 
-                    {/* Environmental & Diagnostics */}
-                    {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
-                      <>
-                        <td className="py-2.5 px-3 font-mono">
-                          {(r.temperature || r.temp || 28.7)} °C
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            OK ✓
-                          </span>
-                        </td>
-                      </>
-                    )}
-                  </tr>
-                ))
+                      {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
+                        <>
+                          <td className="py-2 px-3 text-amber-700">{(r.accMag || 0.982).toFixed(3)} g</td>
+                          <td className="py-2 px-3 text-amber-600">{(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4)}</td>
+                          <td className="py-2 px-3 text-amber-600">{(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4)}</td>
+                        </>
+                      )}
+
+                      {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
+                        <>
+                          <td className="py-2 px-3 text-emerald-700 font-bold">{r.temperature || r.temp || 28.5} °C</td>
+                          <td className="py-2 px-3 font-sans">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge}`}>
+                              {status}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

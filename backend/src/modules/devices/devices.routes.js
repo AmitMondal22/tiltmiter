@@ -104,9 +104,9 @@ export async function devicesRoutes(fastify) {
         structureType: structureType || 'Crash Barrier',
         floorPierTower: floorPierTower || 'Section-01',
         installationPoint: installationPoint || 'Point-A',
-        elevation: elevation !== undefined ? parseFloat(elevation) : 18.6,
-        latitude: latitude !== undefined ? parseFloat(latitude) : 22.5726,
-        longitude: longitude !== undefined ? parseFloat(longitude) : 88.3639,
+        elevation: elevation !== undefined && elevation !== '' ? parseFloat(elevation) : 18.6,
+        latitude: latitude !== undefined && latitude !== '' && latitude !== null ? parseFloat(latitude) : null,
+        longitude: longitude !== undefined && longitude !== '' && longitude !== null ? parseFloat(longitude) : null,
         baselineTilt: baselineTilt !== undefined ? parseFloat(baselineTilt) : 0.15,
         baselineRoll: baselineRoll !== undefined ? parseFloat(baselineRoll) : 0.05,
         baselinePitch: baselinePitch !== undefined ? parseFloat(baselinePitch) : 0.02,
@@ -143,7 +143,15 @@ export async function devicesRoutes(fastify) {
         }
       }
 
-      await device.update(req.body);
+      const updateData = { ...req.body };
+      if (updateData.latitude !== undefined) {
+        updateData.latitude = updateData.latitude !== '' && updateData.latitude !== null ? parseFloat(updateData.latitude) : null;
+      }
+      if (updateData.longitude !== undefined) {
+        updateData.longitude = updateData.longitude !== '' && updateData.longitude !== null ? parseFloat(updateData.longitude) : null;
+      }
+
+      await device.update(updateData);
       const updated = await Device.findByPk(id, {
         include: [{ model: Site, include: [Project, Organization] }, Structure]
       });

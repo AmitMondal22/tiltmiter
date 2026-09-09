@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Menu, Radio, Bell, Clock } from 'lucide-react';
+import { formatTimeString, formatISTDate } from '../utils/dateHelper';
 
 export default function PageHeader({
   title,
@@ -7,9 +8,17 @@ export default function PageHeader({
   isRealTime,
   onToggleMobileNav
 }) {
-  const now = new Date();
-  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentDate(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const timeStr = formatTimeString(currentDate);
+  const dateStr = formatISTDate(currentDate);
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 px-3 sm:px-6 py-3 bg-white text-black shadow-xs">

@@ -11,6 +11,7 @@ import SensorHealthWidget from '../components/SensorHealthWidget';
 import RecentEventsWidget from '../components/RecentEventsWidget';
 import { telemetryService } from '../services/telemetryManager';
 import { parseTelemetry } from '../utils/telemetryHelper';
+import { formatTimeString, formatFullDateTime } from '../utils/dateHelper';
 
 export default function DashboardPage({ devices = [], currentDevice, onSelectDevice }) {
   const [liveOverride, setLiveOverride] = useState(null);
@@ -49,7 +50,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   }, [baseDevice.id]);
 
   const lastSyncTime = activeDevice.timestamp 
-    ? new Date(activeDevice.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+    ? formatTimeString(activeDevice.timestamp)
     : 'Just now';
 
   return (
@@ -80,7 +81,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 value={activeDevice.id}
                 onChange={(e) => {
                   const dev = devices.find(d => d.id === e.target.value);
-                  if (dev && onSelectDevice) onSelectDevice(dev);
+                  if (dev) {
+                    setLiveOverride(null);
+                    if (onSelectDevice) onSelectDevice(dev);
+                  }
                 }}
                 className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
               >

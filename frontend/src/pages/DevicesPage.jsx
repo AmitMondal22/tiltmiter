@@ -26,6 +26,8 @@ export default function DevicesPage() {
     sensorType: 'Inclinometer',
     siteId: '',
     structureId: '',
+    latitude: '',
+    longitude: '',
     macAddress: '',
     status: 'ONLINE',
     sleep_count: 15,
@@ -69,6 +71,8 @@ export default function DevicesPage() {
       sensorType: 'Inclinometer',
       siteId: '',
       structureId: '',
+      latitude: '',
+      longitude: '',
       macAddress: 'AA:BB:CC:DD:EE:FF',
       status: 'ONLINE',
       sleep_count: 15,
@@ -87,6 +91,8 @@ export default function DevicesPage() {
       sensorType: dev.sensorType || 'Inclinometer',
       siteId: dev.siteId || '',
       structureId: dev.structureId || '',
+      latitude: dev.latitude !== undefined && dev.latitude !== null ? dev.latitude : '',
+      longitude: dev.longitude !== undefined && dev.longitude !== null ? dev.longitude : '',
       macAddress: dev.macAddress || '',
       status: dev.status || 'ONLINE',
       sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
@@ -118,6 +124,8 @@ export default function DevicesPage() {
       ...formData,
       sleep_count: sleepVal,
       wake_count: Number(formData.wake_count) || 30,
+      latitude: formData.latitude !== '' && formData.latitude !== null && formData.latitude !== undefined ? parseFloat(formData.latitude) : null,
+      longitude: formData.longitude !== '' && formData.longitude !== null && formData.longitude !== undefined ? parseFloat(formData.longitude) : null,
     };
     try {
       if (editingDevice) {
@@ -248,7 +256,14 @@ export default function DevicesPage() {
                       </td>
                       <td className="py-3.5 px-3.5">
                         <div className="text-slate-800">{struct?.name || 'No Asset Attached'}</div>
-                        <div className="text-[11px] text-slate-500">{site?.name || dev.siteId || 'Standalone'}</div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                          <span>{site?.name || dev.siteId || 'Standalone'}</span>
+                          {dev.latitude && dev.longitude && (
+                            <span className="font-mono text-[10px] text-slate-400">
+                              ({Number(dev.latitude).toFixed(4)}, {Number(dev.longitude).toFixed(4)})
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-3.5 font-mono text-emerald-600 font-semibold">
                         {dev.battery?.includes('%') ? dev.battery : `${Math.min(100, Math.max(0, Math.round(((parseFloat(dev.battery) || 13) / 13) * 100)))}%`}
@@ -365,6 +380,32 @@ export default function DevicesPage() {
                     <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name} ({s.id || s.siteId})</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Geographic Coordinates (Latitude & Longitude) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Latitude (°N)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.latitude ?? ''}
+                    onChange={e => setFormData({ ...formData, latitude: e.target.value })}
+                    placeholder="e.g. 22.5726"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Longitude (°E)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={formData.longitude ?? ''}
+                    onChange={e => setFormData({ ...formData, longitude: e.target.value })}
+                    placeholder="e.g. 88.3639"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">

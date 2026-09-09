@@ -3,12 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Battery, Signal, Sliders, Calendar,
   Download, RefreshCw, Layers, ShieldCheck, Activity,
-  CheckCircle2, AlertTriangle, Radio, Clock
+  CheckCircle2, AlertTriangle, Radio, Clock, MapPin
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
-import { formatLocalDatetime, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
+import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
 export default function DeviceDetailPage() {
@@ -25,8 +25,8 @@ export default function DeviceDetailPage() {
 
   const now = new Date();
   const initFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const [fromDateTime, setFromDateTime] = useState(formatLocalDatetime(initFrom));
-  const [toDateTime, setToDateTime] = useState(formatLocalDatetime(now));
+  const [fromDateTime, setFromDateTime] = useState(formatISTDatetimeLocal(initFrom));
+  const [toDateTime, setToDateTime] = useState(formatISTDatetimeLocal(now));
 
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [configForm, setConfigForm] = useState({ sleep_count: '', wake_count: '', calibrate: false });
@@ -58,18 +58,14 @@ export default function DeviceDetailPage() {
     if (!id) return;
     setLoading(true);
 
-    let utcFrom = null;
-    let utcTo = null;
-    try {
-      if (fromDt) utcFrom = new Date(fromDt).toISOString();
-      if (toDt) utcTo = new Date(toDt).toISOString();
-    } catch (e) { }
+    const utcFrom = istDatetimeToUTC(fromDt);
+    const utcTo = istDatetimeToUTC(toDt);
 
     getDeviceTelemetry(id, utcFrom, utcTo)
       .then(res => {
         if (res?.history?.length) {
           const mapped = res.history.map(pt => ({
-            time: pt.time || new Date(pt.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: pt.time || formatTimeString(pt.timestamp),
             timestamp: pt.timestamp || pt.time,
             resultant: parseFloat(pt.resultant || pt.resultantTilt || 0),
             xTilt: parseFloat(pt.xTilt || pt.tiltX || 0),
@@ -108,7 +104,7 @@ export default function DeviceDetailPage() {
         setLiveData(parsed);
         setTelemetryHistory(prev => {
           const newPoint = {
-            time: new Date(parsed.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            time: formatTimeString(parsed.timestamp),
             timestamp: parsed.timestamp,
             resultant: parsed.resultantTilt,
             xTilt: parsed.xTilt,
@@ -135,8 +131,8 @@ export default function DeviceDetailPage() {
     setActiveFilter(presetKey);
     const end = new Date();
     const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
-    const startLocal = formatLocalDatetime(start);
-    const endLocal = formatLocalDatetime(end);
+    const startLocal = formatISTDatetimeLocal(start);
+    const endLocal = formatISTDatetimeLocal(end);
     setFromDateTime(startLocal);
     setToDateTime(endLocal);
     loadHistory(deviceId, startLocal, endLocal);
@@ -225,8 +221,14 @@ export default function DeviceDetailPage() {
               </span>
               <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
                 <Clock className="w-3 h-3 text-slate-400" />
-                <span>Last Updated: {d.timestamp ? new Date(d.timestamp).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}</span>
+                <span>Last Updated: {formatFullDateTime(d.timestamp)}</span>
               </span>
+              {device?.latitude && device?.longitude && (
+                <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
+                  <MapPin className="w-3 h-3 text-blue-500" />
+                  <span>{Number(device.latitude).toFixed(4)}°N, {Number(device.longitude).toFixed(4)}°E</span>
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
               Live Inclinometer Diagnostics & Historical Data Logs
@@ -355,7 +357,7 @@ export default function DeviceDetailPage() {
             </div>
             <div className="flex justify-between py-1">
               <span className="text-slate-500 font-medium font-sans">Last Packet:</span>
-              <span className="font-semibold text-blue-600 truncate">{d.timestamp ? new Date(d.timestamp).toLocaleTimeString('en-IN') : 'Just now'}</span>
+              <span className="font-semibold text-blue-600 truncate">{d.timestamp ? formatTimeString(d.timestamp) : 'Just now'}</span>
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, Radio } from 'lucide-react';
 import { parseTelemetry } from '../utils/telemetryHelper';
+import { formatTimeString } from '../utils/dateHelper';
 
 export default function RecentEventsWidget({ currentDevice }) {
   const [events, setEvents] = useState([]);
@@ -8,7 +9,7 @@ export default function RecentEventsWidget({ currentDevice }) {
   useEffect(() => {
     if (!currentDevice) return;
     const d = parseTelemetry(currentDevice);
-    const timeStr = d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+    const timeStr = formatTimeString(d.timestamp);
 
     setEvents(prev => {
       const isWarn = d.tiltStatus === 'WARNING' || d.tiltStatus === 'ALARM';

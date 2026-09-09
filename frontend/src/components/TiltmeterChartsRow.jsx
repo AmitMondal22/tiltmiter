@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { parseTelemetry } from '../utils/telemetryHelper';
+import { formatTimeString } from '../utils/dateHelper';
 
 const RANGES = ['1H', '6H', '12H', '24H', '7D', '30D'];
 
@@ -21,7 +22,7 @@ export default function TiltmeterChartsRow({ currentDevice }) {
   useEffect(() => {
     if (!currentDevice) return;
     const d = parseTelemetry(currentDevice);
-    const timeStr = d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+    const timeStr = formatTimeString(d.timestamp);
 
     setLiveHistory(prev => {
       const newPoint = {

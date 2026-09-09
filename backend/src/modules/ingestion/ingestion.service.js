@@ -18,6 +18,14 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const batteryVoltage = rawPayload.power?.batteryVoltage ?? rawPayload.batteryVoltage ?? 13.03;
   const csq = rawPayload.network?.csq ?? rawPayload.csq ?? 19;
 
+  let utcTimestamp;
+  if (rawPayload.timestamp) {
+    const parsed = new Date(rawPayload.timestamp);
+    utcTimestamp = !isNaN(parsed.getTime()) ? parsed.toISOString() : new Date().toISOString();
+  } else {
+    utcTimestamp = new Date().toISOString();
+  }
+
   const telemetryData = {
     // Preserve raw nested payload
     rawPayload,
@@ -57,7 +65,7 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     csq,
 
     calibration: rawPayload.calibration || { calibrated: false },
-    timestamp: rawPayload.timestamp || new Date().toISOString(),
+    timestamp: utcTimestamp,
   };
 
   // 1. Save to Time-Series InfluxDB & In-memory ring buffer

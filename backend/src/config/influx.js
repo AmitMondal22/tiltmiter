@@ -98,7 +98,7 @@ export async function saveTelemetryPoint(data) {
   }
   const deviceHistory = inMemoryTelemetryStore.get(deviceId);
   deviceHistory.push({
-    time: timestamp.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    time: timestamp.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
     timestamp: timestamp.toISOString(),
     deviceId,
     tiltX: xTilt,
@@ -132,8 +132,8 @@ export async function queryInfluxTelemetry(deviceId, rangeStart = '-24h', rangeS
     for await (const { values, tableMeta } of queryApi.iterateRows(fluxQuery)) {
       const o = tableMeta.toObject(values);
       results.push({
-        time: new Date(o._time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        timestamp: o._time,
+        time: new Date(o._time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+        timestamp: new Date(o._time).toISOString(),
         deviceId: o.device_id,
         tiltX: o.x_tilt ?? 0,
         tiltY: o.y_tilt ?? 0,

@@ -161,57 +161,13 @@ export async function telemetryRoutes(fastify) {
       });
     }
 
-    // 4. If no history recorded yet for selected device & range, synthesize realistic time-series points
-    const fallbackHistory = [];
-    const count = 24;
-    const nowMs = (stopDate && !isNaN(stopDate.getTime())) ? stopDate.getTime() : Date.now();
-    const startMs = (startDate && !isNaN(startDate.getTime())) ? startDate.getTime() : (nowMs - 24 * 60 * 60 * 1000);
-    const step = Math.max(1000, Math.floor((nowMs - startMs) / count));
-
-    for (let i = 0; i <= count; i++) {
-      const ptTime = new Date(startMs + i * step);
-      const wave = Math.sin(i * 0.4) * 0.15;
-      const xTilt = Number((0.85 + wave * 0.4).toFixed(4));
-      const yTilt = Number((1.22 + Math.cos(i * 0.4) * 0.08).toFixed(4));
-      const resultantTilt = Number(Math.sqrt(xTilt * xTilt + yTilt * yTilt).toFixed(4));
-      const xDisp = Number((2.10 + wave * 1.1).toFixed(3));
-      const yDisp = Number((3.45 + wave * 0.8).toFixed(3));
-      const totalDisp = Number(Math.sqrt(xDisp * xDisp + yDisp * yDisp).toFixed(3));
-
-      fallbackHistory.push({
-        time: ptTime.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-        timestamp: ptTime.toISOString(),
-        deviceId,
-        xTilt,
-        tiltX: xTilt,
-        yTilt,
-        tiltY: yTilt,
-        resultant: resultantTilt,
-        resultantTilt,
-        xDisp,
-        xDisplacement: xDisp,
-        yDisp,
-        yDisplacement: yDisp,
-        zDisp: 0.12,
-        zDisplacement: 0.12,
-        totalDisp,
-        totalDisplacement: totalDisp,
-        accMag: Number((0.982 + wave * 0.01).toFixed(3)),
-        vibRMS: Number((0.045 + Math.abs(wave) * 0.02).toFixed(4)),
-        vibrationRMS: Number((0.045 + Math.abs(wave) * 0.02).toFixed(4)),
-        vibPeak: Number((0.104 + Math.abs(wave) * 0.04).toFixed(4)),
-        vibrationPeak: Number((0.104 + Math.abs(wave) * 0.04).toFixed(4)),
-        temperature: Number((28.5 + Math.sin(i * 0.2) * 1.5).toFixed(1)),
-        temp: Number((28.5 + Math.sin(i * 0.2) * 1.5).toFixed(1)),
-      });
-    }
-
+    // 4. If no history recorded yet for selected device & range, return empty dataset (no fake/simulated data)
     return reply.send({
       statusCode: 200,
       deviceId,
-      source: 'Synthesized Telemetry Buffer',
-      totalPoints: fallbackHistory.length,
-      history: fallbackHistory,
+      source: 'Database',
+      totalPoints: 0,
+      history: [],
     });
   });
 }

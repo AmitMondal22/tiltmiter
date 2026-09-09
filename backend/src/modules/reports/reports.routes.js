@@ -60,64 +60,24 @@ export async function reportsRoutes(fastify) {
       }
 
       // Query Time-Series Records from PostgreSQL Table
-      let records = await TelemetryRecord.findAll({
+      const records = await TelemetryRecord.findAll({
         where: telemetryWhere,
         order: [['timestamp', 'ASC']],
         limit: 2000,
       });
 
-      // If no records found in DB, check in-memory store or synthesize for reporting
-      if (!records || records.length === 0) {
-        const targetDevId = deviceId || deviceIds[0] || 'TECHA12345';
-        const fallbackList = [];
-        const count = 30;
-        const nowMs = (stopDate && !isNaN(stopDate.getTime())) ? stopDate.getTime() : Date.now();
-        const startMs = (startDate && !isNaN(startDate.getTime())) ? startDate.getTime() : (nowMs - 7 * 24 * 60 * 60 * 1000);
-        const step = Math.max(1000, Math.floor((nowMs - startMs) / count));
-
-        for (let i = 0; i <= count; i++) {
-          const ptTime = new Date(startMs + i * step);
-          const wave = Math.sin(i * 0.35) * 0.12;
-          const xTilt = Number((0.82 + wave * 0.35).toFixed(4));
-          const yTilt = Number((1.18 + Math.cos(i * 0.35) * 0.07).toFixed(4));
-          const resultantTilt = Number(Math.sqrt(xTilt * xTilt + yTilt * yTilt).toFixed(4));
-          const xDisp = Number((2.05 + wave * 0.9).toFixed(3));
-          const yDisp = Number((3.30 + wave * 0.7).toFixed(3));
-          const totalDisp = Number(Math.sqrt(xDisp * xDisp + yDisp * yDisp).toFixed(3));
-
-          fallbackList.push({
-            timestamp: ptTime.toISOString(),
-            time: ptTime.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-            deviceId: targetDevId,
-            resultantTilt,
-            xTilt,
-            yTilt,
-            totalDisplacement: totalDisp,
-            xDisplacement: xDisp,
-            yDisplacement: yDisp,
-            zDisplacement: 0.12,
-            accMag: Number((0.982 + wave * 0.01).toFixed(3)),
-            vibrationRMS: Number((0.045 + Math.abs(wave) * 0.02).toFixed(4)),
-            vibrationPeak: Number((0.104 + Math.abs(wave) * 0.04).toFixed(4)),
-            temperature: Number((28.4 + Math.sin(i * 0.2) * 1.4).toFixed(1)),
-          });
-        }
-
-        records = fallbackList;
-      }
-
-      // Compute analytics statistics
+      // Compute analytics statistics on real records
       let sumTilt = 0;
       let maxTilt = 0;
       let maxDisp = 0;
       let maxVib = 0;
       let sumTemp = 0;
 
-      records.forEach(r => {
-        const tilt = r.resultantTilt || 0;
-        const disp = r.totalDisplacement || 0;
-        const vib = r.vibrationPeak || 0.104;
-        const temp = r.temperature || 28.5;
+      (records || []).forEach(r => {
+        const tilt = parseFloat(r.resultantTilt || 0);
+        const disp = parseFloat(r.totalDisplacement || 0);
+        const vib = parseFloat(r.vibration?.vibrationPeak || r.vibrationPeak || 0);
+        const temp = parseFloat(r.temperature || 0);
 
         sumTilt += tilt;
         if (tilt > maxTilt) maxTilt = tilt;
@@ -126,7 +86,7 @@ export async function reportsRoutes(fastify) {
         sumTemp += temp;
       });
 
-      const totalCount = records.length;
+      const totalCount = records ? records.length : 0;
       const avgTilt = totalCount > 0 ? (sumTilt / totalCount).toFixed(4) : 0;
       const avgTemp = totalCount > 0 ? (sumTemp / totalCount).toFixed(2) : 0;
 
@@ -141,7 +101,7 @@ export async function reportsRoutes(fastify) {
           maxVibrationPeak_g: parseFloat(maxVib.toFixed(4)),
           averageTemperature_C: parseFloat(avgTemp),
         },
-        timeSeriesData: records.map(r => ({
+        timeSeriesData: (records || []).map(r => ({
           timestamp: new Date(r.timestamp).toISOString(),
           time: new Date(r.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
           deviceId: r.deviceId,

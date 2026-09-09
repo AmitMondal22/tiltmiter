@@ -1,79 +1,207 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { getDeviceTelemetry } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
-import { formatTimeString } from '../utils/dateHelper';
+import { telemetryService } from '../services/telemetryManager';
+import { formatTimeString, formatFullDateTime } from '../utils/dateHelper';
 
-const RANGES = ['1H', '6H', '12H', '24H', '7D', '30D'];
+const RANGES = [
+  { id: '1h', label: '1H', hours: 1 },
+  { id: '6h', label: '6H', hours: 6 },
+  { id: '12h', label: '12H', hours: 12 },
+  { id: '24h', label: '24H', hours: 24 },
+  { id: '7d', label: '7D', hours: 168 },
+  { id: '30d', label: '30D', hours: 720 },
+];
 
 export default function TiltmeterChartsRow({ currentDevice }) {
-  const [range1, setRange1] = useState('24H');
-  const [range2, setRange2] = useState('24H');
-  const [range3, setRange3] = useState('24H');
+  const [range1, setRange1] = useState('24h');
+  const [range2, setRange2] = useState('24h');
+  const [range3, setRange3] = useState('24h');
 
-  const [liveHistory, setLiveHistory] = useState([
-    { time: '14:20:00', resultant: 0.12, xTilt: 0.08, yTilt: -0.09, totalDisp: 4.60, xDisp: 0.12, yDisp: 4.59, peakG: 0.14 },
-    { time: '14:21:00', resultant: 0.15, xTilt: 0.11, yTilt: -0.08, totalDisp: 4.62, xDisp: 0.13, yDisp: 4.60, peakG: 0.17 },
-    { time: '14:22:00', resultant: 0.19, xTilt: 0.14, yTilt: -0.09, totalDisp: 4.65, xDisp: 0.15, yDisp: 4.63, peakG: 0.18 },
-    { time: '14:23:00', resultant: 0.22, xTilt: 0.16, yTilt: -0.07, totalDisp: 4.68, xDisp: 0.16, yDisp: 4.65, peakG: 0.22 },
-    { time: '14:24:00', resultant: 0.20, xTilt: 0.15, yTilt: -0.08, totalDisp: 4.66, xDisp: 0.15, yDisp: 4.64, peakG: 0.21 },
-    { time: '14:25:00', resultant: 0.18, xTilt: 0.14, yTilt: -0.08, totalDisp: 4.64, xDisp: 0.14, yDisp: 4.62, peakG: 0.18 },
-  ]);
+  const [data1, setData1] = useState([]);
+  const [data2, setData2] = useState([]);
+  const [data3, setData3] = useState([]);
 
+  const [loading1, setLoading1] = useState(false);
+  const [loading2, setLoading2] = useState(false);
+  const [loading3, setLoading3] = useState(false);
+
+  const deviceId = currentDevice?.id || currentDevice?.deviceId || 'TILTM00001';
+
+  // Helper to determine the device's latest available anchor timestamp
+  const getDeviceAnchorTime = useCallback(() => {
+    if (currentDevice?.timestamp) {
+      const dt = new Date(currentDevice.timestamp);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    if (currentDevice?.lastSeen) {
+      const dt = new Date(currentDevice.lastSeen);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    return new Date();
+  }, [currentDevice?.timestamp, currentDevice?.lastSeen]);
+
+  const mapTelemetryPoint = useCallback((pt) => {
+    const ts = pt.timestamp || pt.time;
+    return {
+      time: formatTimeString(ts),
+      fullTime: formatFullDateTime(ts),
+      timestamp: ts,
+      resultant: Number(parseFloat(pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? 0.18).toFixed(3)),
+      xTilt: Number(parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0.15).toFixed(3)),
+      yTilt: Number(parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? -0.09).toFixed(3)),
+      totalDisp: Number(parseFloat(pt.totalDisp ?? pt.totalDisplacement ?? pt.displacement?.totalDisplacement_mm ?? 4.65).toFixed(3)),
+      xDisp: Number(parseFloat(pt.xDisp ?? pt.xDisplacement ?? pt.displacement?.xDisplacement_mm ?? 0.14).toFixed(3)),
+      yDisp: Number(parseFloat(pt.yDisp ?? pt.yDisplacement ?? pt.displacement?.yDisplacement_mm ?? 4.60).toFixed(3)),
+      zDisp: Number(parseFloat(pt.zDisp ?? pt.zDisplacement ?? pt.displacement?.zDisplacement_mm ?? 0.12).toFixed(3)),
+      peakG: Number(parseFloat(pt.peakG ?? pt.vibPeak ?? pt.vibrationPeak ?? (pt.accMag ? pt.accMag / 10 : 0.18)).toFixed(3)),
+      vibRMS: Number(parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? 0.045).toFixed(4)),
+      accMag: Number(parseFloat(pt.accMag ?? 0.982).toFixed(3)),
+    };
+  }, []);
+
+  // Fetch historical data for a specific range window
+  const fetchChartData = useCallback(async (rangeKey, setData, setLoading) => {
+    if (!deviceId) return;
+    setLoading(true);
+
+    const rangeObj = RANGES.find(r => r.id === rangeKey) || RANGES[3];
+    const end = getDeviceAnchorTime();
+    const start = new Date(end.getTime() - rangeObj.hours * 60 * 60 * 1000);
+
+    try {
+      const res = await getDeviceTelemetry(deviceId, start.toISOString(), end.toISOString());
+      if (res?.history && res.history.length > 0) {
+        const seen = new Set();
+        const cleanList = [];
+        for (const pt of res.history) {
+          const ts = pt.timestamp || pt.time;
+          if (ts && seen.has(ts)) continue;
+          if (ts) seen.add(ts);
+          cleanList.push(mapTelemetryPoint(pt));
+        }
+        setData(cleanList);
+      } else {
+        // If empty history, fallback to current telemetry point or parsed state
+        const single = mapTelemetryPoint(currentDevice || { id: deviceId });
+        setData([single]);
+      }
+    } catch (err) {
+      const single = mapTelemetryPoint(currentDevice || { id: deviceId });
+      setData([single]);
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceId, getDeviceAnchorTime, mapTelemetryPoint, currentDevice]);
+
+  // Load telemetry for chart 1 (Tilt)
   useEffect(() => {
-    if (!currentDevice) return;
-    const d = parseTelemetry(currentDevice);
-    const timeStr = formatTimeString(d.timestamp);
+    fetchChartData(range1, setData1, setLoading1);
+  }, [deviceId, range1, fetchChartData]);
 
-    setLiveHistory(prev => {
-      const newPoint = {
-        time: timeStr,
-        resultant: parseFloat(d.resultantTilt?.toFixed(3)) || 0.18,
-        xTilt: parseFloat(d.xTilt?.toFixed(3)) || 0.15,
-        yTilt: parseFloat(d.yTilt?.toFixed(3)) || -0.09,
-        totalDisp: parseFloat(d.totalDisplacement?.toFixed(3)) || 4.67,
-        xDisp: parseFloat(d.xDisplacement?.toFixed(3)) || 0.12,
-        yDisp: parseFloat(d.yDisplacement?.toFixed(3)) || 4.59,
-        peakG: parseFloat((d.accMag ? d.accMag / 10 : d.vibPeak)?.toFixed(3)) || 0.18,
-      };
+  // Load telemetry for chart 2 (Displacement)
+  useEffect(() => {
+    fetchChartData(range2, setData2, setLoading2);
+  }, [deviceId, range2, fetchChartData]);
 
-      const updated = [...prev, newPoint];
-      return updated.slice(-15); // keep latest 15 telemetry points
-    });
-  }, [currentDevice?.timestamp, currentDevice?.resultantTilt, currentDevice?.xTilt, currentDevice?.yTilt, currentDevice?.totalDisplacement, currentDevice?.tilt, currentDevice?.displacement]);
+  // Load telemetry for chart 3 (Peak G / Vibration)
+  useEffect(() => {
+    fetchChartData(range3, setData3, setLoading3);
+  }, [deviceId, range3, fetchChartData]);
+
+  // Subscribe to live telemetry stream and append incoming points without duplicates
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const unsubscribe = telemetryService.subscribe((packet) => {
+      if (!packet) return;
+      const targetId = packet.deviceId || packet.id;
+      if (targetId === deviceId || !targetId) {
+        const parsed = parseTelemetry(packet);
+        const newPoint = mapTelemetryPoint(parsed);
+
+        const appendHelper = (prev) => {
+          if (prev.some(p => p.timestamp === newPoint.timestamp)) {
+            return prev; // Skip duplicate timestamp
+          }
+          return [...prev, newPoint].slice(-100);
+        };
+
+        setData1(appendHelper);
+        setData2(appendHelper);
+        setData3(appendHelper);
+      }
+    }, deviceId);
+
+    return () => {
+      unsubscribe();
+    };
+  }, [deviceId, mapTelemetryPoint]);
+
+  // Custom Chart Tooltip
+  const CustomTooltip = ({ active, payload, label, unit = '' }) => {
+    if (!active || !payload || !payload.length) return null;
+    const fullTimeStr = payload[0]?.payload?.fullTime || label;
+
+    return (
+      <div className="bg-white/95 backdrop-blur-md p-2.5 rounded-xl border border-slate-200 shadow-lg text-[11px] font-mono z-50">
+        <div className="text-slate-500 font-semibold mb-1 text-[10px] pb-1 border-b border-slate-100">
+          {fullTimeStr}
+        </div>
+        <div className="space-y-1">
+          {payload.map((entry, idx) => (
+            <div key={`item-${idx}`} className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-1.5" style={{ color: entry.color }}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                <span>{entry.name}:</span>
+              </span>
+              <span className="font-bold text-slate-800">
+                {entry.value} {unit}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
       {/* Chart 1: TILT (°) VS TIME */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 flex flex-col justify-between shadow-xs">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-          <div className="text-[10px] font-black text-slate-800 uppercase font-mono tracking-wider">
-            TILT (°) VS TIME
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] font-black text-slate-800 uppercase font-mono tracking-wider">
+              TILT (°) VS TIME
+            </div>
+            {loading1 && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping" />}
           </div>
           <div className="flex items-center gap-1">
             {RANGES.map(r => (
               <button
-                key={r}
-                onClick={() => setRange1(r)}
-                className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded transition-colors ${
-                  range1 === r ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-700'
+                key={r.id}
+                onClick={() => setRange1(r.id)}
+                className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded transition-colors cursor-pointer ${
+                  range1 === r.id ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                {r}
+                {r.label}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="h-44 w-full">
+        <div className="h-44 w-full relative">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={liveHistory}>
+            <LineChart data={data1}>
               <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
+              <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} minTickGap={15} />
               <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} domain={['auto', 'auto']} />
-              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
-              <Line type="monotone" dataKey="resultant" stroke="#a855f7" strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Tooltip content={<CustomTooltip unit="°" />} />
+              <Line type="monotone" dataKey="resultant" name="Resultant" stroke="#8b5cf6" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="xTilt" name="X Tilt" stroke="#3b82f6" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="yTilt" name="Y Tilt" stroke="#10b981" strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -98,34 +226,37 @@ export default function TiltmeterChartsRow({ currentDevice }) {
       {/* Chart 2: DISPLACEMENT (MM) VS TIME */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 flex flex-col justify-between shadow-xs">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-          <div className="text-[10px] font-black text-slate-800 uppercase font-mono tracking-wider">
-            DISPLACEMENT (MM) VS TIME
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] font-black text-slate-800 uppercase font-mono tracking-wider">
+              DISPLACEMENT (MM) VS TIME
+            </div>
+            {loading2 && <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-ping" />}
           </div>
           <div className="flex items-center gap-1">
             {RANGES.map(r => (
               <button
-                key={r}
-                onClick={() => setRange2(r)}
-                className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded transition-colors ${
-                  range2 === r ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-700'
+                key={r.id}
+                onClick={() => setRange2(r.id)}
+                className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded transition-colors cursor-pointer ${
+                  range2 === r.id ? 'bg-pink-600 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                {r}
+                {r.label}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="h-44 w-full">
+        <div className="h-44 w-full relative">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={liveHistory}>
+            <LineChart data={data2}>
               <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
+              <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} minTickGap={15} />
               <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} domain={['auto', 'auto']} />
-              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
-              <Line type="monotone" dataKey="totalDisp" stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="xDisp" stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Line type="monotone" dataKey="yDisp" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Tooltip content={<CustomTooltip unit="mm" />} />
+              <Line type="monotone" dataKey="totalDisp" name="Total Disp" stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="xDisp" name="X Disp" stroke="#06b6d4" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="yDisp" name="Y Disp" stroke="#f59e0b" strokeWidth={2} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -150,32 +281,36 @@ export default function TiltmeterChartsRow({ currentDevice }) {
       {/* Chart 3: PEAK G VS TIME */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 flex flex-col justify-between shadow-xs">
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-          <div className="text-[10px] font-black text-slate-800 uppercase font-mono tracking-wider">
-            PEAK G VS TIME
+          <div className="flex items-center gap-2">
+            <div className="text-[10px] font-black text-slate-800 uppercase font-mono tracking-wider">
+              PEAK G VS TIME
+            </div>
+            {loading3 && <span className="w-1.5 h-1.5 rounded-full bg-slate-700 animate-ping" />}
           </div>
           <div className="flex items-center gap-1">
             {RANGES.map(r => (
               <button
-                key={r}
-                onClick={() => setRange3(r)}
-                className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded transition-colors ${
-                  range3 === r ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-700'
+                key={r.id}
+                onClick={() => setRange3(r.id)}
+                className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded transition-colors cursor-pointer ${
+                  range3 === r.id ? 'bg-slate-900 text-white' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
                 }`}
               >
-                {r}
+                {r.label}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="h-44 w-full">
+        <div className="h-44 w-full relative">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={liveHistory}>
+            <LineChart data={data3}>
               <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
+              <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} minTickGap={15} />
               <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} domain={['auto', 'auto']} />
-              <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
-              <Line type="monotone" dataKey="peakG" stroke="#0f172a" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Tooltip content={<CustomTooltip unit="g" />} />
+              <Line type="monotone" dataKey="peakG" name="Peak G" stroke="#0f172a" strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="vibRMS" name="Vib RMS" stroke="#6366f1" strokeWidth={1.5} strokeDasharray="3 3" dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -185,6 +320,10 @@ export default function TiltmeterChartsRow({ currentDevice }) {
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-0.5 bg-slate-900 rounded-full" />
             <span>Peak G</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-0.5 bg-indigo-500 rounded-full" />
+            <span>Vib RMS</span>
           </span>
         </div>
       </div>

@@ -307,7 +307,8 @@ export default function DeviceDetailPage() {
               { id: '1h', label: '1h', hours: 1 },
               { id: '6h', label: '6h', hours: 6 },
               { id: '24h', label: '24h', hours: 24 },
-              { id: '7d', label: '1 Week', hours: 168 },
+              { id: '7d', label: '7d', hours: 168 },
+              { id: '30d', label: '30d', hours: 720 },
             ].map(b => (
               <button
                 key={b.id}

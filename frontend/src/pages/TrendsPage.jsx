@@ -127,7 +127,7 @@ export default function TrendsPage() {
   }, [selectedDeviceId]);
 
   // Get the most recent available telemetry timestamp
-  const getLatestAvailableTime = () => {
+  const getLatestAvailableTime = (devId = selectedDeviceId) => {
     if (telemetryLogs.length > 0) {
       const last = telemetryLogs[telemetryLogs.length - 1];
       const ts = last?.timestamp || last?.time;
@@ -136,10 +136,19 @@ export default function TrendsPage() {
         if (!isNaN(dt.getTime())) return dt;
       }
     }
+    const dev = devices.find(d => d.id === devId);
+    if (dev?.timestamp) {
+      const dt = new Date(dev.timestamp);
+      if (!isNaN(dt.getTime())) return dt;
+    }
+    if (dev?.lastSeen) {
+      const dt = new Date(dev.lastSeen);
+      if (!isNaN(dt.getTime())) return dt;
+    }
     return new Date();
   };
 
-  // Handle Preset Time Selection: 1h, 6h, 24h, 7d (Week) relative to last available data
+  // Handle Preset Time Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
   const handlePresetSelect = (presetKey, hours) => {
     setActivePreset(presetKey);
     const end = getLatestAvailableTime();
@@ -219,13 +228,14 @@ export default function TrendsPage() {
               </select>
             </div>
 
-            {/* Presets: 1h, 6h, 24h, 1 Week */}
+            {/* Presets: 1h, 6h, 24h, 7d, 30d */}
             <div className="flex items-center gap-1">
               {[
                 { id: '1h', label: '1h', hours: 1 },
                 { id: '6h', label: '6h', hours: 6 },
                 { id: '24h', label: '24h', hours: 24 },
-                { id: '7d', label: '1 Week', hours: 168 },
+                { id: '7d', label: '7d', hours: 168 },
+                { id: '30d', label: '30d', hours: 720 },
               ].map(p => (
                 <button
                   key={p.id}

@@ -29,15 +29,38 @@ export async function telemetryRoutes(fastify) {
       }
     } catch (e) {}
 
-    // Handle range shortcuts if provided (e.g. 1h, 6h, 24h, 7d, 30d)
+    // Handle range shortcuts if provided (e.g. 1h, 6h, 12h, 24h, 7d, 30d) anchored to latest device data
     if (range && !startDate) {
-      const now = new Date();
-      stopDate = now;
-      if (range === '1h') startDate = new Date(now.getTime() - 60 * 60 * 1000);
-      else if (range === '6h') startDate = new Date(now.getTime() - 6 * 60 * 60 * 1000);
-      else if (range === '24h' || range === '1d') startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      else if (range === '7d') startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      else if (range === '30d') startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      let refDate = new Date();
+      try {
+        const latestRec = await TelemetryRecord.findOne({
+          where: { deviceId },
+          order: [['timestamp', 'DESC']],
+          attributes: ['timestamp'],
+        });
+        if (latestRec?.timestamp) {
+          const recDate = new Date(latestRec.timestamp);
+          if (!isNaN(recDate.getTime())) {
+            refDate = recDate;
+          }
+        } else {
+          const dev = await Device.findByPk(deviceId);
+          if (dev?.lastSeen) {
+            const lsDate = new Date(dev.lastSeen);
+            if (!isNaN(lsDate.getTime())) refDate = lsDate;
+          }
+        }
+      } catch (err) {}
+
+      stopDate = refDate;
+      const rLower = String(range).toLowerCase();
+      if (rLower === '1h') startDate = new Date(refDate.getTime() - 60 * 60 * 1000);
+      else if (rLower === '6h') startDate = new Date(refDate.getTime() - 6 * 60 * 60 * 1000);
+      else if (rLower === '12h') startDate = new Date(refDate.getTime() - 12 * 60 * 60 * 1000);
+      else if (rLower === '24h' || rLower === '1d') startDate = new Date(refDate.getTime() - 24 * 60 * 60 * 1000);
+      else if (rLower === '7d' || rLower === '1w') startDate = new Date(refDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+      else if (rLower === '30d' || rLower === '1m') startDate = new Date(refDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+      else startDate = new Date(refDate.getTime() - 24 * 60 * 60 * 1000);
     }
 
     // 1. Try querying InfluxDB OSS time-series database

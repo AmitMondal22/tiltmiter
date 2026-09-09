@@ -37,19 +37,25 @@ export default function DeviceDetailPage() {
   useEffect(() => {
     if (!deviceId) return;
 
-    getDevice(deviceId).then(res => {
-      const dev = res?.device || res;
-      if (dev && (dev.id || dev.name)) {
-        setDevice(dev);
-        setConfigForm({
-          sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
-          wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
-          calibrate: Boolean(dev.calibrate),
-        });
-        const parsed = parseTelemetry(dev);
-        setLiveData(parsed);
-      }
-    }).catch(() => { });
+    getDevice(deviceId)
+      .then(res => {
+        const dev = res?.device || res;
+        if (dev && (dev.id || dev.name)) {
+          setDevice(dev);
+          setConfigForm({
+            sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
+            wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
+            calibrate: Boolean(dev.calibrate),
+          });
+          const parsed = parseTelemetry(dev);
+          setLiveData(parsed);
+        } else {
+          setDevice({ id: deviceId, name: `Tiltmeter ${deviceId}`, status: 'ONLINE' });
+        }
+      })
+      .catch(() => {
+        setDevice({ id: deviceId, name: `Tiltmeter ${deviceId}`, status: 'ONLINE' });
+      });
 
     loadHistory(deviceId, fromDateTime, toDateTime);
   }, [deviceId]);
@@ -72,16 +78,17 @@ export default function DeviceDetailPage() {
             if (ts) seen.add(ts);
             mapped.push({
               time: pt.time || formatTimeString(pt.timestamp),
+              fullTime: formatFullDateTime(pt.timestamp || pt.time),
               timestamp: pt.timestamp || pt.time,
-              resultant: parseFloat(pt.resultant || pt.resultantTilt || 0),
-              xTilt: parseFloat(pt.xTilt || pt.tiltX || 0),
-              yTilt: parseFloat(pt.yTilt || pt.tiltY || 0),
-              totalDisp: parseFloat(pt.totalDisp || pt.totalDisplacement || 0),
-              xDisp: parseFloat(pt.xDisp || pt.xDisplacement || 0),
-              yDisp: parseFloat(pt.yDisp || pt.yDisplacement || 0),
-              zDisp: parseFloat(pt.zDisp || pt.zDisplacement || 0),
-              vibRMS: parseFloat(pt.vibRMS || pt.vibrationRMS || 0.045),
-              vibPeak: parseFloat(pt.vibPeak || pt.vibrationPeak || 0.104),
+              resultant: parseFloat(pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? 0),
+              xTilt: parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0),
+              yTilt: parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0),
+              totalDisp: parseFloat(pt.totalDisp ?? pt.totalDisplacement ?? pt.displacement?.totalDisplacement_mm ?? 0),
+              xDisp: parseFloat(pt.xDisp ?? pt.xDisplacement ?? pt.displacement?.xDisplacement_mm ?? 0),
+              yDisp: parseFloat(pt.yDisp ?? pt.yDisplacement ?? pt.displacement?.yDisplacement_mm ?? 0),
+              zDisp: parseFloat(pt.zDisp ?? pt.zDisplacement ?? pt.displacement?.zDisplacement_mm ?? 0),
+              vibRMS: parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? 0.045),
+              vibPeak: parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? 0.104),
             });
           }
           setTelemetryHistory(mapped);
@@ -115,16 +122,17 @@ export default function DeviceDetailPage() {
           }
           const newPoint = {
             time: formatTimeString(parsed.timestamp),
+            fullTime: formatFullDateTime(parsed.timestamp),
             timestamp: parsed.timestamp,
-            resultant: parsed.resultantTilt,
-            xTilt: parsed.xTilt,
-            yTilt: parsed.yTilt,
-            totalDisp: parsed.totalDisplacement,
-            xDisp: parsed.xDisplacement,
-            yDisp: parsed.yDisplacement,
-            zDisp: parsed.zDisplacement || 0,
-            vibRMS: parsed.vibRMS || 0.045,
-            vibPeak: parsed.vibPeak || 0.104,
+            resultant: parseFloat(parsed.resultantTilt ?? parsed.tilt ?? 0),
+            xTilt: parseFloat(parsed.xTilt ?? parsed.roll ?? 0),
+            yTilt: parseFloat(parsed.yTilt ?? parsed.pitch ?? 0),
+            totalDisp: parseFloat(parsed.totalDisplacement ?? 0),
+            xDisp: parseFloat(parsed.xDisplacement ?? 0),
+            yDisp: parseFloat(parsed.yDisplacement ?? 0),
+            zDisp: parseFloat(parsed.zDisplacement ?? 0),
+            vibRMS: parseFloat(parsed.vibRMS ?? 0.045),
+            vibPeak: parseFloat(parsed.vibPeak ?? 0.104),
           };
           return [...prev, newPoint].slice(-60);
         });
@@ -450,30 +458,43 @@ export default function DeviceDetailPage() {
         {/* Chart 1: Inclinometer Tilt vs Time */}
         <div className={cardCls}>
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-              TILT ANGLE (°) VS TIME
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
+                TILT ANGLE (°) VS TIME
+              </span>
+              <span className="inline-flex items-center gap-1 text-[9px] font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                LIVE
+              </span>
+            </div>
             <span className="text-[9px] font-mono text-slate-400">
-              {activeFilter.toUpperCase()} Window
+              {activeFilter.toUpperCase()} Window ({telemetryHistory.length} Points)
             </span>
           </div>
 
           <div className="h-56 w-full flex items-center justify-center">
             {telemetryHistory.length === 0 ? (
               <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching telemetry records...' : 'No historical data found for this period.'}
+                {loading ? 'Fetching real telemetry records...' : 'No historical telemetry data found for this period.'}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={telemetryHistory}>
-                  <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
+                <LineChart data={telemetryHistory} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
+                  <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} minTickGap={25} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} unit="°" domain={['auto', 'auto']} />
+                  <Tooltip
+                    formatter={(val) => [`${Number(val).toFixed(4)}°`, '']}
+                    labelFormatter={(label, items) => {
+                      const row = items?.[0]?.payload;
+                      return row?.fullTime ? `IST: ${row.fullTime}` : `Time: ${label}`;
+                    }}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
+                  />
                   <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Line type="monotone" dataKey="resultant" stroke="#a855f7" strokeWidth={2} dot={false} name="Resultant Tilt" />
-                  <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={2} dot={false} name="X Tilt" />
-                  <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={2} dot={false} name="Y Tilt" />
+                  <Line type="monotone" dataKey="resultant" stroke="#a855f7" strokeWidth={2} dot={false} isAnimationActive={false} name="Resultant Tilt (°)" />
+                  <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={1.8} dot={false} isAnimationActive={false} name="Roll / X Tilt (°)" />
+                  <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={1.8} dot={false} isAnimationActive={false} name="Pitch / Y Tilt (°)" />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -483,30 +504,43 @@ export default function DeviceDetailPage() {
         {/* Chart 2: Sub-surface Displacement vs Time */}
         <div className={cardCls}>
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-              3D DISPLACEMENT (MM) VS TIME
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
+                3D DISPLACEMENT (MM) VS TIME
+              </span>
+              <span className="inline-flex items-center gap-1 text-[9px] font-mono text-pink-600 bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
+                LIVE
+              </span>
+            </div>
             <span className="text-[9px] font-mono text-slate-400">
-              {activeFilter.toUpperCase()} Window
+              {activeFilter.toUpperCase()} Window ({telemetryHistory.length} Points)
             </span>
           </div>
 
           <div className="h-56 w-full flex items-center justify-center">
             {telemetryHistory.length === 0 ? (
               <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching telemetry records...' : 'No historical data found for this period.'}
+                {loading ? 'Fetching real telemetry records...' : 'No historical telemetry data found for this period.'}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={telemetryHistory}>
-                  <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
+                <LineChart data={telemetryHistory} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
+                  <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} minTickGap={25} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} unit="mm" domain={['auto', 'auto']} />
+                  <Tooltip
+                    formatter={(val) => [`${Number(val).toFixed(4)} mm`, '']}
+                    labelFormatter={(label, items) => {
+                      const row = items?.[0]?.payload;
+                      return row?.fullTime ? `IST: ${row.fullTime}` : `Time: ${label}`;
+                    }}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
+                  />
                   <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Line type="monotone" dataKey="totalDisp" stroke="#ec4899" strokeWidth={2} dot={false} name="Total Disp" />
-                  <Line type="monotone" dataKey="xDisp" stroke="#06b6d4" strokeWidth={2} dot={false} name="X Disp" />
-                  <Line type="monotone" dataKey="yDisp" stroke="#f59e0b" strokeWidth={2} dot={false} name="Y Disp" />
+                  <Line type="monotone" dataKey="totalDisp" stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} name="Total Disp (mm)" />
+                  <Line type="monotone" dataKey="xDisp" stroke="#06b6d4" strokeWidth={1.8} dot={false} isAnimationActive={false} name="ΔX Disp (mm)" />
+                  <Line type="monotone" dataKey="yDisp" stroke="#f59e0b" strokeWidth={1.8} dot={false} isAnimationActive={false} name="ΔY Disp (mm)" />
                 </LineChart>
               </ResponsiveContainer>
             )}

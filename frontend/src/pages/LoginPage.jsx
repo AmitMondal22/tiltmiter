@@ -18,7 +18,7 @@ export default function LoginPage() {
     try {
       const cached = localStorage.getItem('tiltmeter_org_logo');
       if (cached) return cached;
-    } catch (e) {}
+    } catch (e) { }
     return appLogo;
   });
   const [orgName, setOrgName] = useState(() => {
@@ -99,7 +99,7 @@ export default function LoginPage() {
       try {
         localStorage.removeItem('tiltmeter_org_logo');
         localStorage.removeItem('tiltmeter_org_name');
-      } catch (e) {}
+      } catch (e) { }
     }
   };
 
@@ -203,7 +203,7 @@ export default function LoginPage() {
         </form>
 
         {/* Default Admin Access Pill */}
-        <div className="pt-4 border-t border-slate-100">
+        {/* <div className="pt-4 border-t border-slate-100">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2 text-center">
             Default Administrator Access
           </div>
@@ -217,7 +217,7 @@ export default function LoginPage() {
               <div className="text-[10px] text-slate-500 font-mono">superadmin / superadmin123</div>
             </button>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );

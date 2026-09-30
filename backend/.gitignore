@@ -28,6 +28,16 @@ data/
 *.sqlite
 *.sqlite-journal
 
+# Uploads & Media
+uploads/
+upload/
+public/uploads/
+storage/
+temp/
+tmp/
+*.tmp
+*.bak
+
 # Editor and OS files
 .DS_Store
 Thumbs.db

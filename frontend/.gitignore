@@ -11,10 +11,18 @@ lerna-debug.log*
 node_modules
 package-lock.json
 yarn.lock
-pnpm-lock.yaml
+# Production Builds & Uploads
 dist
 dist-ssr
 *.local
+uploads/
+upload/
+public/uploads/
+storage/
+temp/
+tmp/
+*.tmp
+*.bak
 
 # Docker
 Dockerfile*

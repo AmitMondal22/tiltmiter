@@ -37,6 +37,18 @@ data/
 *.sqlite
 *.sqlite-journal
 
+# Uploads & User Media (Ignored)
+uploads/
+upload/
+*/uploads/
+*/upload/
+public/uploads/
+storage/
+temp/
+tmp/
+*.tmp
+*.bak
+
 # Logs
 logs
 *.log

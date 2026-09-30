@@ -175,15 +175,15 @@ export default function StructuresPage() {
         <div>
           <h2 className="text-xl font-black text-black flex items-center gap-2">
             <Layers className="w-5 h-5 text-blue-600" />
-            <span>Structural Assets & 3D Landslide Map</span>
+            <span>Structural Assets</span>
           </h2>
           <p className="text-xs text-slate-700 font-medium mt-0.5">
-            {structuresList.length} registered geotechnical assets &bull; Coverage Areas ("aria"), Color Types, 3D Slope DEM & Live Inclinometers
+            {structuresList.length} registered geotechnical assets &bull; Coverage Areas ("aria"), Color Types & Live Inclinometers
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Table vs 2D Map vs 3D Map Switcher */}
+          {/* Table vs 2D Map Switcher */}
           <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
             <button
               onClick={() => setViewMode('list')}
@@ -206,17 +206,6 @@ export default function StructuresPage() {
             >
               <MapIcon className="w-3.5 h-3.5" />
               <span>2D Geospatial Area Map</span>
-            </button>
-            <button
-              onClick={() => setViewMode('3d')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewMode === '3d'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Box className="w-3.5 h-3.5" />
-              <span>3D Landslide Slope Model</span>
             </button>
           </div>
 
@@ -301,16 +290,6 @@ export default function StructuresPage() {
                             >
                               <MapPin className="w-3.5 h-3.5 text-blue-600" />
                               <span>2D Map</span>
-                            </button>
-
-                            {/* 3D Landslide Action */}
-                            <button
-                              onClick={() => handleOpen3DForAsset(st)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 font-bold text-[11px] border border-purple-200 transition-colors cursor-pointer"
-                              title="View asset in 3D slope model"
-                            >
-                              <Box className="w-3.5 h-3.5 text-purple-600" />
-                              <span>3D View</span>
                             </button>
 
                             <button onClick={() => handleOpenEdit(st)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">

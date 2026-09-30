@@ -170,17 +170,6 @@ export default function SitesPage() {
               <MapIcon className="w-3.5 h-3.5" />
               <span>Location Map & Analytics</span>
             </button>
-            <button
-              onClick={() => setViewMode('3d')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewMode === '3d'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Box className="w-3.5 h-3.5" />
-              <span>3D Landslide Slope Map</span>
-            </button>
           </div>
 
           <button

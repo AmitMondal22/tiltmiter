@@ -353,15 +353,6 @@ export default function LocationMapView({
               <MapIcon className="w-3.5 h-3.5" />
               <span>Street</span>
             </button>
-            <button
-              onClick={() => setMapType('3d')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                mapType === '3d' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Box className="w-3.5 h-3.5" />
-              <span>3D Landslide</span>
-            </button>
           </div>
 
           <button

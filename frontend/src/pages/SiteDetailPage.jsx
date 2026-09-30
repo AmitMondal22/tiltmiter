@@ -143,7 +143,7 @@ export default function SiteDetailPage() {
           </div>
         </div>
 
-        {/* View Switcher: Satellite vs Street vs 3D Landslide */}
+        {/* View Switcher: Satellite vs Street */}
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
             <button
@@ -167,17 +167,6 @@ export default function SiteDetailPage() {
             >
               <MapIcon className="w-3.5 h-3.5" />
               <span>Street Map</span>
-            </button>
-            <button
-              onClick={() => setViewType('3d')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewType === '3d'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Box className="w-3.5 h-3.5" />
-              <span>3D Landslide Slope Model</span>
             </button>
           </div>
 

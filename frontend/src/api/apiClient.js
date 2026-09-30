@@ -242,6 +242,11 @@ export async function getOrganizationLogo() {
   return await request('/organizations/logo');
 }
 
+export async function getPublicTenantLogo(params = {}) {
+  const query = new URLSearchParams(params).toString();
+  return await request(`/public/tenant-logo${query ? `?${query}` : ''}`);
+}
+
 
 // Projects API
 export async function getProjects() {

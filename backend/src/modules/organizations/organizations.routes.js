@@ -233,6 +233,31 @@ export async function organizationsRoutes(fastify) {
     }
   });
 
+  // Public Endpoint to fetch active organization logo & branding (for Login page before auth)
+  fastify.get('/api/public/tenant-logo', async (req, reply) => {
+    try {
+      const { orgId, code } = req.query || {};
+      const where = {};
+      if (orgId) where.id = orgId;
+      if (code) where.code = code;
+
+      const org = await Organization.findOne({
+        where,
+        attributes: ['id', 'name', 'code', 'logoUrl'],
+        order: [['createdAt', 'ASC']],
+      });
+
+      return reply.send({
+        statusCode: 200,
+        logoUrl: org?.logoUrl || null,
+        name: org?.name || null,
+        code: org?.code || null,
+      });
+    } catch (err) {
+      return reply.send({ statusCode: 200, logoUrl: null, name: null });
+    }
+  });
+
   // Update Organization (Super Admin or Org Admin for own org)
   fastify.put('/api/organizations/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
@@ -258,18 +283,27 @@ export async function organizationsRoutes(fastify) {
         }
       }
 
-      if (req.body.logoUrl) {
-        const approxSizeBytes = Math.round((req.body.logoUrl.length * 3) / 4);
-        if (approxSizeBytes > MAX_LOGO_SIZE_BYTES) {
-          return reply.status(400).send({
-            statusCode: 400,
-            error: 'Payload Too Large',
-            message: `Logo file size exceeds the 2.5MB maximum limit. Please upload a smaller image file.`,
-          });
+      const updatePayload = { ...req.body };
+
+      if (updatePayload.logoUrl !== undefined) {
+        if (updatePayload.logoUrl && updatePayload.logoUrl.startsWith('data:image/')) {
+          const approxSizeBytes = Math.round((updatePayload.logoUrl.length * 3) / 4);
+          if (approxSizeBytes > MAX_LOGO_SIZE_BYTES) {
+            return reply.status(400).send({
+              statusCode: 400,
+              error: 'Payload Too Large',
+              message: `Logo file size exceeds the 2.5MB maximum limit. Please upload a smaller image file.`,
+            });
+          }
+          deleteOldLogoFile(org.logoUrl);
+          updatePayload.logoUrl = saveLogoToDisk(org.id, updatePayload.logoUrl);
+        } else if (!updatePayload.logoUrl) {
+          deleteOldLogoFile(org.logoUrl);
+          updatePayload.logoUrl = null;
         }
       }
 
-      await org.update(req.body);
+      await org.update(updatePayload);
       return reply.send({ statusCode: 200, message: 'Organization updated successfully', organization: org });
     } catch (err) {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
@@ -290,6 +324,8 @@ export async function organizationsRoutes(fastify) {
       const { id } = req.params;
       const org = await Organization.findByPk(id);
       if (!org) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Organization not found' });
+      
+      deleteOldLogoFile(org.logoUrl);
       await org.destroy();
       return reply.send({ statusCode: 200, message: 'Organization deleted successfully' });
     } catch (err) {

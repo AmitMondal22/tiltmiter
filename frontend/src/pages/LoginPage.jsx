@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, User, CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import appLogo from '../assets/logo/logo.png';
-import { formatAssetUrl } from '../api/apiClient';
+import { formatAssetUrl, getPublicTenantLogo } from '../api/apiClient';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -18,13 +18,6 @@ export default function LoginPage() {
     try {
       const cached = localStorage.getItem('tiltmeter_org_logo');
       if (cached) return cached;
-      const savedUser = localStorage.getItem('tiltmeter_user');
-      if (savedUser) {
-        const u = JSON.parse(savedUser);
-        if (u?.Organization?.logoUrl || u?.organizationLogo) {
-          return u.Organization?.logoUrl || u.organizationLogo;
-        }
-      }
     } catch (e) {}
     return appLogo;
   });
@@ -36,18 +29,32 @@ export default function LoginPage() {
     }
   });
 
-  // Check if an organization logo is saved in localStorage or from profile
+  // Query server-side tenant logo or use cached organization branding
   React.useEffect(() => {
-    try {
-      const cachedLogo = localStorage.getItem('tiltmeter_org_logo');
-      if (cachedLogo) {
-        setDisplayLogo(cachedLogo);
-      }
-      const cachedName = localStorage.getItem('tiltmeter_org_name');
-      if (cachedName) {
-        setOrgName(cachedName);
-      }
-    } catch (e) {}
+    getPublicTenantLogo()
+      .then((res) => {
+        if (res?.logoUrl) {
+          setDisplayLogo(res.logoUrl);
+          localStorage.setItem('tiltmeter_org_logo', res.logoUrl);
+          if (res.name) {
+            setOrgName(res.name);
+            localStorage.setItem('tiltmeter_org_name', res.name);
+          }
+        } else if (res?.statusCode === 200 && !res?.logoUrl) {
+          // No custom logo configured on server -> reset to default logo
+          setDisplayLogo(appLogo);
+          localStorage.removeItem('tiltmeter_org_logo');
+        }
+      })
+      .catch(() => {
+        // Fallback to local cache or appLogo
+        const cachedLogo = localStorage.getItem('tiltmeter_org_logo');
+        if (cachedLogo) {
+          setDisplayLogo(cachedLogo);
+        } else {
+          setDisplayLogo(appLogo);
+        }
+      });
   }, []);
 
   const handleSubmit = async (e) => {

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Lock, User, CheckCircle2, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import appLogo from '../assets/logo/logo.png';
-import { formatAssetUrl } from '../api/apiClient';
+import { formatAssetUrl, getPublicTenantLogo } from '../api/apiClient';
 
 export default function LoginModal({ isOpen, onClose, forceOpen }) {
   const { user, login } = useAuth();
@@ -20,23 +20,31 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
   });
 
   React.useEffect(() => {
+    if (!isOpen) return;
+
     if (user?.role === 'SUPER_ADMIN') {
       setDisplayLogo(appLogo);
-    } else {
-      const orgLogo = user?.Organization?.logoUrl || user?.organizationLogo;
-      if (orgLogo) {
-        setDisplayLogo(orgLogo);
-      } else {
-        try {
-          const cached = localStorage.getItem('tiltmeter_org_logo');
-          if (cached) setDisplayLogo(cached);
-          else setDisplayLogo(appLogo);
-        } catch (e) {
-          setDisplayLogo(appLogo);
-        }
-      }
+      return;
     }
-  }, [user]);
+
+    const orgLogo = user?.Organization?.logoUrl || user?.organizationLogo;
+    if (orgLogo) {
+      setDisplayLogo(orgLogo);
+    } else {
+      getPublicTenantLogo()
+        .then((res) => {
+          if (res?.logoUrl) {
+            setDisplayLogo(res.logoUrl);
+          } else {
+            setDisplayLogo(appLogo);
+          }
+        })
+        .catch(() => {
+          const cached = localStorage.getItem('tiltmeter_org_logo');
+          setDisplayLogo(cached || appLogo);
+        });
+    }
+  }, [user, isOpen]);
 
   if (!isOpen) return null;
 

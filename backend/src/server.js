@@ -46,6 +46,7 @@ if (!fs.existsSync(logosDir)) {
 
 const fastify = Fastify({
   logger: true,
+  bodyLimit: 15 * 1024 * 1024, // 15MB limit to allow high-res image uploads & base64 payloads
 });
 
 // Register Plugins with full cross-origin (CORS) access
@@ -57,11 +58,16 @@ await fastify.register(cors, {
   exposedHeaders: ['Authorization'],
 });
 
-// Serve permanent upload files statically
+// Serve permanent upload files statically with full CORS access
 await fastify.register(fastifyStatic, {
   root: uploadsDir,
   prefix: '/uploads/',
   decorateReply: false,
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'no-cache, public, max-age=0');
+  },
 });
 
 // Global Error Handler to guarantee CORS headers on all error responses

@@ -87,6 +87,11 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
               <img
                 src={formatAssetUrl(displayLogo) || appLogo}
                 alt="Organization Logo"
+                onError={(e) => {
+                  if (e.currentTarget.src !== appLogo) {
+                    e.currentTarget.src = appLogo;
+                  }
+                }}
                 className="max-h-10 max-w-full object-contain transition-all"
               />
             </div>

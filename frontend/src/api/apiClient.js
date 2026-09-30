@@ -11,11 +11,30 @@ export const SERVER_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
 
 export const formatAssetUrl = (url) => {
   if (!url) return null;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+  // If it's an absolute URL, data URL, blob, or frontend Vite asset, return as is
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('data:') ||
+    url.startsWith('blob:') ||
+    url.startsWith('/src/') ||
+    url.startsWith('src/') ||
+    url.startsWith('/assets/') ||
+    url.startsWith('assets/') ||
+    url.includes('/assets/logo') ||
+    url.includes('logo250x150') ||
+    url.includes('logo.png')
+  ) {
     return url;
   }
-  const cleanPath = url.startsWith('/') ? url : `/${url}`;
-  return `${SERVER_BASE_URL}${cleanPath}`;
+
+  // Only prefix backend server url if it is an uploaded file path
+  if (url.startsWith('/uploads/') || url.startsWith('uploads/')) {
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    return `${SERVER_BASE_URL}${cleanPath}`;
+  }
+
+  return url;
 };
 
 export const getWsUrl = (path = '/api/ws/telemetry') => {

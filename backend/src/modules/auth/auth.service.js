@@ -4,16 +4,13 @@ import { User, Organization, Project, Site } from '../../models/index.js';
 export async function loginUser(username, password) {
   const normUser = username.toLowerCase().trim();
 
-  let user;
-  try {
-    user = await User.findOne({
-      where: { username: normUser },
-      include: [Organization, Project, Site]
-    });
-  } catch (err) {
-    user = await User.findOne({
-      where: { username: normUser },
-    });
+  let user = await User.findOne({
+    where: { username: normUser },
+    include: [Organization, Project, Site]
+  }).catch(() => null);
+
+  if (!user) {
+    user = await User.findOne({ where: { username: normUser } });
   }
 
   if (!user) {
@@ -23,6 +20,11 @@ export async function loginUser(username, password) {
   const isMatch = bcrypt.compareSync(password, user.passwordHash);
   if (!isMatch) {
     throw new Error('Invalid username or password');
+  }
+
+  let org = user.Organization;
+  if (!org && user.organizationId) {
+    org = await Organization.findByPk(user.organizationId).catch(() => null);
   }
 
   return {
@@ -38,9 +40,9 @@ export async function loginUser(username, password) {
     scopeType: user.scopeType || 'ALL',
     allowedSiteIds: user.allowedSiteIds || [],
     allowedDeviceIds: user.allowedDeviceIds || [],
-    Organization: user.Organization,
-    Project: user.Project,
-    Site: user.Site,
+    Organization: org || null,
+    Project: user.Project || null,
+    Site: user.Site || null,
   };
 }
 
@@ -76,15 +78,19 @@ export async function registerUser({ username, email, password, fullName, role, 
 }
 
 export async function findUserById(id) {
-  let user;
-  try {
-    user = await User.findByPk(id, {
-      include: [Organization, Project, Site]
-    });
-  } catch (err) {
-    user = await User.findByPk(id);
+  let user = await User.findByPk(id, {
+    include: [Organization, Project, Site]
+  }).catch(() => null);
+
+  if (!user) {
+    user = await User.findByPk(id).catch(() => null);
   }
   if (!user) return null;
+
+  let org = user.Organization;
+  if (!org && user.organizationId) {
+    org = await Organization.findByPk(user.organizationId).catch(() => null);
+  }
 
   return {
     id: user.id,
@@ -99,8 +105,8 @@ export async function findUserById(id) {
     scopeType: user.scopeType || 'ALL',
     allowedSiteIds: user.allowedSiteIds || [],
     allowedDeviceIds: user.allowedDeviceIds || [],
-    Organization: user.Organization,
-    Project: user.Project,
-    Site: user.Site,
+    Organization: org || null,
+    Project: user.Project || null,
+    Site: user.Site || null,
   };
 }

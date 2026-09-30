@@ -99,15 +99,21 @@ export default function Sidebar({
                   ? appLogo
                   : (formatAssetUrl(user?.Organization?.logoUrl) ||
                      formatAssetUrl(user?.organizationLogo) ||
+                     formatAssetUrl(localStorage.getItem('tiltmeter_org_logo')) ||
                      appLogo)
               }
               alt={isSuperAdmin ? 'Platform Logo' : (user?.Organization?.name || 'Organization Logo')}
+              onError={(e) => {
+                if (e.currentTarget.src !== appLogo) {
+                  e.currentTarget.src = appLogo;
+                }
+              }}
               className="w-full max-h-16 object-contain transition-all"
             />
           </div>
-          {!isSuperAdmin && user?.Organization?.name && (
+          {!isSuperAdmin && (user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')) && (
             <div className="mt-2 text-[10px] font-black tracking-wide text-slate-600 uppercase text-center truncate max-w-full px-2">
-              {user?.Organization?.name}
+              {user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')}
             </div>
           )}
         </div>

@@ -17,6 +17,7 @@ import {
   LogOut
 } from 'lucide-react';
 import appLogo from '../assets/logo/logo250x150.png';
+import { formatAssetUrl } from '../api/apiClient';
 
 const ALL_NAV_ITEMS = [
   { id: 'dashboard', path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -90,14 +91,24 @@ export default function Sidebar({
         }`}
       >
         {/* Top Logo & Platform Title */}
-        <div className="p-4 pb-3 border-b border-slate-100 flex items-center justify-center w-full">
+        <div className="p-4 pb-3 border-b border-slate-100 flex flex-col items-center justify-center w-full">
           <div className="w-full flex items-center justify-center">
             <img
-              src={user?.Organization?.logoUrl || user?.organizationLogo || appLogo}
-              alt="Organization Logo"
+              src={
+                formatAssetUrl(user?.Organization?.logoUrl) ||
+                formatAssetUrl(user?.organizationLogo) ||
+                formatAssetUrl(localStorage.getItem('tiltmeter_org_logo')) ||
+                appLogo
+              }
+              alt={user?.Organization?.name || 'Platform Logo'}
               className="w-full max-h-16 object-contain transition-all"
             />
           </div>
+          {(user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')) && (
+            <div className="mt-2 text-[10px] font-black tracking-wide text-slate-600 uppercase text-center truncate max-w-full px-2">
+              {user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')}
+            </div>
+          )}
         </div>
 
 

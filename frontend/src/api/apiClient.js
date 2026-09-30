@@ -7,6 +7,17 @@ export const API_BASE_URL = envApiUrl
   ? (envApiUrl.endsWith('/') ? envApiUrl.slice(0, -1) : envApiUrl) 
   : `${protocol}//${hostname}${port ? `:${port}` : ''}/api`;
 
+export const SERVER_BASE_URL = API_BASE_URL.replace(/\/api$/, '');
+
+export const formatAssetUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${SERVER_BASE_URL}${cleanPath}`;
+};
+
 export const getWsUrl = (path = '/api/ws/telemetry') => {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
 

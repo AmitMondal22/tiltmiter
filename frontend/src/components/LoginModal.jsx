@@ -10,11 +10,23 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [displayLogo, setDisplayLogo] = useState(appLogo);
+  const [displayLogo, setDisplayLogo] = useState(() => {
+    try {
+      const cached = localStorage.getItem('tiltmeter_org_logo');
+      if (cached) return cached;
+    } catch (e) {}
+    return appLogo;
+  });
 
   React.useEffect(() => {
-    if (user?.Organization?.logoUrl || user?.organizationLogo) {
-      setDisplayLogo(user.Organization.logoUrl || user.organizationLogo);
+    const orgLogo = user?.Organization?.logoUrl || user?.organizationLogo;
+    if (orgLogo) {
+      setDisplayLogo(orgLogo);
+    } else {
+      try {
+        const cached = localStorage.getItem('tiltmeter_org_logo');
+        if (cached) setDisplayLogo(cached);
+      } catch (e) {}
     }
   }, [user]);
 

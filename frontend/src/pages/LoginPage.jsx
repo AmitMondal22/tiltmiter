@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Lock, User, CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import appLogo from '../assets/logo/logo.png';
+import { formatAssetUrl } from '../api/apiClient';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -13,17 +14,38 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [displayLogo, setDisplayLogo] = useState(appLogo);
-
-  // Check if an organization logo is saved in localStorage or from profile
-  React.useEffect(() => {
+  const [displayLogo, setDisplayLogo] = useState(() => {
     try {
+      const cached = localStorage.getItem('tiltmeter_org_logo');
+      if (cached) return cached;
       const savedUser = localStorage.getItem('tiltmeter_user');
       if (savedUser) {
         const u = JSON.parse(savedUser);
         if (u?.Organization?.logoUrl || u?.organizationLogo) {
-          setDisplayLogo(u.Organization.logoUrl || u.organizationLogo);
+          return u.Organization?.logoUrl || u.organizationLogo;
         }
+      }
+    } catch (e) {}
+    return appLogo;
+  });
+  const [orgName, setOrgName] = useState(() => {
+    try {
+      return localStorage.getItem('tiltmeter_org_name') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
+  // Check if an organization logo is saved in localStorage or from profile
+  React.useEffect(() => {
+    try {
+      const cachedLogo = localStorage.getItem('tiltmeter_org_logo');
+      if (cachedLogo) {
+        setDisplayLogo(cachedLogo);
+      }
+      const cachedName = localStorage.getItem('tiltmeter_org_name');
+      if (cachedName) {
+        setOrgName(cachedName);
       }
     } catch (e) {}
   }, []);
@@ -35,8 +57,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await login(username, password);
-      if (res?.user?.Organization?.logoUrl || res?.user?.organizationLogo) {
-        setDisplayLogo(res.user.Organization?.logoUrl || res.user.organizationLogo);
+      const newLogo = res?.user?.Organization?.logoUrl || res?.user?.organizationLogo;
+      if (newLogo) {
+        setDisplayLogo(newLogo);
+      }
+      if (res?.user?.Organization?.name) {
+        setOrgName(res.user.Organization.name);
       }
       setSuccess(`Welcome back, ${res.user.fullName || res.user.username}!`);
       setTimeout(() => {
@@ -61,7 +87,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center space-y-3">
           <div className="h-16 flex items-center justify-center">
             <img
-              src={displayLogo}
+              src={formatAssetUrl(displayLogo) || appLogo}
               alt="Organization Brand Logo"
               className="max-h-16 max-w-full object-contain transition-all"
             />
@@ -70,6 +96,11 @@ export default function LoginPage() {
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">
               Sign In to Platform
             </h1>
+            {orgName && (
+              <div className="inline-block mt-1 px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-bold">
+                {orgName}
+              </div>
+            )}
             <p className="text-xs text-slate-500 font-medium mt-1">
               Industrial Inclinometer Telemetry & Safety Platform
             </p>

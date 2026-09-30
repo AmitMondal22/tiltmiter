@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Save, CheckCircle2, Sliders, Shield, Upload, Trash2, Image as ImageIcon, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getOrganizations, uploadOrganizationLogo, deleteOrganizationLogo, getOrganizationLogo } from '../api/apiClient';
+import { getOrganizations, uploadOrganizationLogo, deleteOrganizationLogo, getOrganizationLogo, formatAssetUrl } from '../api/apiClient';
 import defaultAppLogo from '../assets/logo/logo250x150.png';
 
 const MAX_LOGO_SIZE_BYTES = 2.5 * 1024 * 1024; // 2.5 MB
@@ -196,7 +196,7 @@ export default function SettingsPage() {
             </div>
             <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs max-h-24 flex items-center justify-center">
               <img
-                src={logoPreview || currentLogo || defaultAppLogo}
+                src={logoPreview || formatAssetUrl(currentLogo) || defaultAppLogo}
                 alt="Brand Logo"
                 className="max-h-16 max-w-full object-contain"
               />

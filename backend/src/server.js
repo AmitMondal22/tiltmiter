@@ -24,7 +24,25 @@ import { incidentsRoutes } from './modules/incidents/incidents.routes.js';
 import { maintenanceRoutes } from './modules/maintenance/maintenance.routes.js';
 import { structuresRoutes } from './modules/structures/structures.routes.js';
 
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+
+// Ensure permanent uploads directory exists on disk
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+const logosDir = path.join(uploadsDir, 'logos');
+if (!fs.existsSync(logosDir)) {
+  fs.mkdirSync(logosDir, { recursive: true });
+}
 
 const fastify = Fastify({
   logger: true,
@@ -37,6 +55,13 @@ await fastify.register(cors, {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Access-Control-Allow-Origin'],
   exposedHeaders: ['Authorization'],
+});
+
+// Serve permanent upload files statically
+await fastify.register(fastifyStatic, {
+  root: uploadsDir,
+  prefix: '/uploads/',
+  decorateReply: false,
 });
 
 // Global Error Handler to guarantee CORS headers on all error responses

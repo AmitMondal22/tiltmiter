@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, X, CheckCircle2, Building2, AlertTriangle } from 'lucide-react';
-import { getOrganizations, createOrganization, updateOrganization, deleteOrganization } from '../api/apiClient';
+import { getOrganizations, createOrganization, updateOrganization, deleteOrganization, formatAssetUrl } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 
 export default function OrganizationsPage() {
@@ -218,7 +218,7 @@ export default function OrganizationsPage() {
                         <div className="flex items-center gap-3">
                           {org.logoUrl ? (
                             <div className="w-9 h-9 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center flex-shrink-0">
-                              <img src={org.logoUrl} alt={org.name} className="max-h-7 max-w-full object-contain" />
+                              <img src={formatAssetUrl(org.logoUrl)} alt={org.name} className="max-h-7 max-w-full object-contain" />
                             </div>
                           ) : (
                             <div className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs flex-shrink-0">
@@ -360,7 +360,7 @@ export default function OrganizationsPage() {
                 <div className="flex items-center gap-3">
                   {logoPreview ? (
                     <div className="relative w-16 h-12 rounded-xl border-2 border-slate-300 bg-white p-1 flex items-center justify-center">
-                      <img src={logoPreview} alt="Preview" className="max-h-10 max-w-full object-contain" />
+                      <img src={formatAssetUrl(logoPreview)} alt="Preview" className="max-h-10 max-w-full object-contain" />
                       <button
                         type="button"
                         onClick={handleRemoveLogo}

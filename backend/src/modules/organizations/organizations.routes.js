@@ -2,6 +2,60 @@ import { Organization, Project, Site } from '../../models/index.js';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const uploadsLogosDir = path.join(__dirname, '..', '..', '..', 'uploads', 'logos');
+
+// Helper function to safely delete old permanent logo file from disk
+function deleteOldLogoFile(oldLogoUrl) {
+  if (!oldLogoUrl || typeof oldLogoUrl !== 'string') return;
+  try {
+    if (oldLogoUrl.includes('/uploads/logos/')) {
+      const fileName = oldLogoUrl.split('/uploads/logos/').pop();
+      if (fileName) {
+        const filePath = path.join(uploadsLogosDir, fileName);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error deleting old logo file from disk:', err.message);
+  }
+}
+
+// Helper to save base64 logo permanently to disk
+function saveLogoToDisk(orgId, base64DataUrl) {
+  if (!base64DataUrl.startsWith('data:image/')) {
+    return base64DataUrl; // Already a URL
+  }
+
+  if (!fs.existsSync(uploadsLogosDir)) {
+    fs.mkdirSync(uploadsLogosDir, { recursive: true });
+  }
+
+  // Parse mime type and base64 data
+  const matches = base64DataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!matches || matches.length < 3) {
+    return base64DataUrl;
+  }
+
+  let ext = matches[1].toLowerCase();
+  if (ext === 'svg+xml') ext = 'svg';
+  if (ext === 'jpeg') ext = 'jpg';
+
+  const buffer = Buffer.from(matches[2], 'base64');
+  const filename = `org_${orgId}_${Date.now()}.${ext}`;
+  const filePath = path.join(uploadsLogosDir, filename);
+
+  fs.writeFileSync(filePath, buffer);
+  return `/uploads/logos/${filename}`;
+}
+
 const MAX_LOGO_SIZE_BYTES = 2.5 * 1024 * 1024; // 2.5MB maximum size limit
 
 export async function organizationsRoutes(fastify) {
@@ -54,6 +108,12 @@ export async function organizationsRoutes(fastify) {
       }
 
       const { name, code, description, partnerId, address, contactEmail, logoUrl, status } = req.body;
+      
+      let storedLogoUrl = logoUrl || null;
+      if (storedLogoUrl && storedLogoUrl.startsWith('data:image/')) {
+        storedLogoUrl = saveLogoToDisk(`new_${Date.now()}`, storedLogoUrl);
+      }
+
       const org = await Organization.create({
         name,
         code: code || `ORG-${Date.now().toString().slice(-4)}`,
@@ -61,7 +121,7 @@ export async function organizationsRoutes(fastify) {
         partnerId: partnerId || null,
         address: address || '',
         contactEmail: contactEmail || '',
-        logoUrl: logoUrl || null,
+        logoUrl: storedLogoUrl,
         status: status || 'ACTIVE',
       });
       return reply.status(201).send({ statusCode: 201, organization: org });
@@ -70,7 +130,7 @@ export async function organizationsRoutes(fastify) {
     }
   });
 
-  // Upload or update Custom Logo for Organization
+  // Upload or update Custom Logo for Organization (Permanent Disk File Storage)
   fastify.post('/api/organizations/:id/logo', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -111,13 +171,19 @@ export async function organizationsRoutes(fastify) {
         });
       }
 
-      // Automatically replace old logo with new logo
-      await org.update({ logoUrl });
+      // 1. Delete previous permanent disk file if one exists
+      deleteOldLogoFile(org.logoUrl);
+
+      // 2. Save new logo permanently to backend/uploads/logos/
+      const permanentLogoUrl = saveLogoToDisk(org.id, logoUrl);
+
+      // 3. Update database record with permanent URL
+      await org.update({ logoUrl: permanentLogoUrl });
 
       return reply.send({
         statusCode: 200,
-        message: 'Organization logo updated successfully.',
-        logoUrl: org.logoUrl,
+        message: 'Organization logo saved permanently.',
+        logoUrl: permanentLogoUrl,
         organization: org
       });
     } catch (err) {
@@ -125,7 +191,7 @@ export async function organizationsRoutes(fastify) {
     }
   });
 
-  // Delete Custom Logo (Revert to default logo)
+  // Delete Custom Logo (Permanent Disk File Deletion & Revert to default logo)
   fastify.delete('/api/organizations/:id/logo', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -150,12 +216,15 @@ export async function organizationsRoutes(fastify) {
         }
       }
 
-      // Clear custom logo and revert to default
+      // Delete permanent disk file
+      deleteOldLogoFile(org.logoUrl);
+
+      // Clear custom logo in database
       await org.update({ logoUrl: null });
 
       return reply.send({
         statusCode: 200,
-        message: 'Custom logo removed. Default platform logo restored.',
+        message: 'Custom logo permanently removed. Default platform logo restored.',
         logoUrl: null,
         organization: org
       });

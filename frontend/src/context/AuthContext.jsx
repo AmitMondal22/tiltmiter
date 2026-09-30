@@ -25,6 +25,13 @@ export function AuthProvider({ children }) {
           if (res?.user) {
             setUser(res.user);
             localStorage.setItem('tiltmeter_user', JSON.stringify(res.user));
+            const orgLogo = res.user.Organization?.logoUrl || res.user.organizationLogo;
+            if (orgLogo) {
+              localStorage.setItem('tiltmeter_org_logo', orgLogo);
+            }
+            if (res.user.Organization?.name) {
+              localStorage.setItem('tiltmeter_org_name', res.user.Organization.name);
+            }
           }
         })
         .catch(() => {
@@ -50,6 +57,15 @@ export function AuthProvider({ children }) {
       const res = await loginUser(username, password);
       setUser(res.user);
       setToken(res.accessToken || res.token);
+      
+      const orgLogo = res.user?.Organization?.logoUrl || res.user?.organizationLogo;
+      if (orgLogo) {
+        localStorage.setItem('tiltmeter_org_logo', orgLogo);
+      }
+      if (res.user?.Organization?.name) {
+        localStorage.setItem('tiltmeter_org_name', res.user.Organization.name);
+      }
+      
       setLoading(false);
       return res;
     } catch (err) {
@@ -59,6 +75,11 @@ export function AuthProvider({ children }) {
   };
 
   const updateOrgLogo = (newLogoUrl) => {
+    if (newLogoUrl) {
+      localStorage.setItem('tiltmeter_org_logo', newLogoUrl);
+    } else {
+      localStorage.removeItem('tiltmeter_org_logo');
+    }
     setUser(prev => {
       if (!prev) return prev;
       const updatedOrg = { ...(prev.Organization || {}), logoUrl: newLogoUrl };
@@ -72,6 +93,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('tiltmeter_jwt_token');
     localStorage.removeItem('tiltmeter_refresh_token');
     localStorage.removeItem('tiltmeter_user');
+    // Note: tiltmeter_org_logo and tiltmeter_org_name remain cached so next login page shows organization branding
     setToken(null);
     setUser(null);
   };

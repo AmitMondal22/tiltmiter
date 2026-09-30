@@ -24,8 +24,11 @@ export default function OrganizationsPage() {
     address: '',
     contactEmail: '',
     description: '',
+    logoUrl: '',
     status: 'ACTIVE',
   });
+  const [logoPreview, setLogoPreview] = useState('');
+  const [logoError, setLogoError] = useState('');
 
   const loadData = async () => {
     setLoading(true);
@@ -47,6 +50,8 @@ export default function OrganizationsPage() {
   const handleOpenAdd = () => {
     if (!isSuperAdmin) return;
     setEditingOrg(null);
+    setLogoPreview('');
+    setLogoError('');
     setFormData({
       name: '',
       code: `ORG-${Date.now().toString().slice(-4)}`,
@@ -54,6 +59,7 @@ export default function OrganizationsPage() {
       address: '',
       contactEmail: '',
       description: '',
+      logoUrl: '',
       status: 'ACTIVE'
     });
     setModalOpen(true);
@@ -62,6 +68,8 @@ export default function OrganizationsPage() {
   const handleOpenEdit = (org) => {
     if (!canEditOrg) return;
     setEditingOrg(org);
+    setLogoPreview(org.logoUrl || '');
+    setLogoError('');
     setFormData({
       name: org.name,
       code: org.code,
@@ -69,9 +77,39 @@ export default function OrganizationsPage() {
       address: org.address || '',
       contactEmail: org.contactEmail || org.email || '',
       description: org.description || '',
+      logoUrl: org.logoUrl || '',
       status: org.status || 'ACTIVE',
     });
     setModalOpen(true);
+  };
+
+  const handleLogoFileChange = (e) => {
+    setLogoError('');
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2.5 * 1024 * 1024) {
+      setLogoError('Logo file size exceeds 2.5 MB maximum limit.');
+      return;
+    }
+
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      setLogoError('Unsupported format. Please select PNG, JPG, WebP, or SVG.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setLogoPreview(reader.result);
+      setFormData(prev => ({ ...prev, logoUrl: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoPreview('');
+    setFormData(prev => ({ ...prev, logoUrl: '' }));
   };
 
   const handleSave = async (e) => {
@@ -177,8 +215,21 @@ export default function OrganizationsPage() {
                   return (
                     <tr key={org.id} className="hover:bg-slate-50 transition-colors">
                       <td className="py-4 px-3.5">
-                        <div className="font-bold text-black text-sm">{org.name}</div>
-                        <div className="text-[11px] text-slate-700 font-mono mt-0.5">{org.description || 'Enterprise Tenant'}</div>
+                        <div className="flex items-center gap-3">
+                          {org.logoUrl ? (
+                            <div className="w-9 h-9 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center flex-shrink-0">
+                              <img src={org.logoUrl} alt={org.name} className="max-h-7 max-w-full object-contain" />
+                            </div>
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs flex-shrink-0">
+                              {org.name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-black text-sm">{org.name}</div>
+                            <div className="text-[11px] text-slate-700 font-mono mt-0.5">{org.description || 'Enterprise Tenant'}</div>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-4 px-3.5 font-mono font-bold text-black">
                         {org.code}
@@ -297,6 +348,36 @@ export default function OrganizationsPage() {
                   rows={2}
                   className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-medium"
                 />
+              </div>
+
+              <div>
+                <label className="block text-black font-extrabold mb-1">
+                  Custom Brand Logo <span className="text-slate-500 font-normal">(Max 2.5MB)</span>
+                </label>
+                {logoError && (
+                  <div className="mb-2 text-xs font-bold text-red-600">{logoError}</div>
+                )}
+                <div className="flex items-center gap-3">
+                  {logoPreview ? (
+                    <div className="relative w-16 h-12 rounded-xl border-2 border-slate-300 bg-white p-1 flex items-center justify-center">
+                      <img src={logoPreview} alt="Preview" className="max-h-10 max-w-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-0.5 shadow-sm hover:bg-red-700"
+                        title="Remove Logo"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : null}
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg, image/jpg, image/svg+xml, image/webp"
+                    onChange={handleLogoFileChange}
+                    className="text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-black hover:file:bg-slate-200 cursor-pointer"
+                  />
+                </div>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">

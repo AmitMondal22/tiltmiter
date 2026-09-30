@@ -23,10 +23,12 @@ export async function seedDatabase() {
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS "allowedDeviceIds" JSON DEFAULT \'[]\';',
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS "fullName" VARCHAR(255);',
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS "status" VARCHAR(255) DEFAULT \'ACTIVE\';',
+      'ALTER TABLE organizations ADD COLUMN IF NOT EXISTS "logoUrl" TEXT;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "sleep_count" INTEGER DEFAULT 10;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "wake_count" INTEGER DEFAULT 30;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "calibrate" BOOLEAN DEFAULT false;',
     ];
+
 
     for (const q of addColumnQueries) {
       try {

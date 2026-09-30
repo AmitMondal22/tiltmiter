@@ -29,6 +29,10 @@ export const Organization = sequelize.define('Organization', {
   contactEmail: {
     type: DataTypes.STRING,
   },
+  logoUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
   type: {
     type: DataTypes.STRING, // PARENT_ORG, SUB_ORG, RESELLER_ORG
     defaultValue: 'PARENT_ORG',
@@ -41,3 +45,4 @@ export const Organization = sequelize.define('Organization', {
   tableName: 'organizations',
   timestamps: true,
 });
+

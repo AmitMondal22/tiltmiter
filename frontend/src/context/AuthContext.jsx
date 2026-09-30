@@ -58,6 +58,16 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const updateOrgLogo = (newLogoUrl) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updatedOrg = { ...(prev.Organization || {}), logoUrl: newLogoUrl };
+      const updatedUser = { ...prev, Organization: updatedOrg, organizationLogo: newLogoUrl };
+      localStorage.setItem('tiltmeter_user', JSON.stringify(updatedUser));
+      return updatedUser;
+    });
+  };
+
   const logout = () => {
     localStorage.removeItem('tiltmeter_jwt_token');
     localStorage.removeItem('tiltmeter_refresh_token');
@@ -67,11 +77,12 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, isAuthenticated: !!user, login, logout, updateOrgLogo }}>
       {children}
     </AuthContext.Provider>
   );
 }
+
 
 export function useAuth() {
   return useContext(AuthContext);

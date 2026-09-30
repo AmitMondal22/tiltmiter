@@ -195,6 +195,24 @@ export async function deleteOrganization(id) {
   });
 }
 
+export async function uploadOrganizationLogo(id, logoUrl) {
+  return await request(`/organizations/${id}/logo`, {
+    method: 'POST',
+    body: JSON.stringify({ logoUrl }),
+  });
+}
+
+export async function deleteOrganizationLogo(id) {
+  return await request(`/organizations/${id}/logo`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getOrganizationLogo() {
+  return await request('/organizations/logo');
+}
+
+
 // Projects API
 export async function getProjects() {
   return await request('/projects');

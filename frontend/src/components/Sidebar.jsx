@@ -93,12 +93,13 @@ export default function Sidebar({
         <div className="p-4 pb-3 border-b border-slate-100 flex items-center justify-center w-full">
           <div className="w-full flex items-center justify-center">
             <img
-              src={appLogo}
-              alt="Logo"
-              className="w-full max-h-16 object-contain"
+              src={user?.Organization?.logoUrl || user?.organizationLogo || appLogo}
+              alt="Organization Logo"
+              className="w-full max-h-16 object-contain transition-all"
             />
           </div>
         </div>
+
 
         {/* Navigation Menu */}
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">

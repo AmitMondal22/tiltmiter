@@ -13,6 +13,20 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [displayLogo, setDisplayLogo] = useState(appLogo);
+
+  // Check if an organization logo is saved in localStorage or from profile
+  React.useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('tiltmeter_user');
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        if (u?.Organization?.logoUrl || u?.organizationLogo) {
+          setDisplayLogo(u.Organization.logoUrl || u.organizationLogo);
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,6 +35,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await login(username, password);
+      if (res?.user?.Organization?.logoUrl || res?.user?.organizationLogo) {
+        setDisplayLogo(res.user.Organization?.logoUrl || res.user.organizationLogo);
+      }
       setSuccess(`Welcome back, ${res.user.fullName || res.user.username}!`);
       setTimeout(() => {
         navigate('/');
@@ -44,9 +61,9 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center space-y-3">
           <div className="h-16 flex items-center justify-center">
             <img
-              src={appLogo}
-              alt="Logo"
-              className="max-h-16 max-w-full object-contain"
+              src={displayLogo}
+              alt="Organization Brand Logo"
+              className="max-h-16 max-w-full object-contain transition-all"
             />
           </div>
           <div>
@@ -58,6 +75,7 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
+
 
         {/* Error / Success Alerts */}
         {error && (

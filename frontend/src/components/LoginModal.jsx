@@ -4,12 +4,19 @@ import { useAuth } from '../context/AuthContext';
 import appLogo from '../assets/logo/logo.png';
 
 export default function LoginModal({ isOpen, onClose, forceOpen }) {
-  const { login } = useAuth();
+  const { user, login } = useAuth();
   const [username, setUsername] = useState('superadmin');
   const [password, setPassword] = useState('superadmin123');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [displayLogo, setDisplayLogo] = useState(appLogo);
+
+  React.useEffect(() => {
+    if (user?.Organization?.logoUrl || user?.organizationLogo) {
+      setDisplayLogo(user.Organization.logoUrl || user.organizationLogo);
+    }
+  }, [user]);
 
   if (!isOpen) return null;
 
@@ -20,6 +27,9 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
     setLoading(true);
     try {
       const res = await login(username, password);
+      if (res?.user?.Organization?.logoUrl || res?.user?.organizationLogo) {
+        setDisplayLogo(res.user.Organization.logoUrl || res.user.organizationLogo);
+      }
       setSuccess(`Welcome back, ${res.user.fullName}!`);
       setTimeout(() => {
         setSuccess('');
@@ -45,9 +55,9 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
           <div className="flex items-center gap-3">
             <div className="h-10 flex items-center justify-center">
               <img
-                src={appLogo}
-                alt="Logo"
-                className="max-h-10 max-w-full object-contain"
+                src={displayLogo}
+                alt="Organization Logo"
+                className="max-h-10 max-w-full object-contain transition-all"
               />
             </div>
             <div>
@@ -55,6 +65,7 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
               <p className="text-xs text-slate-500 font-medium">Inclinometer Monitoring Platform</p>
             </div>
           </div>
+
           {!forceOpen && onClose && (
             <button onClick={onClose} className="p-1.5 rounded-lg text-black hover:bg-slate-100 transition-colors">
               <X className="w-5 h-5" />

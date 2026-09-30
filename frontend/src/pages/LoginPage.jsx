@@ -40,14 +40,19 @@ export default function LoginPage() {
             setOrgName(res.name);
             localStorage.setItem('tiltmeter_org_name', res.name);
           }
-        } else if (res?.statusCode === 200 && !res?.logoUrl) {
-          // No custom logo configured on server -> reset to default logo
-          setDisplayLogo(appLogo);
-          localStorage.removeItem('tiltmeter_org_logo');
+        } else {
+          // If server didn't specify global tenant logo, preserve cached org logo from last login
+          const cached = localStorage.getItem('tiltmeter_org_logo');
+          if (cached) {
+            setDisplayLogo(cached);
+          }
+          const cachedName = localStorage.getItem('tiltmeter_org_name');
+          if (cachedName) {
+            setOrgName(cachedName);
+          }
         }
       })
       .catch(() => {
-        // Fallback to local cache or appLogo
         const cachedLogo = localStorage.getItem('tiltmeter_org_logo');
         if (cachedLogo) {
           setDisplayLogo(cachedLogo);

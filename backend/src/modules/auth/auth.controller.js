@@ -101,5 +101,10 @@ export async function refreshTokenHandler(req, reply) {
 }
 
 export async function getProfileHandler(req, reply) {
-  return reply.send({ statusCode: 200, user: req.user });
+  try {
+    const fullUser = await findUserById(req.user.id);
+    return reply.send({ statusCode: 200, user: fullUser || req.user });
+  } catch (err) {
+    return reply.send({ statusCode: 200, user: req.user });
+  }
 }

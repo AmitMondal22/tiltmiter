@@ -1,11 +1,22 @@
 import { Device, Site, Structure, Project, Organization } from '../../models/index.js';
 import { authenticate } from '../../middleware/authMiddleware.js';
+import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
 
 export async function devicesRoutes(fastify) {
-  // Query all devices
-  fastify.get('/api/devices', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+  // Query devices scoped by organization
+  fastify.get('/api/devices', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
+      const where = {};
+      if (req.user.role !== 'SUPER_ADMIN') {
+        if (req.user.organizationId) {
+          where.organizationId = req.user.organizationId;
+        } else {
+          return reply.send({ statusCode: 200, devices: [], statusSummary: { online: 0, offline: 0, alarm: 0, total: 0 } });
+        }
+      }
+
       const dbDevices = await Device.findAll({
+        where,
         include: [
           {
             model: Site,
@@ -34,8 +45,8 @@ export async function devicesRoutes(fastify) {
     }
   });
 
-  // Query individual device by ID (for individual device dashboard)
-  fastify.get('/api/devices/:id', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+  // Query individual device by ID
+  fastify.get('/api/devices/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
       const device = await Device.findByPk(id, {
@@ -54,6 +65,15 @@ export async function devicesRoutes(fastify) {
           message: `Device with ID ${id} not found.`
         });
       }
+
+      if (req.user.role !== 'SUPER_ADMIN' && device.organizationId !== req.user.organizationId) {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: 'Access to device denied across tenant boundaries.',
+        });
+      }
+
       return reply.send({
         statusCode: 200,
         device
@@ -68,8 +88,16 @@ export async function devicesRoutes(fastify) {
   });
 
   // Create Device (with minimum sleep_count >= 15 validation)
-  fastify.post('/api/devices', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+  fastify.post('/api/devices', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
+      if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ORG_ADMIN' && req.user.role !== 'TECHNICIAN' && req.user.role !== 'ADMIN') {
+        return reply.status(403).send({
+          statusCode: 403,
+          error: 'Forbidden',
+          message: 'Only Administrators or Technicians can register new devices.',
+        });
+      }
+
       const {
         id, name, siteId, structureId, projectId, organizationId,
         serialNumber, status, battery, signalStrength, lifecycleStatus,
@@ -87,13 +115,15 @@ export async function devicesRoutes(fastify) {
         });
       }
 
+      const targetOrgId = req.user.role === 'ORG_ADMIN' ? req.user.organizationId : (organizationId || req.user.organizationId || 1);
+
       const device = await Device.create({
         id: id || `TILTIND${Date.now().toString().slice(-4)}`,
         name: name || `Tilt Meter ${id}`,
         siteId: siteId || 'SITE-KB01',
         structureId: structureId || null,
         projectId: projectId || 1,
-        organizationId: organizationId || 1,
+        organizationId: targetOrgId,
         serialNumber: serialNumber || `SN-98210-${Date.now().toString().slice(-4)}`,
         status: status || 'ONLINE',
         battery: battery || '100%',
@@ -125,12 +155,24 @@ export async function devicesRoutes(fastify) {
     }
   });
 
-  // Update Device / Configure (with minimum sleep_count >= 15 validation)
-  fastify.put('/api/devices/:id', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+  // Update Device / Configure
+  fastify.put('/api/devices/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
       const device = await Device.findByPk(id);
       if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+
+      if (req.user.role !== 'SUPER_ADMIN') {
+        if (req.user.role === 'ORG_ADMIN') {
+          if (device.organizationId !== req.user.organizationId) {
+            return reply.status(403).send({
+              statusCode: 403,
+              error: 'Forbidden',
+              message: 'Cannot modify devices belonging to other organizations.',
+            });
+          }
+        }
+      }
 
       if (req.body.sleep_count !== undefined) {
         const parsedSleep = parseInt(req.body.sleep_count);
@@ -144,6 +186,9 @@ export async function devicesRoutes(fastify) {
       }
 
       const updateData = { ...req.body };
+      if (req.user.role === 'ORG_ADMIN') {
+        updateData.organizationId = req.user.organizationId;
+      }
       if (updateData.latitude !== undefined) {
         updateData.latitude = updateData.latitude !== '' && updateData.latitude !== null ? parseFloat(updateData.latitude) : null;
       }
@@ -162,11 +207,30 @@ export async function devicesRoutes(fastify) {
   });
 
   // Delete Device
-  fastify.delete('/api/devices/:id', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+  fastify.delete('/api/devices/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
       const device = await Device.findByPk(id);
       if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+
+      if (req.user.role !== 'SUPER_ADMIN') {
+        if (req.user.role === 'ORG_ADMIN') {
+          if (device.organizationId !== req.user.organizationId) {
+            return reply.status(403).send({
+              statusCode: 403,
+              error: 'Forbidden',
+              message: 'Cannot delete devices belonging to other organizations.',
+            });
+          }
+        } else {
+          return reply.status(403).send({
+            statusCode: 403,
+            error: 'Forbidden',
+            message: 'Only Administrators can delete devices.',
+          });
+        }
+      }
+
       await device.destroy();
       return reply.send({ statusCode: 200, message: 'Device deleted successfully' });
     } catch (err) {
@@ -174,3 +238,4 @@ export async function devicesRoutes(fastify) {
     }
   });
 }
+

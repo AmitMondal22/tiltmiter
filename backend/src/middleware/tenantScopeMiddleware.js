@@ -2,7 +2,7 @@
 export function tenantScopeGuard() {
   return async (req, reply) => {
     const user = req.user;
-    if (!user) return; // If unauthenticated route, let authMiddleware handle it
+    if (!user) return;
 
     // Super Admin has full platform clearance across all tenants
     if (user.role === 'SUPER_ADMIN') {
@@ -10,13 +10,15 @@ export function tenantScopeGuard() {
       return;
     }
 
-    // Tenant boundary scope
+    // Organization boundary scope for ORG_ADMIN and subordinate roles
     const filter = {};
-    if (user.partnerId) {
-      filter.partnerId = user.partnerId;
-    }
     if (user.organizationId) {
       filter.organizationId = user.organizationId;
+    }
+
+    // Project boundary scope for PROJECT_ADMIN / PROJECT_MANAGER
+    if (user.projectId && (user.role === 'PROJECT_ADMIN' || user.role === 'PROJECT_MANAGER')) {
+      filter.projectId = user.projectId;
     }
 
     // Site / Device level permission scoping
@@ -29,3 +31,4 @@ export function tenantScopeGuard() {
     req.tenantFilter = filter;
   };
 }
+

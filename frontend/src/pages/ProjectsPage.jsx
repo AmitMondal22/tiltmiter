@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, X, CheckCircle2 } from 'lucide-react';
+import { Plus, Edit, Trash2, X, CheckCircle2, FolderTree, AlertTriangle } from 'lucide-react';
 import { getProjects, getOrganizations, createProject, updateProject, deleteProject } from '../api/apiClient';
+import { useAuth } from '../context/AuthContext';
 
 export default function ProjectsPage() {
+  const { user: currentUser } = useAuth();
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
   const [projectsList, setProjectsList] = useState([]);
@@ -11,6 +13,10 @@ export default function ProjectsPage() {
   const [editingProj, setEditingProj] = useState(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
+
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN';
+  const isOrgAdmin = currentUser?.role === 'ORG_ADMIN';
+  const canManageProjects = isSuperAdmin || isOrgAdmin;
 
   const [formData, setFormData] = useState({
     name: '',
@@ -47,11 +53,12 @@ export default function ProjectsPage() {
   }, []);
 
   const handleOpenAdd = () => {
+    if (!canManageProjects) return;
     setEditingProj(null);
     setFormData({
       name: '',
       code: `PROJ-${Date.now().toString().slice(-4)}`,
-      organizationId: orgsList[0]?.id || '',
+      organizationId: isOrgAdmin ? (currentUser?.organizationId || orgsList[0]?.id || '') : (orgsList[0]?.id || ''),
       description: '',
       budget: '',
       status: 'ACTIVE',
@@ -60,11 +67,12 @@ export default function ProjectsPage() {
   };
 
   const handleOpenEdit = (proj) => {
+    if (!canManageProjects) return;
     setEditingProj(proj);
     setFormData({
       name: proj.name,
       code: proj.code,
-      organizationId: proj.organizationId || proj.Organization?.id || '',
+      organizationId: proj.organizationId || proj.Organization?.id || currentUser?.organizationId || '',
       description: proj.description || '',
       budget: proj.budget || '',
       status: proj.status || 'ACTIVE',
@@ -82,7 +90,7 @@ export default function ProjectsPage() {
       } else {
         const res = await createProject(formData);
         const newProj = res?.project || { id: Date.now(), ...formData, Sites: [] };
-        setProjectsList(prev => [...prev, newProj]);
+        setProjectsList(prev => [newProj, ...prev]);
         setMsg({ type: 'success', text: `Project ${formData.name} created.` });
       }
       setModalOpen(false);
@@ -94,20 +102,28 @@ export default function ProjectsPage() {
   };
 
   const handleDelete = async (id) => {
+    if (!canManageProjects) return;
     if (window.confirm('Are you sure you want to delete this project?')) {
-      await deleteProject(id).catch(() => {});
-      setProjectsList(prev => prev.filter(p => p.id !== id));
-      setMsg({ type: 'success', text: `Project ${id} deleted.` });
-      setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+      try {
+        await deleteProject(id);
+        setProjectsList(prev => prev.filter(p => p.id !== id));
+        setMsg({ type: 'success', text: `Project deleted.` });
+      } catch (err) {
+        setMsg({ type: 'error', text: err.message || 'Error deleting project' });
+      } finally {
+        setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+      }
     }
   };
 
   return (
-    <div className="space-y-4 font-sans text-black">
+    <div className="space-y-4 font-sans text-black animate-fadeIn">
       {/* Toast */}
       {msg.text && (
-        <div className="p-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold bg-emerald-50 border-emerald-300 text-emerald-950 shadow-sm animate-fadeIn">
-          <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+        <div className={`p-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold shadow-sm animate-fadeIn ${
+          msg.type === 'error' ? 'bg-red-50 border-red-300 text-red-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'
+        }`}>
+          {msg.type === 'error' ? <AlertTriangle className="w-4 h-4 text-red-600" /> : <CheckCircle2 className="w-4 h-4 text-emerald-700" />}
           <span>{msg.text}</span>
         </div>
       )}
@@ -115,22 +131,25 @@ export default function ProjectsPage() {
       {/* Top Header Row */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-black text-black">
-            Infrastructure Projects
+          <h2 className="text-xl font-black text-black flex items-center gap-2">
+            <FolderTree className="w-5 h-5 text-blue-600" />
+            <span>Infrastructure Projects</span>
           </h2>
           <p className="text-xs text-slate-700 font-medium mt-0.5">
-            {projectsList.length} active infrastructure projects
+            {isOrgAdmin ? `Projects in your Organization (${projectsList.length})` : `${projectsList.length} active infrastructure projects`}
           </p>
         </div>
 
         {/* Black Pill Action Button */}
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-5 py-2.5 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Project</span>
-        </button>
+        {canManageProjects && (
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Project</span>
+          </button>
+        )}
       </div>
 
       {/* Projects Table */}
@@ -144,14 +163,14 @@ export default function ProjectsPage() {
                 <th className="py-3 px-3.5">Organization</th>
                 <th className="py-3 px-3.5">Sites</th>
                 <th className="py-3 px-3.5">Status</th>
-                <th className="py-3 px-3.5 text-right">Actions</th>
+                {canManageProjects && <th className="py-3 px-3.5 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-black font-medium">
               {projectsList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                    No projects registered yet. Click "+ Add Project" to create one.
+                  <td colSpan={canManageProjects ? 6 : 5} className="py-8 text-center text-slate-500 text-xs">
+                    {loading ? 'Loading projects...' : 'No projects registered yet. Click "+ Add Project" to create one.'}
                   </td>
                 </tr>
               ) : (
@@ -183,16 +202,26 @@ export default function ProjectsPage() {
                           {proj.status || 'ACTIVE'}
                         </span>
                       </td>
-                      <td className="py-4 px-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => handleOpenEdit(proj)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors">
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDelete(proj.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
+                      {canManageProjects && (
+                        <td className="py-4 px-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleOpenEdit(proj)}
+                              className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                              title="Edit project"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(proj.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete project"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })
@@ -208,28 +237,37 @@ export default function ProjectsPage() {
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white text-black shadow-2xl p-6">
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 mb-4">
               <h3 className="text-base font-black text-black">
-                {editingProj ? 'Edit Project' : 'Create Project'}
+                {editingProj ? `Edit Project (${editingProj.name})` : 'Create Project'}
               </h3>
-              <button onClick={() => setModalOpen(false)} className="text-black hover:bg-slate-100 p-1 rounded-lg">
+              <button onClick={() => setModalOpen(false)} className="text-black hover:bg-slate-100 p-1 rounded-lg cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSave} className="space-y-3 text-xs text-black">
-              <div>
-                <label className="block text-black font-extrabold mb-1">Organization *</label>
-                <select
-                  required
-                  value={formData.organizationId}
-                  onChange={e => setFormData({ ...formData, organizationId: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
-                >
-                  <option value="">Select Organization</option>
-                  {orgsList.map(o => (
-                    <option key={o.id} value={o.id}>{o.name}</option>
-                  ))}
-                </select>
-              </div>
+              {isSuperAdmin ? (
+                <div>
+                  <label className="block text-black font-extrabold mb-1">Organization *</label>
+                  <select
+                    required
+                    value={formData.organizationId}
+                    onChange={e => setFormData({ ...formData, organizationId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
+                  >
+                    <option value="">Select Organization</option>
+                    {orgsList.map(o => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-black font-extrabold mb-1">Organization</label>
+                  <div className="w-full px-3 py-2 rounded-xl border-2 border-slate-200 bg-slate-100 text-slate-800 font-bold">
+                    {orgsList.find(o => o.id === currentUser?.organizationId)?.name || `Organization #${currentUser?.organizationId}`}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-black font-extrabold mb-1">Project Name *</label>
@@ -255,17 +293,28 @@ export default function ProjectsPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-black font-extrabold mb-1">Description</label>
+                <input
+                  type="text"
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="e.g. Real-time landslide monitoring"
+                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-semibold"
+                />
+              </div>
+
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border-2 border-slate-300 text-black font-bold"
+                  className="px-4 py-2 rounded-xl border-2 border-slate-300 text-black font-bold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-black text-white font-bold hover:bg-neutral-800 shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-black text-white font-bold hover:bg-neutral-800 shadow-xs cursor-pointer"
                 >
                   Save Project
                 </button>
@@ -277,3 +326,4 @@ export default function ProjectsPage() {
     </div>
   );
 }
+

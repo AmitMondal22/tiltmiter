@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Download, Calendar, Filter, RefreshCw, BarChart2, Activity, ShieldCheck, Thermometer, Zap, Clock, FileSpreadsheet, MapPin } from 'lucide-react';
+import {
+  Download, Calendar, Filter, RefreshCw, BarChart2, Activity,
+  ShieldCheck, Thermometer, Zap, Clock, FileSpreadsheet, MapPin,
+  ChevronLeft, ChevronRight, Layers, CheckCircle2, AlertTriangle, Printer
+} from 'lucide-react';
 import { getTelemetryHistory, getReportsAnalytics, getProjects, getSites, getDevices } from '../api/apiClient';
 import { formatISTDateInput, istDatetimeToUTC, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
 
 export default function ReportsPage({ currentDevice }) {
-  const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
+  const cardCls = 'rounded-2xl border border-slate-200 bg-white p-4.5 text-slate-800 shadow-xs';
 
   const [projects, setProjects] = useState([]);
   const [sites, setSites] = useState([]);
@@ -27,6 +31,10 @@ export default function ReportsPage({ currentDevice }) {
   const [reportRows, setReportRows] = useState([]);
   const [summaryStats, setSummaryStats] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Table pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 25;
 
   useEffect(() => {
     getProjects().then(res => setProjects(res.projects || [])).catch(() => {});
@@ -70,6 +78,7 @@ export default function ReportsPage({ currentDevice }) {
   const fetchReport = (devId = selectedDevice, from = fromDate, to = toDate, siteId = selectedSite) => {
     if (!devId && siteId === 'ALL') return;
     setLoading(true);
+    setCurrentPage(1);
 
     const utcFrom = istDatetimeToUTC(from, false);
     const utcTo = istDatetimeToUTC(to, true);
@@ -94,7 +103,6 @@ export default function ReportsPage({ currentDevice }) {
           setReportRows(uniqueRows);
           setSummaryStats(res.summary || null);
         } else {
-          // Fallback to getTelemetryHistory
           getTelemetryHistory(devId, utcFrom, utcTo)
             .then(tRes => {
               if (tRes?.history?.length) {
@@ -114,7 +122,6 @@ export default function ReportsPage({ currentDevice }) {
         }
       })
       .catch(() => {
-        // Direct telemetry history query fallback
         getTelemetryHistory(devId, utcFrom, utcTo)
           .then(tRes => {
             if (tRes?.history?.length) {
@@ -155,8 +162,8 @@ export default function ReportsPage({ currentDevice }) {
         count: summaryStats.totalDataPoints,
         maxTilt: summaryStats.maxResultantTilt || 0,
         maxDisp: summaryStats.maxTotalDisplacement_mm || 0,
-        maxVib: summaryStats.maxVibrationPeak_g || 0.104,
-        avgTemp: summaryStats.averageTemperature_C || 28.5,
+        maxVib: summaryStats.maxVibrationPeak_g || 0,
+        avgTemp: summaryStats.averageTemperature_C || 0,
       };
     }
     if (!reportRows || reportRows.length === 0) {
@@ -170,8 +177,8 @@ export default function ReportsPage({ currentDevice }) {
     reportRows.forEach(r => {
       const t = parseFloat(r.resultant || r.resultantTilt || 0);
       const d = parseFloat(r.totalDisp || r.totalDisplacement || 0);
-      const v = parseFloat(r.vibPeak || r.vibrationPeak || 0.104);
-      const temp = parseFloat(r.temperature || r.temp || 28.5);
+      const v = parseFloat(r.vibPeak || r.vibrationPeak || 0);
+      const temp = parseFloat(r.temperature || r.temp || 0);
 
       if (t > maxTilt) maxTilt = t;
       if (d > maxDisp) maxDisp = d;
@@ -187,6 +194,13 @@ export default function ReportsPage({ currentDevice }) {
       avgTemp: (tempSum / reportRows.length).toFixed(1),
     };
   }, [reportRows, summaryStats]);
+
+  // Paginated Rows
+  const totalPages = Math.max(1, Math.ceil(reportRows.length / rowsPerPage));
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return reportRows.slice(start, start + rowsPerPage);
+  }, [reportRows, currentPage, rowsPerPage]);
 
   const handleExportCSV = () => {
     if (reportRows.length === 0) {
@@ -245,329 +259,467 @@ export default function ReportsPage({ currentDevice }) {
     document.body.removeChild(link);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const activeDeviceObj = devices.find(d => d.id === selectedDevice) || currentDevice;
+
   return (
-    <div className="space-y-4 font-sans text-black animate-fadeIn">
-      {/* Top Header Row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-4 font-sans text-slate-800 animate-fadeIn">
+      {/* Top Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-slate-200">
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <FileSpreadsheet className="w-5 h-5 text-blue-600" />
             <span>Reports & Historical Analytics</span>
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Statistical multi-parameter inclinometer telemetry reports, time-range queries & CSV data exports
+            Statistical multi-parameter inclinometer telemetry reports, time-range queries & data exports
           </p>
         </div>
 
-        {/* Export Button */}
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export Analytics (CSV)</span>
-        </button>
-      </div>
-
-      {/* Summary KPI Cards Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Data Points</div>
-          <div className="text-lg font-bold text-slate-900 font-mono mt-0.5">{stats.count}</div>
-          <div className="text-[10px] text-blue-600 font-medium mt-0.5">Filtered Range</div>
-        </div>
-
-        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Resultant Tilt</div>
-          <div className="text-lg font-bold text-purple-600 font-mono mt-0.5">{Number(stats.maxTilt).toFixed(3)}°</div>
-          <div className="text-[10px] text-slate-400 font-medium mt-0.5">Peak Incline</div>
-        </div>
-
-        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Displacement</div>
-          <div className="text-lg font-bold text-pink-600 font-mono mt-0.5">{Number(stats.maxDisp).toFixed(2)} mm</div>
-          <div className="text-[10px] text-slate-400 font-medium mt-0.5">3D Vector Total</div>
-        </div>
-
-        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Vibration Peak</div>
-          <div className="text-lg font-bold text-amber-600 font-mono mt-0.5">{Number(stats.maxVib).toFixed(3)} g</div>
-          <div className="text-[10px] text-slate-400 font-medium mt-0.5">Dynamic Shock</div>
-        </div>
-
-        <div className="p-3.5 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Avg Temperature</div>
-          <div className="text-lg font-bold text-emerald-600 font-mono mt-0.5">{stats.avgTemp} °C</div>
-          <div className="text-[10px] text-slate-400 font-medium mt-0.5">Thermal Baseline</div>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5 text-slate-500" />
+            <span>Print Report</span>
+          </button>
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 
-      {/* Filter & Time-Range Toolbar */}
-      <div className={cardCls}>
-        <form onSubmit={handleApplyFilter} className="space-y-3 text-xs">
-          {/* Quick Time Presets Bar */}
-          <div className="flex items-center gap-1.5 pb-2.5 border-b border-slate-100 flex-wrap">
-            <span className="text-[11px] font-semibold text-slate-500 mr-1.5 flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
-              <span>Time Range Presets:</span>
-            </span>
-            {[
-              { id: '24h', label: 'Last 24 Hours' },
-              { id: '7d', label: 'Last 7 Days' },
-              { id: '30d', label: 'Last 30 Days' },
-              { id: '90d', label: 'Last 90 Days' },
-              { id: 'custom', label: 'Custom Date Range' },
-            ].map(p => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handlePresetSelect(p.id)}
-                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  timePreset === p.id
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-end gap-3 pt-1">
-            {/* Site Filter */}
-            <div className="min-w-[180px]">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                Monitored Location
-              </label>
-              <select
-                value={selectedSite}
-                onChange={e => setSelectedSite(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-              >
-                <option value="ALL">All Locations ({sites.length})</option>
-                {sites.map(s => (
-                  <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
-                ))}
-              </select>
+      {/* Main Two-Column Layout (Left: Filters & Summary Table | Right: KPI Metrics & Full Telemetry Table) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* ================= LEFT SIDE: FILTERS & FIXED SUMMARY TABLE ================= */}
+        <div className="lg:col-span-4 space-y-4">
+          {/* 1. Query & Filter Card */}
+          <div className={cardCls}>
+            <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-blue-600" />
+                <span>Report Parameters</span>
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                {timePreset.toUpperCase()}
+              </span>
             </div>
 
-            {/* Device Selection */}
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                Sensor Device Node
-              </label>
-              <select
-                value={selectedDevice}
-                onChange={e => setSelectedDevice(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-              >
-                {devices
-                  .filter(d => selectedSite === 'ALL' || d.siteId === selectedSite)
-                  .map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
+            <form onSubmit={handleApplyFilter} className="space-y-3 text-xs">
+              {/* Quick Time Presets Buttons */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">
+                  Preset Time Range:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: '24h', label: '24 Hours' },
+                    { id: '7d', label: '7 Days' },
+                    { id: '30d', label: '30 Days' },
+                    { id: '90d', label: '90 Days' },
+                    { id: 'custom', label: 'Custom' },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handlePresetSelect(p.id)}
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer text-center ${
+                        timePreset === p.id
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
                   ))}
-                {devices.length === 0 && <option value="">No Devices Available</option>}
-              </select>
-            </div>
+                </div>
+              </div>
 
-            {/* From Date */}
-            <div className="min-w-[150px]">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>From Date</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={fromDate}
-                onChange={e => {
-                  setTimePreset('custom');
-                  setFromDate(e.target.value);
-                }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-              />
-            </div>
+              {/* Monitored Location */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Location Site:
+                </label>
+                <select
+                  value={selectedSite}
+                  onChange={e => setSelectedSite(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                >
+                  <option value="ALL">All Sites ({sites.length})</option>
+                  {sites.map(s => (
+                    <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
 
-            {/* To Date */}
-            <div className="min-w-[150px]">
-              <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>To Date</span>
-              </label>
-              <input
-                type="date"
-                required
-                value={toDate}
-                onChange={e => {
-                  setTimePreset('custom');
-                  setToDate(e.target.value);
-                }}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-              />
-            </div>
+              {/* Target Device */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Sensor Device Node:
+                </label>
+                <select
+                  value={selectedDevice}
+                  onChange={e => setSelectedDevice(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                >
+                  {devices
+                    .filter(d => selectedSite === 'ALL' || d.siteId === selectedSite)
+                    .map(d => (
+                      <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
+                    ))}
+                  {devices.length === 0 && <option value="">No Devices Found</option>}
+                </select>
+              </div>
 
-            {/* Apply Filter Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-black hover:bg-neutral-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-            >
-              {loading ? (
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Filter className="w-3.5 h-3.5" />
-              )}
-              <span>Query Records</span>
-            </button>
-          </div>
+              {/* Date From & To */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-slate-400" />
+                    <span>From Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={fromDate}
+                    onChange={e => {
+                      setTimePreset('custom');
+                      setFromDate(e.target.value);
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-slate-400" />
+                    <span>To Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={toDate}
+                    onChange={e => {
+                      setTimePreset('custom');
+                      setToDate(e.target.value);
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+                  />
+                </div>
+              </div>
 
-          {/* Parameter Category Selector Tabs */}
-          <div className="flex items-center gap-1.5 pt-2 border-t border-slate-100 flex-wrap">
-            <span className="text-[11px] font-semibold text-slate-500 mr-2">Parameter View:</span>
-            {[
-              { id: 'ALL', label: 'All Parameters' },
-              { id: 'TILT', label: 'Tilt & Incline (°)' },
-              { id: 'DISPLACEMENT', label: 'Displacement (mm)' },
-              { id: 'VIBRATION', label: 'Vibration & Accel (g)' },
-              { id: 'ENVIRONMENT', label: 'Thermal & Health' },
-            ].map(tab => (
+              {/* Submit Query Button */}
               <button
-                key={tab.id}
-                type="button"
-                onClick={() => setParamCategory(tab.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                  paramCategory === tab.id
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
+                type="submit"
+                disabled={loading}
+                className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
               >
-                {tab.label}
+                {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Filter className="w-3.5 h-3.5" />}
+                <span>Run Analytics Query</span>
               </button>
-            ))}
+            </form>
           </div>
-        </form>
-      </div>
 
-      {/* Multi-Parameter Telemetry Report Table */}
-      <div className={cardCls}>
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
-          <div className="text-xs font-bold text-slate-800">
-            Records for <span className="font-mono text-blue-600">{selectedDevice || '--'}</span> ({fromDate} to {toDate}) &bull; {reportRows.length} Points
-          </div>
-          {loading && (
-            <div className="flex items-center gap-1.5 text-xs text-blue-600 font-bold">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Fetching telemetry data...</span>
+          {/* 2. Fixed Left-Side Summary Table Format */}
+          <div className={cardCls}>
+            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                <BarChart2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>Executive Summary</span>
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">
+                {selectedDevice || 'N/A'}
+              </span>
             </div>
-          )}
+
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wider">
+                    <th className="py-2 px-3 text-left">Report Metric</th>
+                    <th className="py-2 px-3 text-right">Statistical Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px]">
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Target Node</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-blue-600">{selectedDevice || '--'}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Site Location</td>
+                    <td className="py-2 px-3 text-right font-semibold text-slate-900">{activeDeviceObj?.site?.name || selectedSite}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Total Data Points</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">{stats.count}</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Max Resultant Tilt (θ)</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-purple-700">{Number(stats.maxTilt).toFixed(4)}°</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Max Total Disp (Δ)</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-pink-700">{Number(stats.maxDisp).toFixed(4)} mm</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Peak Vibration Shock</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxVib).toFixed(4)} g</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Avg Temperature</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{stats.avgTemp} °C</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Structural Stability</td>
+                    <td className="py-2 px-3 text-right">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        stats.maxDisp >= 15
+                          ? 'bg-rose-100 text-rose-800'
+                          : (stats.maxDisp >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
+                      }`}>
+                        {stats.maxDisp >= 15 ? 'CRITICAL RISK' : (stats.maxDisp >= 5 ? 'WARNING CREEP' : 'NORMAL / STABLE')}
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Report Date Range</td>
+                    <td className="py-2 px-3 text-right text-[10px] font-medium text-slate-500">{fromDate} &rarr; {toDate}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b-2 border-slate-200 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider">
-                <th className="py-2.5 px-3">Timestamp / Time</th>
-                <th className="py-2.5 px-3 font-mono">Node ID</th>
+        {/* ================= RIGHT SIDE: KPI METRICS & FULL TELEMETRY DATA TABLE ================= */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* Summary KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Readings</div>
+              <div className="text-base font-bold text-slate-900 font-mono mt-0.5">{stats.count}</div>
+              <div className="text-[10px] text-blue-600 font-medium mt-0.5">Time Query Buffer</div>
+            </div>
 
-                {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
-                  <>
-                    <th className="py-2.5 px-3 text-purple-700">Resultant Tilt θ</th>
-                    <th className="py-2.5 px-3 text-purple-600">Roll X θ</th>
-                    <th className="py-2.5 px-3 text-purple-600">Pitch Y θ</th>
-                  </>
+            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Peak Incline θ</div>
+              <div className="text-base font-bold text-purple-700 font-mono mt-0.5">{Number(stats.maxTilt).toFixed(3)}°</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">Max Tilt Angle</div>
+            </div>
+
+            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Displacement</div>
+              <div className="text-base font-bold text-pink-700 font-mono mt-0.5">{Number(stats.maxDisp).toFixed(2)} mm</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">Vector Total</div>
+            </div>
+
+            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Peak Vibration</div>
+              <div className="text-base font-bold text-amber-700 font-mono mt-0.5">{Number(stats.maxVib).toFixed(3)} g</div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">Dynamic Shock</div>
+            </div>
+          </div>
+
+          {/* Telemetry Data Table Card */}
+          <div className={cardCls}>
+            {/* Header & Category Filter Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-3">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-extrabold text-slate-900 mr-1">Parameter:</span>
+                {[
+                  { id: 'ALL', label: 'All Columns' },
+                  { id: 'TILT', label: 'Tilt (°)' },
+                  { id: 'DISPLACEMENT', label: 'Displacement (mm)' },
+                  { id: 'VIBRATION', label: 'Vibration (g)' },
+                  { id: 'ENVIRONMENT', label: 'Thermal / Health' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setParamCategory(tab.id)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
+                      paramCategory === tab.id
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'border border-slate-200 text-slate-600 hover:bg-slate-100 bg-white'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Status and loading indicator */}
+              <div className="flex items-center gap-2">
+                {loading ? (
+                  <span className="flex items-center gap-1.5 text-xs text-blue-600 font-bold">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Loading...</span>
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-mono text-slate-500">
+                    Showing {paginatedRows.length} of {reportRows.length} records
+                  </span>
                 )}
+              </div>
+            </div>
 
-                {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
-                  <>
-                    <th className="py-2.5 px-3 text-pink-700">Total Disp Δ</th>
-                    <th className="py-2.5 px-3 text-pink-600">ΔX (mm)</th>
-                    <th className="py-2.5 px-3 text-pink-600">ΔY (mm)</th>
-                    <th className="py-2.5 px-3 text-pink-600">ΔZ (mm)</th>
-                  </>
-                )}
+            {/* Fixed-Format Telemetry Data Table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-xs table-auto border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-extrabold uppercase text-[10px] tracking-wider">
+                    {/* Left-Aligned Text Columns */}
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap">Timestamp (IST)</th>
+                    <th className="py-2.5 px-3 text-left whitespace-nowrap font-mono">Node ID</th>
 
-                {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
-                  <>
-                    <th className="py-2.5 px-3 text-amber-700">Accel Mag</th>
-                    <th className="py-2.5 px-3 text-amber-600">Vib RMS</th>
-                    <th className="py-2.5 px-3 text-amber-600">Vib Peak</th>
-                  </>
-                )}
+                    {/* Right-Aligned Data Columns (Tilt) */}
+                    {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
+                      <>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-700">Resultant θ (°)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-600">Roll X (°)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-600">Pitch Y (°)</th>
+                      </>
+                    )}
 
-                {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
-                  <>
-                    <th className="py-2.5 px-3 text-emerald-700">Temperature</th>
-                    <th className="py-2.5 px-3 text-emerald-700">Stability Risk</th>
-                  </>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono text-[11px]">
-              {reportRows.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="py-8 text-center text-slate-400 font-sans text-xs">
-                    {loading ? 'Querying records from telemetry store...' : 'No telemetry data points found for this range. Try adjusting the date range.'}
-                  </td>
-                </tr>
-              ) : (
-                reportRows.map((r, i) => {
-                  const t = parseFloat(r.resultant || r.resultantTilt || 0);
-                  const d = parseFloat(r.totalDisp || r.totalDisplacement || 0);
-                  const status = d >= 15 ? 'CRITICAL RISK' : (d >= 5 ? 'WARNING' : 'STABLE');
-                  const statusBadge = d >= 15
-                    ? 'bg-rose-100 text-rose-800'
-                    : (d >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
+                    {/* Right-Aligned Data Columns (Displacement) */}
+                    {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
+                      <>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-700">Total Δ (mm)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔX (mm)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔY (mm)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔZ (mm)</th>
+                      </>
+                    )}
 
-                  return (
-                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2 px-3 text-slate-900 font-sans font-medium">
-                        {formatFullDateTime(r.timestamp || r.time)}
+                    {/* Right-Aligned Data Columns (Vibration) */}
+                    {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
+                      <>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-amber-700">Accel Mag (g)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-amber-600">Vib RMS (g)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-amber-600">Vib Peak (g)</th>
+                      </>
+                    )}
+
+                    {/* Right-Aligned Data Columns (Environment) */}
+                    {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
+                      <>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-emerald-700">Temp (°C)</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap text-slate-700">Stability</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono text-[11px]">
+                  {paginatedRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={14} className="py-12 text-center text-slate-400 font-sans text-xs">
+                        {loading ? 'Querying records from PostgreSQL time-series store...' : 'No telemetry data points found for this range. Try adjusting the query range.'}
                       </td>
-                      <td className="py-2 px-3 text-slate-800 font-bold">
-                        {r.deviceId || selectedDevice}
-                      </td>
-
-                      {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
-                        <>
-                          <td className="py-2 px-3 font-bold text-purple-700">{t.toFixed(4)}°</td>
-                          <td className="py-2 px-3 text-purple-600">{(r.xTilt || 0).toFixed(4)}°</td>
-                          <td className="py-2 px-3 text-purple-600">{(r.yTilt || 0).toFixed(4)}°</td>
-                        </>
-                      )}
-
-                      {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
-                        <>
-                          <td className="py-2 px-3 font-bold text-pink-700">{d.toFixed(4)} mm</td>
-                          <td className="py-2 px-3 text-pink-600">{(r.xDisp || r.xDisplacement || 0).toFixed(4)}</td>
-                          <td className="py-2 px-3 text-pink-600">{(r.yDisp || r.yDisplacement || 0).toFixed(4)}</td>
-                          <td className="py-2 px-3 text-pink-600">{(r.zDisp || r.zDisplacement || 0).toFixed(4)}</td>
-                        </>
-                      )}
-
-                      {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
-                        <>
-                          <td className="py-2 px-3 text-amber-700">{(r.accMag || 0.982).toFixed(3)} g</td>
-                          <td className="py-2 px-3 text-amber-600">{(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4)}</td>
-                          <td className="py-2 px-3 text-amber-600">{(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4)}</td>
-                        </>
-                      )}
-
-                      {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
-                        <>
-                          <td className="py-2 px-3 text-emerald-700 font-bold">{r.temperature || r.temp || 28.5} °C</td>
-                          <td className="py-2 px-3 font-sans">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusBadge}`}>
-                              {status}
-                            </span>
-                          </td>
-                        </>
-                      )}
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ) : (
+                    paginatedRows.map((r, i) => {
+                      const t = parseFloat(r.resultant || r.resultantTilt || 0);
+                      const d = parseFloat(r.totalDisp || r.totalDisplacement || 0);
+                      const status = d >= 15 ? 'CRITICAL' : (d >= 5 ? 'WARNING' : 'NORMAL');
+                      const statusBadge = d >= 15
+                        ? 'bg-rose-100 text-rose-800'
+                        : (d >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800');
+
+                      return (
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          {/* Left-aligned Text Columns */}
+                          <td className="py-2 px-3 text-left whitespace-nowrap text-slate-900 font-sans font-medium">
+                            {formatFullDateTime(r.timestamp || r.time)}
+                          </td>
+                          <td className="py-2 px-3 text-left whitespace-nowrap text-slate-800 font-bold">
+                            {r.deviceId || selectedDevice}
+                          </td>
+
+                          {/* Right-aligned Numerical Tilt Columns */}
+                          {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
+                            <>
+                              <td className="py-2 px-3 text-right whitespace-nowrap font-bold text-purple-700">{t.toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-purple-600">{(r.xTilt || 0).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-purple-600">{(r.yTilt || 0).toFixed(4)}</td>
+                            </>
+                          )}
+
+                          {/* Right-aligned Numerical Displacement Columns */}
+                          {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
+                            <>
+                              <td className="py-2 px-3 text-right whitespace-nowrap font-bold text-pink-700">{d.toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600">{(r.xDisp || r.xDisplacement || 0).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600">{(r.yDisp || r.yDisplacement || 0).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600">{(r.zDisp || r.zDisplacement || 0).toFixed(4)}</td>
+                            </>
+                          )}
+
+                          {/* Right-aligned Numerical Vibration Columns */}
+                          {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
+                            <>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700">{(r.accMag || 0.982).toFixed(3)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4)}</td>
+                            </>
+                          )}
+
+                          {/* Right-aligned Numerical Environment Columns */}
+                          {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
+                            <>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-bold">{Number(r.temperature || r.temp || 28.5).toFixed(1)}</td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap font-sans">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${statusBadge}`}>
+                                  {status}
+                                </span>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls Footer */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100 text-xs">
+                <span className="text-slate-500 font-medium text-[11px]">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-600" />
+                  </button>
+                  <span className="px-2 py-1 font-mono font-bold text-slate-800 text-xs">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-600" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

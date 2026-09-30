@@ -124,27 +124,19 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
           </button>
         </form>
 
-        {/* Quick RBAC Demo Selector */}
+        {/* Default Administrator Access */}
         <div className="mt-5 pt-4 border-t border-slate-200">
           <div className="text-[11px] font-black uppercase tracking-wider text-slate-600 mb-2">
-            Demo Credentials
+            Default Administrator Access
           </div>
-          <div className="grid grid-cols-2 gap-2 text-[11px]">
+          <div className="flex justify-center text-[11px]">
             <button
               type="button"
               onClick={() => quickSelectRole('superadmin', 'superadmin123')}
-              className="p-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-left font-bold"
+              className="w-full p-2.5 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-left font-bold cursor-pointer"
             >
-              <div className="text-black">Super Admin</div>
-              <div className="text-[10px] text-slate-500 font-mono">superadmin</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => quickSelectRole('siteuser', 'user123')}
-              className="p-2 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-left font-bold"
-            >
-              <div className="text-black">Site Operator</div>
-              <div className="text-[10px] text-slate-500 font-mono">siteuser</div>
+              <div className="text-black text-[11px]">Super Administrator</div>
+              <div className="text-[10px] text-slate-500 font-mono">superadmin / superadmin123</div>
             </button>
           </div>
         </div>
@@ -152,3 +144,5 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
     </div>
   );
 }
+
+

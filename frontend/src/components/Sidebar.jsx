@@ -13,18 +13,19 @@ import {
   Bell,
   Settings,
   CheckCircle,
-  ChevronsUpDown
+  ChevronsUpDown,
+  LogOut
 } from 'lucide-react';
 import appLogo from '../assets/logo/logo250x150.png';
 
-const NAV_ITEMS = [
+const ALL_NAV_ITEMS = [
   { id: 'dashboard', path: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'organizations', path: '/organizations', label: 'Organizations', icon: Building2 },
+  { id: 'organizations', path: '/organizations', label: 'Organizations', icon: Building2, minRole: 'ORG_ADMIN' },
   { id: 'projects', path: '/projects', label: 'Projects', icon: FolderTree },
   { id: 'locations', path: '/sites', label: 'Locations / Sites', icon: MapPin },
   { id: 'assets', path: '/structures', label: 'Assets', icon: Layers },
   { id: 'devices', path: '/devices', label: 'Devices', icon: Cpu },
-  { id: 'users', path: '/users', label: 'Manage Users', icon: Users },
+  { id: 'users', path: '/users', label: 'Manage Users', icon: Users, minRole: 'ORG_ADMIN' },
   { id: 'trends', path: '/trends', label: 'Historical Data', icon: BarChart2 },
   { id: 'reports', path: '/reports', label: 'Reports', icon: FileText },
   { id: 'alarms', path: '/alarms', label: 'Alert & Notifications', icon: Bell, badge: '5' },
@@ -40,6 +41,39 @@ export default function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
 
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isOrgAdmin = user?.role === 'ORG_ADMIN';
+
+  const getRoleLabel = (role) => {
+    switch (role) {
+      case 'SUPER_ADMIN': return 'Super Administrator';
+      case 'ORG_ADMIN': return 'Organization Admin';
+      case 'PROJECT_MANAGER':
+      case 'PROJECT_ADMIN': return 'Project Manager';
+      case 'SITE_ADMIN': return 'Site Administrator';
+      case 'SITE_USER': return 'Site Operator';
+      case 'TECHNICIAN': return 'Technician';
+      case 'VIEWER': return 'Viewer';
+      default: return role || 'Operator';
+    }
+  };
+
+  const getInitials = (name, username) => {
+    const target = name || username || 'AD';
+    const parts = target.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return target.slice(0, 2).toUpperCase();
+  };
+
+  const navItems = ALL_NAV_ITEMS.filter(item => {
+    if (!item.minRole) return true;
+    if (item.minRole === 'SUPER_ADMIN') return isSuperAdmin;
+    if (item.minRole === 'ORG_ADMIN') return isSuperAdmin || isOrgAdmin;
+    return true;
+  });
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -51,8 +85,9 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between w-64 border-r border-slate-200/80 bg-white text-slate-800 transition-all duration-200 select-none ${mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
-          }`}
+        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between w-64 border-r border-slate-200/80 bg-white text-slate-800 transition-all duration-200 select-none ${
+          mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        }`}
       >
         {/* Top Logo & Platform Title */}
         <div className="p-4 pb-3 border-b border-slate-100 flex items-center justify-center w-full">
@@ -67,7 +102,7 @@ export default function Sidebar({
 
         {/* Navigation Menu */}
         <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active =
               location.pathname === item.path ||
@@ -84,10 +119,11 @@ export default function Sidebar({
                   navigate(item.path);
                   onCloseMobile?.();
                 }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${active
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                  active
                     ? 'bg-blue-50 text-blue-600 font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
+                }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
@@ -116,29 +152,30 @@ export default function Sidebar({
             </div>
           </div>
 
-          {/* Admin User Profile Card */}
+          {/* User Profile Card with Sign Out */}
           <div
             onClick={logout}
-            title="Click to Logout"
-            className="flex items-center justify-between p-2 rounded-xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
+            title="Click to Sign Out"
+            className="flex items-center justify-between p-2 rounded-xl border border-slate-100 hover:bg-red-50/50 hover:border-red-100 cursor-pointer transition-colors group"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs flex items-center justify-center flex-shrink-0">
-                AD
+                {getInitials(user?.fullName, user?.username)}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] font-semibold text-slate-900 truncate">
-                  Admin User
+                  {user?.fullName || user?.username || 'Operator User'}
                 </div>
-                <div className="text-[9px] text-slate-500 truncate">
-                  Super Administrator
+                <div className="text-[9px] text-blue-600 font-medium truncate">
+                  {getRoleLabel(user?.role)}
                 </div>
               </div>
             </div>
-            <ChevronsUpDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+            <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600 flex-shrink-0 transition-colors" />
           </div>
         </div>
       </aside>
     </>
   );
 }
+

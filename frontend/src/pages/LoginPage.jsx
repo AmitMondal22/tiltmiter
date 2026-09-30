@@ -125,19 +125,19 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Quick Demo Credentials */}
+        {/* Default Admin Access Pill */}
         <div className="pt-4 border-t border-slate-100">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2 text-center">
-            Demo Credentials
+            Default Administrator Access
           </div>
-          <div className="flex gap-2 text-xs">
+          <div className="flex justify-center text-xs">
             <button
               type="button"
               onClick={() => quickSelect('superadmin', 'superadmin123')}
-              className="flex-1 p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-center font-medium transition-colors"
+              className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-center font-medium transition-colors cursor-pointer"
             >
-              <div className="text-slate-800 text-[11px] font-semibold">Super Admin</div>
-              <div className="text-[10px] text-slate-500 font-mono">superadmin</div>
+              <div className="text-slate-800 text-[11px] font-semibold">Super Administrator</div>
+              <div className="text-[10px] text-slate-500 font-mono">superadmin / superadmin123</div>
             </button>
           </div>
         </div>
@@ -145,3 +145,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+

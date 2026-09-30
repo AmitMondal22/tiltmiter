@@ -36,28 +36,31 @@ export async function seedDatabase() {
       }
     }
 
-    // Sync database schema
+    // Sync database schema with zero dummy seed data
     await sequelize.sync({ alter: true });
 
-    // Seed ONLY the essential Super Administrator account for initial access
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash('superadmin123', salt);
+    // Ensure root Super Administrator exists only if no users are registered
+    const userCount = await User.count();
+    if (userCount === 0) {
+      const salt = await bcrypt.genSalt(10);
+      const superadminHash = await bcrypt.hash('superadmin123', salt);
 
-    await User.findOrCreate({
-      where: { username: 'superadmin' },
-      defaults: {
+      await User.create({
         username: 'superadmin',
-        passwordHash,
+        passwordHash: superadminHash,
         email: 'superadmin@tiltmeter.io',
         role: 'SUPER_ADMIN',
-        fullName: 'Super Admin',
+        fullName: 'Super Administrator',
         scopeType: 'ALL',
         status: 'ACTIVE',
-      },
-    });
+      });
+      console.log('🔑 Created initial Super Administrator account: superadmin / superadmin123');
+    }
 
-    console.log('✅ PostgreSQL Schema initialized cleanly with Root Super Administrator.');
+    console.log('✅ PostgreSQL Schema initialized cleanly without seed/simulator data.');
   } catch (err) {
     console.error('❌ Error during schema initialization:', err.message);
   }
 }
+
+

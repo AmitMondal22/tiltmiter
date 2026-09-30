@@ -57,12 +57,15 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await login(username, password);
-      const newLogo = res?.user?.Organization?.logoUrl || res?.user?.organizationLogo;
-      if (newLogo) {
-        setDisplayLogo(newLogo);
-      }
-      if (res?.user?.Organization?.name) {
-        setOrgName(res.user.Organization.name);
+      if (res?.user?.role === 'SUPER_ADMIN') {
+        // Super Admin uses default logo
+        setDisplayLogo(appLogo);
+        setOrgName('');
+      } else {
+        // Organization user uses organization logo
+        const newLogo = res?.user?.Organization?.logoUrl || res?.user?.organizationLogo;
+        setDisplayLogo(newLogo || appLogo);
+        setOrgName(res?.user?.Organization?.name || '');
       }
       setSuccess(`Welcome back, ${res.user.fullName || res.user.username}!`);
       setTimeout(() => {
@@ -78,6 +81,14 @@ export default function LoginPage() {
   const quickSelect = (u, p) => {
     setUsername(u);
     setPassword(p);
+    if (u === 'superadmin' || u.toLowerCase().includes('admin')) {
+      setDisplayLogo(appLogo);
+      setOrgName('');
+      try {
+        localStorage.removeItem('tiltmeter_org_logo');
+        localStorage.removeItem('tiltmeter_org_name');
+      } catch (e) {}
+    }
   };
 
   return (

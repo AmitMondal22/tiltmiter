@@ -95,18 +95,19 @@ export default function Sidebar({
           <div className="w-full flex items-center justify-center">
             <img
               src={
-                formatAssetUrl(user?.Organization?.logoUrl) ||
-                formatAssetUrl(user?.organizationLogo) ||
-                formatAssetUrl(localStorage.getItem('tiltmeter_org_logo')) ||
-                appLogo
+                isSuperAdmin
+                  ? appLogo
+                  : (formatAssetUrl(user?.Organization?.logoUrl) ||
+                     formatAssetUrl(user?.organizationLogo) ||
+                     appLogo)
               }
-              alt={user?.Organization?.name || 'Platform Logo'}
+              alt={isSuperAdmin ? 'Platform Logo' : (user?.Organization?.name || 'Organization Logo')}
               className="w-full max-h-16 object-contain transition-all"
             />
           </div>
-          {(user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')) && (
+          {!isSuperAdmin && user?.Organization?.name && (
             <div className="mt-2 text-[10px] font-black tracking-wide text-slate-600 uppercase text-center truncate max-w-full px-2">
-              {user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')}
+              {user?.Organization?.name}
             </div>
           )}
         </div>

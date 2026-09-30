@@ -25,12 +25,22 @@ export function AuthProvider({ children }) {
           if (res?.user) {
             setUser(res.user);
             localStorage.setItem('tiltmeter_user', JSON.stringify(res.user));
-            const orgLogo = res.user.Organization?.logoUrl || res.user.organizationLogo;
-            if (orgLogo) {
-              localStorage.setItem('tiltmeter_org_logo', orgLogo);
-            }
-            if (res.user.Organization?.name) {
-              localStorage.setItem('tiltmeter_org_name', res.user.Organization.name);
+            
+            if (res.user.role === 'SUPER_ADMIN') {
+              // Super Admin always uses default platform logo
+              localStorage.removeItem('tiltmeter_org_logo');
+              localStorage.removeItem('tiltmeter_org_name');
+            } else {
+              // Organization users use their organization custom logo
+              const orgLogo = res.user.Organization?.logoUrl || res.user.organizationLogo;
+              if (orgLogo) {
+                localStorage.setItem('tiltmeter_org_logo', orgLogo);
+              } else {
+                localStorage.removeItem('tiltmeter_org_logo');
+              }
+              if (res.user.Organization?.name) {
+                localStorage.setItem('tiltmeter_org_name', res.user.Organization.name);
+              }
             }
           }
         })
@@ -58,12 +68,21 @@ export function AuthProvider({ children }) {
       setUser(res.user);
       setToken(res.accessToken || res.token);
       
-      const orgLogo = res.user?.Organization?.logoUrl || res.user?.organizationLogo;
-      if (orgLogo) {
-        localStorage.setItem('tiltmeter_org_logo', orgLogo);
-      }
-      if (res.user?.Organization?.name) {
-        localStorage.setItem('tiltmeter_org_name', res.user.Organization.name);
+      if (res.user?.role === 'SUPER_ADMIN') {
+        // Super Administrator uses platform default logo
+        localStorage.removeItem('tiltmeter_org_logo');
+        localStorage.removeItem('tiltmeter_org_name');
+      } else {
+        // Organization user saves organization custom logo to temporary browser cache
+        const orgLogo = res.user?.Organization?.logoUrl || res.user?.organizationLogo;
+        if (orgLogo) {
+          localStorage.setItem('tiltmeter_org_logo', orgLogo);
+        } else {
+          localStorage.removeItem('tiltmeter_org_logo');
+        }
+        if (res.user?.Organization?.name) {
+          localStorage.setItem('tiltmeter_org_name', res.user.Organization.name);
+        }
       }
       
       setLoading(false);
@@ -90,10 +109,17 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    const isSuper = user?.role === 'SUPER_ADMIN';
     localStorage.removeItem('tiltmeter_jwt_token');
     localStorage.removeItem('tiltmeter_refresh_token');
     localStorage.removeItem('tiltmeter_user');
-    // Note: tiltmeter_org_logo and tiltmeter_org_name remain cached so next login page shows organization branding
+    
+    // If Super Admin logged out, ensure default logo is restored on login screen
+    if (isSuper) {
+      localStorage.removeItem('tiltmeter_org_logo');
+      localStorage.removeItem('tiltmeter_org_name');
+    }
+    
     setToken(null);
     setUser(null);
   };

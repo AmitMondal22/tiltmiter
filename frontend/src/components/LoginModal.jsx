@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Lock, User, CheckCircle2, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import appLogo from '../assets/logo/logo.png';
+import { formatAssetUrl } from '../api/apiClient';
 
 export default function LoginModal({ isOpen, onClose, forceOpen }) {
   const { user, login } = useAuth();
@@ -19,14 +20,21 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
   });
 
   React.useEffect(() => {
-    const orgLogo = user?.Organization?.logoUrl || user?.organizationLogo;
-    if (orgLogo) {
-      setDisplayLogo(orgLogo);
+    if (user?.role === 'SUPER_ADMIN') {
+      setDisplayLogo(appLogo);
     } else {
-      try {
-        const cached = localStorage.getItem('tiltmeter_org_logo');
-        if (cached) setDisplayLogo(cached);
-      } catch (e) {}
+      const orgLogo = user?.Organization?.logoUrl || user?.organizationLogo;
+      if (orgLogo) {
+        setDisplayLogo(orgLogo);
+      } else {
+        try {
+          const cached = localStorage.getItem('tiltmeter_org_logo');
+          if (cached) setDisplayLogo(cached);
+          else setDisplayLogo(appLogo);
+        } catch (e) {
+          setDisplayLogo(appLogo);
+        }
+      }
     }
   }, [user]);
 
@@ -39,8 +47,11 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
     setLoading(true);
     try {
       const res = await login(username, password);
-      if (res?.user?.Organization?.logoUrl || res?.user?.organizationLogo) {
-        setDisplayLogo(res.user.Organization.logoUrl || res.user.organizationLogo);
+      if (res?.user?.role === 'SUPER_ADMIN') {
+        setDisplayLogo(appLogo);
+      } else {
+        const orgLogo = res?.user?.Organization?.logoUrl || res?.user?.organizationLogo;
+        setDisplayLogo(orgLogo || appLogo);
       }
       setSuccess(`Welcome back, ${res.user.fullName}!`);
       setTimeout(() => {
@@ -54,9 +65,16 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
     }
   };
 
-  const quickSelectRole = (user, pass) => {
-    setUsername(user);
-    setPassword(pass);
+  const quickSelectRole = (u, p) => {
+    setUsername(u);
+    setPassword(p);
+    if (u === 'superadmin' || u.toLowerCase().includes('admin')) {
+      setDisplayLogo(appLogo);
+      try {
+        localStorage.removeItem('tiltmeter_org_logo');
+        localStorage.removeItem('tiltmeter_org_name');
+      } catch (e) {}
+    }
   };
 
   return (
@@ -67,7 +85,7 @@ export default function LoginModal({ isOpen, onClose, forceOpen }) {
           <div className="flex items-center gap-3">
             <div className="h-10 flex items-center justify-center">
               <img
-                src={displayLogo}
+                src={formatAssetUrl(displayLogo) || appLogo}
                 alt="Organization Logo"
                 className="max-h-10 max-w-full object-contain transition-all"
               />

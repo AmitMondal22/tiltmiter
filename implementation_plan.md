@@ -4,6 +4,7 @@ Rebuild the application UI to strictly match the new **TILTMETER MONITORING SYST
 
 ## User Review Required
 
+
 > [!IMPORTANT]
 > - **Complete Parameter Overhaul**: All old inclinometer-only parameters (e.g. depth profiles table) will be replaced with the exact parameters from the Tiltmeter Monitoring System reference image:
 >   - **Topbar Selectors**: Site, Structure, Device dropdowns + User Admin profile + Date Range Picker + Live mode toggle.

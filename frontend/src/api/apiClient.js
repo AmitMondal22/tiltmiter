@@ -363,6 +363,20 @@ export async function configureDeviceTelemetry(id, config) {
   });
 }
 
+// ClinoX Reference-Zero Calibration APIs
+export async function setDeviceReference(id, referenceData = {}) {
+  return await request(`/devices/${id}/set-reference`, {
+    method: 'POST',
+    body: JSON.stringify(referenceData),
+  });
+}
+
+export async function resetDeviceReference(id) {
+  return await request(`/devices/${id}/reset-reference`, {
+    method: 'POST',
+  });
+}
+
 // Historical Telemetry API
 export async function getDeviceTelemetry(deviceId, fromDate, toDate, range) {
   let query = `/telemetry/${deviceId}`;

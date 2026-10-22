@@ -44,6 +44,25 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
   // 2. Persist Alarms and auto-create Incident for Critical/Emergency
   for (const alt of triggeredAlerts) {
     try {
+      // Check if an identical alarm is already active for this device to prevent DB flood in production
+      const existingActiveAlarm = await Alarm.findOne({
+        where: {
+          deviceId: alt.deviceId,
+          type: alt.parameter.toUpperCase(),
+          status: 'ACTIVE',
+        },
+      });
+
+      if (existingActiveAlarm) {
+        // Update existing active alarm timestamp and message
+        await existingActiveAlarm.update({
+          message: alt.message,
+          severity: alt.severity,
+          timestamp: new Date(),
+        });
+        continue;
+      }
+
       const alarm = await Alarm.create({
         deviceId: alt.deviceId,
         siteId: alt.siteId,
@@ -67,7 +86,9 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
           rootCause: 'Automated telemetry threshold breach detected by Alert Engine.',
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn(`[Alert Engine] Error recording alert for ${alt.deviceId}:`, e.message);
+    }
   }
 
   return triggeredAlerts;

@@ -152,6 +152,34 @@ export const Device = sequelize.define('Device', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  gaugeLength_mm: {
+    type: DataTypes.FLOAT,
+    defaultValue: 1000.0, // Vertical distance / rod length L in mm (default: 1000 mm)
+  },
+  refThetaX: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.0, // Baseline reference angle for X in degrees
+  },
+  refThetaY: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.0, // Baseline reference angle for Y in degrees
+  },
+  refThetaZ: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.0, // Baseline reference angle for Z in degrees
+  },
+  refTimestamp: {
+    type: DataTypes.DATE,
+    allowNull: true, // Timestamp when reference zero was saved
+  },
+  refOperator: {
+    type: DataTypes.STRING,
+    defaultValue: 'System', // Operator who commissioned / set reference
+  },
+  hasReferenceZero: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false, // True once reference zero has been set
+  },
 }, {
   tableName: 'devices',
   timestamps: true,

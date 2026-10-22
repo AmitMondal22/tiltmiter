@@ -27,6 +27,13 @@ export async function seedDatabase() {
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "sleep_count" INTEGER DEFAULT 10;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "wake_count" INTEGER DEFAULT 30;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "calibrate" BOOLEAN DEFAULT false;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "gaugeLength_mm" FLOAT DEFAULT 1000.0;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "refThetaX" FLOAT DEFAULT 0.0;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "refThetaY" FLOAT DEFAULT 0.0;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "refThetaZ" FLOAT DEFAULT 0.0;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "refTimestamp" TIMESTAMP WITH TIME ZONE;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "refOperator" VARCHAR(255) DEFAULT \'System\';',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "hasReferenceZero" BOOLEAN DEFAULT false;',
     ];
 
 

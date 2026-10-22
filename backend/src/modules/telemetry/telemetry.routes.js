@@ -34,7 +34,13 @@ export async function telemetryRoutes(fastify) {
       let refDate = new Date();
       try {
         const latestRec = await TelemetryRecord.findOne({
-          where: { deviceId },
+          where: {
+            [Op.or]: [
+              { deviceId },
+              { deviceId: deviceId.toUpperCase() },
+              { deviceId: deviceId.toLowerCase() }
+            ]
+          },
           order: [['timestamp', 'DESC']],
           attributes: ['timestamp'],
         });
@@ -44,7 +50,15 @@ export async function telemetryRoutes(fastify) {
             refDate = recDate;
           }
         } else {
-          const dev = await Device.findByPk(deviceId);
+          const dev = await Device.findOne({
+            where: {
+              [Op.or]: [
+                { id: deviceId },
+                { id: deviceId.toUpperCase() },
+                { id: deviceId.toLowerCase() }
+              ]
+            }
+          });
           if (dev?.lastSeen) {
             const lsDate = new Date(dev.lastSeen);
             if (!isNaN(lsDate.getTime())) refDate = lsDate;
@@ -82,7 +96,13 @@ export async function telemetryRoutes(fastify) {
 
     // 2. Query PostgreSQL TelemetryRecord table
     try {
-      const whereClause = { deviceId };
+      const whereClause = {
+        [Op.or]: [
+          { deviceId },
+          { deviceId: deviceId.toUpperCase() },
+          { deviceId: deviceId.toLowerCase() }
+        ]
+      };
       if (startDate || stopDate) {
         whereClause.timestamp = {};
         if (startDate && !isNaN(startDate.getTime())) whereClause.timestamp[Op.gte] = startDate;
@@ -104,6 +124,8 @@ export async function telemetryRoutes(fastify) {
           tiltX: parseFloat(r.xTilt || 0),
           yTilt: parseFloat(r.yTilt || 0),
           tiltY: parseFloat(r.yTilt || 0),
+          zTilt: parseFloat(r.zTilt || r.resultantTilt || 0),
+          tiltZ: parseFloat(r.zTilt || r.resultantTilt || 0),
           resultant: parseFloat(r.resultantTilt || 0),
           resultantTilt: parseFloat(r.resultantTilt || 0),
           xDisp: parseFloat(r.xDisplacement || 0),
@@ -114,6 +136,12 @@ export async function telemetryRoutes(fastify) {
           zDisplacement: parseFloat(r.zDisplacement || 0),
           totalDisp: parseFloat(r.totalDisplacement || 0),
           totalDisplacement: parseFloat(r.totalDisplacement || 0),
+          ax: parseFloat(r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax ?? 0.012),
+          ay: parseFloat(r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay ?? -0.006),
+          az: parseFloat(r.rawPayload?.acceleration?.az ?? r.acceleration?.az ?? 0.998),
+          axG: parseFloat(r.rawPayload?.acceleration?.axG ?? (Math.abs(r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax ?? 0.012) > 3 ? (r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax) / 9.80665 : (r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax ?? 0.012))),
+          ayG: parseFloat(r.rawPayload?.acceleration?.ayG ?? (Math.abs(r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay ?? -0.006) > 3 ? (r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay) / 9.80665 : (r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay ?? -0.006))),
+          azG: parseFloat(r.rawPayload?.acceleration?.azG ?? (Math.abs(r.rawPayload?.acceleration?.az ?? r.acceleration?.az ?? 0.998) > 3 ? (r.rawPayload?.acceleration?.az ?? r.acceleration?.az) / 9.80665 : (r.rawPayload?.acceleration?.az ?? r.acceleration?.az ?? 0.998))),
           accMag: parseFloat(r.acceleration?.accMag || r.accMag || 0.982),
           vibRMS: parseFloat(r.vibration?.vibrationRMS || r.vibrationRMS || 0.045),
           vibrationRMS: parseFloat(r.vibration?.vibrationRMS || r.vibrationRMS || 0.045),

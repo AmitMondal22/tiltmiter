@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { Device, Site, Structure, Project, Organization } from '../../models/index.js';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
@@ -49,7 +50,7 @@ export async function devicesRoutes(fastify) {
   fastify.get('/api/devices/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
-      const device = await Device.findByPk(id, {
+      let device = await Device.findByPk(id, {
         include: [
           {
             model: Site,
@@ -58,6 +59,24 @@ export async function devicesRoutes(fastify) {
           Structure
         ]
       });
+      if (!device) {
+        device = await Device.findOne({
+          where: {
+            [Op.or]: [
+              { id },
+              { id: id.toUpperCase() },
+              { id: id.toLowerCase() }
+            ]
+          },
+          include: [
+            {
+              model: Site,
+              include: [Project, Organization]
+            },
+            Structure
+          ]
+        });
+      }
       if (!device) {
         return reply.status(404).send({
           statusCode: 404,
@@ -201,6 +220,74 @@ export async function devicesRoutes(fastify) {
         include: [{ model: Site, include: [Project, Organization] }, Structure]
       });
       return reply.send({ statusCode: 200, message: 'Device updated successfully', device: updated || device });
+    } catch (err) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
+    }
+  });
+
+  // Set Zero Reference (ClinoX Method: D = L * tan(delta_theta * pi / 180))
+  fastify.post('/api/devices/:id/set-reference', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const device = await Device.findByPk(id);
+      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+
+      const refThetaX = req.body.refThetaX !== undefined ? parseFloat(req.body.refThetaX) : parseFloat(device.xTilt || 0);
+      const refThetaY = req.body.refThetaY !== undefined ? parseFloat(req.body.refThetaY) : parseFloat(device.yTilt || 0);
+      const refThetaZ = req.body.refThetaZ !== undefined ? parseFloat(req.body.refThetaZ) : parseFloat(device.zTilt || 0);
+      const gaugeLength_mm = req.body.gaugeLength_mm !== undefined ? parseFloat(req.body.gaugeLength_mm) : (parseFloat(device.gaugeLength_mm) || 1000.0);
+      const refOperator = req.user?.fullName || req.user?.username || req.body.refOperator || 'Operator';
+      const refTimestamp = new Date();
+
+      await device.update({
+        refThetaX,
+        refThetaY,
+        refThetaZ,
+        gaugeLength_mm,
+        refTimestamp,
+        refOperator,
+        hasReferenceZero: true,
+        calibrate: true,
+      });
+
+      return reply.send({
+        statusCode: 200,
+        message: 'ClinoX zero reference saved successfully',
+        device,
+        reference: {
+          refThetaX,
+          refThetaY,
+          refThetaZ,
+          gaugeLength_mm,
+          refTimestamp,
+          refOperator,
+        }
+      });
+    } catch (err) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
+    }
+  });
+
+  // Reset Zero Reference
+  fastify.post('/api/devices/:id/reset-reference', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const device = await Device.findByPk(id);
+      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+
+      await device.update({
+        refThetaX: 0.0,
+        refThetaY: 0.0,
+        refThetaZ: 0.0,
+        refTimestamp: null,
+        hasReferenceZero: false,
+      });
+
+      return reply.send({
+        statusCode: 200,
+        message: 'ClinoX zero reference reset to factory default',
+        device,
+      });
     } catch (err) {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
     }

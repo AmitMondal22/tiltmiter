@@ -211,13 +211,9 @@ export default function ReportsPage({ currentDevice }) {
       'Timestamp_IST',
       'Timestamp_UTC',
       'Device_ID',
-      'Resultant_Tilt_deg',
-      'Roll_X_Tilt_deg',
-      'Pitch_Y_Tilt_deg',
-      'Total_Displacement_mm',
-      'X_Displacement_mm',
-      'Y_Displacement_mm',
-      'Z_Displacement_mm',
+      'Delta_X_mm',
+      'Delta_Y_mm',
+      'Delta_Z_mm',
       'Acceleration_Mag_g',
       'Vibration_RMS_g',
       'Vibration_Peak_g',
@@ -226,7 +222,6 @@ export default function ReportsPage({ currentDevice }) {
     ].join(',');
 
     const rows = reportRows.map(r => {
-      const t = r.resultant || r.resultantTilt || 0;
       const d = r.totalDisp || r.totalDisplacement || 0;
       const status = d >= 15 ? 'CRITICAL RISK' : (d >= 5 ? 'WARNING CREEP' : 'STABLE');
 
@@ -234,10 +229,6 @@ export default function ReportsPage({ currentDevice }) {
         `"${formatFullDateTime(r.timestamp || r.time)}"`,
         r.timestamp || '',
         r.deviceId || selectedDevice,
-        Number(t).toFixed(4),
-        Number(r.xTilt || 0).toFixed(4),
-        Number(r.yTilt || 0).toFixed(4),
-        Number(d).toFixed(4),
         Number(r.xDisp || r.xDisplacement || 0).toFixed(4),
         Number(r.yDisp || r.yDisplacement || 0).toFixed(4),
         Number(r.zDisp || r.zDisplacement || 0).toFixed(4),
@@ -536,10 +527,9 @@ export default function ReportsPage({ currentDevice }) {
                 <span className="text-xs font-extrabold text-slate-900 mr-1">Parameter:</span>
                 {[
                   { id: 'ALL', label: 'All Columns' },
-                  { id: 'TILT', label: 'Tilt (°)' },
-                  { id: 'DISPLACEMENT', label: 'Displacement (mm)' },
+                  { id: 'DISPLACEMENT', label: 'Displacement (ΔX, ΔY, ΔZ)' },
                   { id: 'VIBRATION', label: 'Vibration (g)' },
-                  { id: 'ENVIRONMENT', label: 'Thermal / Health' },
+                  { id: 'ENVIRONMENT', label: 'Thermal & Stability' },
                 ].map(tab => (
                   <button
                     key={tab.id}
@@ -580,19 +570,9 @@ export default function ReportsPage({ currentDevice }) {
                     <th className="py-2.5 px-3 text-left whitespace-nowrap">Timestamp (IST)</th>
                     <th className="py-2.5 px-3 text-left whitespace-nowrap font-mono">Node ID</th>
 
-                    {/* Right-Aligned Data Columns (Tilt) */}
-                    {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
-                      <>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-700">Resultant θ (°)</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-600">Roll X (°)</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-600">Pitch Y (°)</th>
-                      </>
-                    )}
-
-                    {/* Right-Aligned Data Columns (Displacement) */}
+                    {/* Right-Aligned Data Columns (Displacement: ΔX, ΔY, ΔZ) */}
                     {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                       <>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-700">Total Δ (mm)</th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔX (mm)</th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔY (mm)</th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔZ (mm)</th>
@@ -620,13 +600,12 @@ export default function ReportsPage({ currentDevice }) {
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono text-[11px]">
                   {paginatedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={14} className="py-12 text-center text-slate-400 font-sans text-xs">
+                      <td colSpan={10} className="py-12 text-center text-slate-400 font-sans text-xs">
                         {loading ? 'Querying records from PostgreSQL time-series store...' : 'No telemetry data points found for this range. Try adjusting the query range.'}
                       </td>
                     </tr>
                   ) : (
                     paginatedRows.map((r, i) => {
-                      const t = parseFloat(r.resultant || r.resultantTilt || 0);
                       const d = parseFloat(r.totalDisp || r.totalDisplacement || 0);
                       const status = d >= 15 ? 'CRITICAL' : (d >= 5 ? 'WARNING' : 'NORMAL');
                       const statusBadge = d >= 15
@@ -643,29 +622,19 @@ export default function ReportsPage({ currentDevice }) {
                             {r.deviceId || selectedDevice}
                           </td>
 
-                          {/* Right-aligned Numerical Tilt Columns */}
-                          {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
-                            <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap font-bold text-purple-700">{t.toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-purple-600">{(r.xTilt || 0).toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-purple-600">{(r.yTilt || 0).toFixed(4)}</td>
-                            </>
-                          )}
-
-                          {/* Right-aligned Numerical Displacement Columns */}
+                          {/* Right-aligned Numerical Displacement Columns (ΔX, ΔY, ΔZ) */}
                           {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                             <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap font-bold text-pink-700">{d.toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600">{(r.xDisp || r.xDisplacement || 0).toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600">{(r.yDisp || r.yDisplacement || 0).toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600">{(r.zDisp || r.zDisplacement || 0).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600 font-semibold">{(r.xDisp || r.xDisplacement || 0).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600 font-semibold">{(r.yDisp || r.yDisplacement || 0).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600 font-semibold">{(r.zDisp || r.zDisplacement || 0).toFixed(4)}</td>
                             </>
                           )}
 
                           {/* Right-aligned Numerical Vibration Columns */}
                           {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
                             <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700">{(r.accMag || 0.982).toFixed(3)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">{(r.accMag || 0.982).toFixed(3)}</td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4)}</td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4)}</td>
                             </>

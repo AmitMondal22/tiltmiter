@@ -21,10 +21,13 @@ export async function saveTelemetryPoint(data) {
   const xTilt = typeof data.xTilt === 'number' ? data.xTilt : (data.tilt?.roll ?? 0);
   const yTilt = typeof data.yTilt === 'number' ? data.yTilt : (data.tilt?.pitch ?? 0);
   const resultantTilt = typeof data.resultantTilt === 'number' ? data.resultantTilt : (data.tilt?.tilt ?? Math.sqrt(xTilt * xTilt + yTilt * yTilt));
+  const zTilt = typeof data.zTilt === 'number' ? data.zTilt : resultantTilt;
   const xDisplacement = typeof data.xDisplacement === 'number' ? data.xDisplacement : (data.displacement?.xDisplacement_mm ?? 0);
   const yDisplacement = typeof data.yDisplacement === 'number' ? data.yDisplacement : (data.displacement?.yDisplacement_mm ?? 0);
   const zDisplacement = typeof data.zDisplacement === 'number' ? data.zDisplacement : (data.displacement?.zDisplacement_mm ?? 0);
-  const totalDisplacement = typeof data.totalDisplacement === 'number' ? data.totalDisplacement : (data.displacement?.totalDisplacement_mm ?? Math.sqrt(xDisplacement * xDisplacement + yDisplacement * yDisplacement));
+  const totalDisplacement = typeof data.totalDisplacement === 'number'
+    ? data.totalDisplacement
+    : (data.displacement?.totalDisplacement_mm ?? Math.sqrt(xDisplacement * xDisplacement + yDisplacement * yDisplacement + zDisplacement * zDisplacement));
   const tempVal = parseFloat(data.tempVal ?? data.environment?.temperature ?? 25.0);
   const batteryVoltage = parseFloat(data.batteryVoltage ?? data.power?.batteryVoltage ?? 13.03);
   const csq = parseInt(data.csq ?? data.network?.csq ?? 19);
@@ -53,6 +56,7 @@ export async function saveTelemetryPoint(data) {
       .tag('device_id', deviceId)
       .floatField('x_tilt', xTilt)
       .floatField('y_tilt', yTilt)
+      .floatField('z_tilt', zTilt)
       .floatField('resultant_tilt', resultantTilt)
       .floatField('x_displacement', xDisplacement)
       .floatField('y_displacement', yDisplacement)
@@ -97,21 +101,38 @@ export async function saveTelemetryPoint(data) {
       });
     }
 
-    await Device.upsert({
-      id: deviceId,
-      name: `Tiltmeter ${deviceId}`,
-      xTilt,
-      yTilt,
-      resultantTilt,
-      xDisplacement,
-      yDisplacement,
-      totalDisplacement,
-      temperature: tempVal,
-      battery: `${batteryVoltage} V`,
-      signalStrength: `${csq} CSQ`,
-      status: data.tiltStatus || 'ONLINE',
-      lastSeen: timestamp,
-    });
+    const existingDevice = await Device.findByPk(deviceId);
+    if (existingDevice) {
+      await existingDevice.update({
+        xTilt,
+        yTilt,
+        resultantTilt,
+        xDisplacement,
+        yDisplacement,
+        totalDisplacement,
+        temperature: tempVal,
+        battery: `${batteryVoltage} V`,
+        signalStrength: `${csq} CSQ`,
+        status: data.tiltStatus || existingDevice.status || 'ONLINE',
+        lastSeen: timestamp,
+      });
+    } else {
+      await Device.create({
+        id: deviceId,
+        name: `Tiltmeter ${deviceId}`,
+        xTilt,
+        yTilt,
+        resultantTilt,
+        xDisplacement,
+        yDisplacement,
+        totalDisplacement,
+        temperature: tempVal,
+        battery: `${batteryVoltage} V`,
+        signalStrength: `${csq} CSQ`,
+        status: data.tiltStatus || 'ONLINE',
+        lastSeen: timestamp,
+      });
+    }
   } catch (err) {
     console.error(`[PostgreSQL Telemetry Error] Failed to persist ${deviceId} at ${isoTimestamp}:`, err.message);
   }

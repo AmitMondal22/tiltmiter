@@ -75,6 +75,33 @@ export const formatTimeString = (ts) => {
 };
 
 /**
+ * Format timestamp into clean IST 24-hour hh:mm string: "14:00"
+ */
+export const formatHHMM = (ts) => {
+  if (!ts) {
+    return new Date().toLocaleTimeString('en-GB', {
+      timeZone: IST_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  }
+  try {
+    const dateObj = new Date(ts);
+    if (isNaN(dateObj.getTime())) return String(ts);
+    return dateObj.toLocaleTimeString('en-GB', {
+      timeZone: IST_TIMEZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  } catch (e) {
+    return String(ts);
+  }
+};
+
+
+/**
  * Format timestamp into clean IST date string: "09 Sep 2026"
  */
 export const formatISTDate = (ts) => {

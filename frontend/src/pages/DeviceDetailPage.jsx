@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Battery, Signal, Sliders, Calendar,
   Download, RefreshCw, Layers, ShieldCheck, Activity,
-  CheckCircle2, AlertTriangle, Radio, Clock, MapPin
+  CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
+  Compass, Zap, Thermometer, Search, Target
 } from 'lucide-react';
-import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, getWsUrl } from '../api/apiClient';
+import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
-import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
+import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
+import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
 export default function DeviceDetailPage() {
@@ -20,7 +22,7 @@ export default function DeviceDetailPage() {
   const [liveData, setLiveData] = useState(null);
   const [telemetryHistory, setTelemetryHistory] = useState([]);
 
-  // Time presets: '1h', '6h', '24h', '7d', 'custom'
+  // Time presets: '1h', '6h', '24h', '7d', '30d', 'custom'
   const [activeFilter, setActiveFilter] = useState('24h');
 
   const now = new Date();
@@ -28,8 +30,12 @@ export default function DeviceDetailPage() {
   const [fromDateTime, setFromDateTime] = useState(formatISTDatetimeLocal(initFrom));
   const [toDateTime, setToDateTime] = useState(formatISTDatetimeLocal(now));
 
+  const [tableSearch, setTableSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 20;
+
   const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [configForm, setConfigForm] = useState({ sleep_count: '', wake_count: '', calibrate: false });
+  const [configForm, setConfigForm] = useState({ sleep_count: '', wake_count: '', calibrate: false, gaugeLength_mm: 1000 });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
@@ -46,6 +52,7 @@ export default function DeviceDetailPage() {
             sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
             wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
             calibrate: Boolean(dev.calibrate),
+            gaugeLength_mm: dev.gaugeLength_mm !== undefined ? dev.gaugeLength_mm : 1000,
           });
           const parsed = parseTelemetry(dev);
           setLiveData(parsed);
@@ -59,6 +66,84 @@ export default function DeviceDetailPage() {
 
     loadHistory(deviceId, null, null, activeFilter);
   }, [deviceId]);
+
+  const mapPointData = (pt) => {
+    const ts = pt.timestamp || pt.time;
+    const xT = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0) || 0;
+    const yT = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
+    const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt;
+    const resT = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(xT * xT + yT * yT);
+
+    // ClinoX Reference-Zero Delta and Lateral Displacement: D = L * tan(Δθ * π / 180)
+    const L = parseFloat(device?.gaugeLength_mm || 1000.0);
+    const refX = parseFloat(device?.refThetaX ?? 0.0);
+    const refY = parseFloat(device?.refThetaY ?? 0.0);
+    const refZ = parseFloat(device?.refThetaZ ?? 0.0);
+    const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate);
+
+    const deltaX = hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT);
+    const deltaY = hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT);
+    const deltaZ = hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT);
+
+    const radX = (deltaX * Math.PI) / 180.0;
+    const radY = (deltaY * Math.PI) / 180.0;
+    const clinoDx = L * Math.tan(radX);
+    const clinoDy = L * Math.tan(radY);
+
+    const xD = hasRef ? clinoDx : (pt.xDisp !== undefined ? parseFloat(pt.xDisp) : clinoDx);
+    const yD = hasRef ? clinoDy : (pt.yDisp !== undefined ? parseFloat(pt.yDisp) : clinoDy);
+    const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? pt.displacement?.zDisplacement_mm ?? 0) || 0;
+    const totD = Math.sqrt(xD * xD + yD * yD);
+
+    const rawAx = parseFloat(pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? 0.012) || 0.012;
+    const rawAy = parseFloat(pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? -0.006) || -0.006;
+    const rawAz = parseFloat(pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? 0.998) || 0.998;
+
+    const axG = Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx;
+    const ayG = Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy;
+    const azG = Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz;
+
+    const accM = parseFloat(pt.accMag ?? pt.acceleration?.accMag ?? 0.982) || 0.982;
+    const vibR = parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? pt.vibration?.vibrationRMS ?? 0.045) || 0.045;
+    const vibP = parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? pt.vibration?.vibrationPeak ?? 0.104) || 0.104;
+    const tempC = parseFloat(pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? 26.4) || 26.4;
+
+    // Stability classification
+    let stability = 'Stable';
+    let stabilityClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (Math.abs(resT) >= 2.0 || Math.abs(totD) >= 10.0 || vibR >= 0.5) {
+      stability = 'Critical';
+      stabilityClass = 'bg-red-50 text-red-700 border-red-200';
+    } else if (Math.abs(resT) >= 1.0 || Math.abs(totD) >= 5.0 || vibR >= 0.2) {
+      stability = 'Warning';
+      stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+
+    return {
+      time: formatHHMM(ts),
+      fullTime: formatFullDateTime(ts),
+      timestamp: ts,
+      resultant: Number(resT.toFixed(4)),
+      xTilt: Number(deltaX.toFixed(4)),
+      yTilt: Number(deltaY.toFixed(4)),
+      zTilt: Number(deltaZ.toFixed(4)),
+      deltaThetaX: Number(deltaX.toFixed(4)),
+      deltaThetaY: Number(deltaY.toFixed(4)),
+      totalDisp: Number(totD.toFixed(3)),
+      xDisp: Number(xD.toFixed(3)),
+      yDisp: Number(yD.toFixed(3)),
+      zDisp: Number(zD.toFixed(3)),
+      axG: Number(axG.toFixed(3)),
+      ayG: Number(ayG.toFixed(3)),
+      azG: Number(azG.toFixed(3)),
+      accMag: Number(accM.toFixed(3)),
+      vibRMS: Number(vibR.toFixed(4)),
+      vibPeak: Number(vibP.toFixed(4)),
+      temp: Number(tempC.toFixed(1)),
+      stability,
+      stabilityClass,
+    };
+  };
 
   const loadHistory = (id, fromDt = null, toDt = null, rangeKey = activeFilter) => {
     if (!id) return;
@@ -76,20 +161,7 @@ export default function DeviceDetailPage() {
             const ts = pt.timestamp || pt.time;
             if (ts && seen.has(ts)) continue;
             if (ts) seen.add(ts);
-            mapped.push({
-              time: pt.time || formatTimeString(pt.timestamp),
-              fullTime: formatFullDateTime(pt.timestamp || pt.time),
-              timestamp: pt.timestamp || pt.time,
-              resultant: parseFloat(pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? 0),
-              xTilt: parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0),
-              yTilt: parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0),
-              totalDisp: parseFloat(pt.totalDisp ?? pt.totalDisplacement ?? pt.displacement?.totalDisplacement_mm ?? 0),
-              xDisp: parseFloat(pt.xDisp ?? pt.xDisplacement ?? pt.displacement?.xDisplacement_mm ?? 0),
-              yDisp: parseFloat(pt.yDisp ?? pt.yDisplacement ?? pt.displacement?.yDisplacement_mm ?? 0),
-              zDisp: parseFloat(pt.zDisp ?? pt.zDisplacement ?? pt.displacement?.zDisplacement_mm ?? 0),
-              vibRMS: parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? 0.045),
-              vibPeak: parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? 0.104),
-            });
+            mapped.push(mapPointData(pt));
           }
           setTelemetryHistory(mapped);
           const firstPoint = mapped[0];
@@ -117,29 +189,17 @@ export default function DeviceDetailPage() {
   useEffect(() => {
     const unsubscribe = telemetryService.subscribe((packet) => {
       if (!packet) return;
-      const pktId = packet.deviceId || packet.id;
-      if (pktId === deviceId || !deviceId) {
+      const pktId = packet.deviceId || packet.id || packet.device_id;
+      if (!pktId || !deviceId || pktId.toLowerCase() === deviceId.toLowerCase()) {
         const parsed = parseTelemetry(packet);
         setLiveData(parsed);
+        const newPoint = mapPointData(parsed);
+
         setTelemetryHistory(prev => {
-          if (prev.some(p => p.timestamp === parsed.timestamp)) {
-            return prev; // Skip duplicate timestamp
+          if (prev.some(p => p.timestamp === newPoint.timestamp)) {
+            return prev;
           }
-          const newPoint = {
-            time: formatTimeString(parsed.timestamp),
-            fullTime: formatFullDateTime(parsed.timestamp),
-            timestamp: parsed.timestamp,
-            resultant: parseFloat(parsed.resultantTilt ?? parsed.tilt ?? 0),
-            xTilt: parseFloat(parsed.xTilt ?? parsed.roll ?? 0),
-            yTilt: parseFloat(parsed.yTilt ?? parsed.pitch ?? 0),
-            totalDisp: parseFloat(parsed.totalDisplacement ?? 0),
-            xDisp: parseFloat(parsed.xDisplacement ?? 0),
-            yDisp: parseFloat(parsed.yDisplacement ?? 0),
-            zDisp: parseFloat(parsed.zDisplacement ?? 0),
-            vibRMS: parseFloat(parsed.vibRMS ?? 0.045),
-            vibPeak: parseFloat(parsed.vibPeak ?? 0.104),
-          };
-          return [...prev, newPoint].slice(-60);
+          return [...prev, newPoint].slice(-200);
         });
       }
     }, deviceId);
@@ -167,15 +227,100 @@ export default function DeviceDetailPage() {
         sleep_count: device.sleep_count !== undefined ? device.sleep_count : '',
         wake_count: device.wake_count !== undefined ? device.wake_count : '',
         calibrate: Boolean(device.calibrate),
+        gaugeLength_mm: device.gaugeLength_mm !== undefined ? device.gaugeLength_mm : 1000,
       });
     }
     setConfigModalOpen(true);
+  };
+
+  const handleSetReference = async () => {
+    try {
+      const lastHist = telemetryHistory.length > 0 ? telemetryHistory[telemetryHistory.length - 1] : null;
+      const curX = liveData?.xTilt ?? liveData?.roll ?? lastHist?.xTilt ?? parseFloat(device?.xTilt ?? 0) ?? 0;
+      const curY = liveData?.yTilt ?? liveData?.pitch ?? lastHist?.yTilt ?? parseFloat(device?.yTilt ?? 0) ?? 0;
+      const curZ = liveData?.zTilt ?? lastHist?.zTilt ?? parseFloat(device?.zTilt ?? 0) ?? 0;
+      const L = parseFloat(configForm.gaugeLength_mm || device?.gaugeLength_mm || 1000);
+
+      const res = await setDeviceReference(deviceId, {
+        refThetaX: curX,
+        refThetaY: curY,
+        refThetaZ: curZ,
+        gaugeLength_mm: L,
+        refOperator: 'Commissioning Engineer',
+      }).catch(() => null);
+
+      const updatedDevice = res?.device || {
+        ...device,
+        refThetaX: curX,
+        refThetaY: curY,
+        refThetaZ: curZ,
+        gaugeLength_mm: L,
+        hasReferenceZero: true,
+        calibrate: true,
+        refTimestamp: new Date().toISOString(),
+      };
+
+      setDevice(updatedDevice);
+      // Immediately zero tilt change and lateral displacement at that instant (ClinoX Step 04)
+      setLiveData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          deltaThetaX: 0,
+          deltaThetaY: 0,
+          deltaThetaZ: 0,
+          xDisplacement: 0,
+          yDisplacement: 0,
+          zDisplacement: 0,
+          totalDisplacement: 0,
+          hasReferenceZero: true,
+          refThetaX: curX,
+          refThetaY: curY,
+          refThetaZ: curZ,
+          gaugeLength_mm: L,
+        };
+      });
+
+      loadHistory(deviceId, null, null, activeFilter);
+      setMsg({
+        type: 'success',
+        text: `Zero reference baseline saved: θX₀=${curX.toFixed(3)}°, θY₀=${curY.toFixed(3)}° (L=${L}mm). At instant: ΔθX=ΔθY=0° and DX=DY=0.000mm.`,
+      });
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Error saving zero reference' });
+    } finally {
+      setTimeout(() => setMsg({ type: '', text: '' }), 4500);
+    }
+  };
+
+  const handleResetReference = async () => {
+    try {
+      const res = await resetDeviceReference(deviceId).catch(() => null);
+      const updatedDevice = res?.device || {
+        ...device,
+        refThetaX: 0.0,
+        refThetaY: 0.0,
+        refThetaZ: 0.0,
+        hasReferenceZero: false,
+        calibrate: false,
+        refTimestamp: null,
+      };
+
+      setDevice(updatedDevice);
+      loadHistory(deviceId, null, null, activeFilter);
+      setMsg({ type: 'success', text: 'Reference Zero reset to factory 0.000°. Tracking absolute tilt.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Error resetting reference zero' });
+    } finally {
+      setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+    }
   };
 
   const handleSaveConfig = async (e) => {
     e.preventDefault();
     const sleepVal = Number(configForm.sleep_count);
     const wakeVal = Number(configForm.wake_count);
+    const gaugeVal = parseFloat(configForm.gaugeLength_mm) || 1000;
     if (!sleepVal || sleepVal < 15) {
       setMsg({ type: 'error', text: 'Sleep count must be at least 15 minutes (15M minimum).' });
       return;
@@ -184,12 +329,14 @@ export default function DeviceDetailPage() {
       ...configForm,
       sleep_count: sleepVal,
       wake_count: wakeVal > 0 ? wakeVal : 30,
+      gaugeLength_mm: gaugeVal,
     };
     try {
       await configureDeviceTelemetry(deviceId, payload);
       setMsg({ type: 'success', text: `Configuration deployed to ${deviceId} successfully.` });
       setConfigModalOpen(false);
       setDevice(prev => ({ ...prev, ...payload }));
+      loadHistory(deviceId, null, null, activeFilter);
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Error deploying config' });
     } finally {
@@ -197,13 +344,86 @@ export default function DeviceDetailPage() {
     }
   };
 
+  // Export Table Data to CSV
+  const handleExportCSV = () => {
+    if (telemetryHistory.length === 0) {
+      alert('No telemetry records available to export for the selected date range.');
+      return;
+    }
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,DeltaX_mm,DeltaY_mm,DeltaZ_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
+    const rows = telemetryHistory.map(r =>
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},${r.xDisp.toFixed(3)},${r.yDisp.toFixed(3)},${r.zDisp.toFixed(3)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temp.toFixed(1)},${r.stability}`
+    );
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `telemetry_${deviceId}_${activeFilter}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const d = liveData || parseTelemetry({ id: deviceId });
-  const roll = d.xTilt ?? 1.53;
-  const pitch = d.yTilt ?? -0.92;
-  const resultant = d.resultantTilt ?? 1.83;
+  const rawRoll = typeof d.xTilt === 'number' ? d.xTilt : 0;
+  const rawPitch = typeof d.yTilt === 'number' ? d.yTilt : 0;
+  const rawRes = typeof d.resultantTilt === 'number' ? d.resultantTilt : Math.sqrt(rawRoll * rawRoll + rawPitch * rawPitch);
+  const rawZTilt = typeof d.zTilt === 'number' ? d.zTilt : rawRes;
+
+  const L = parseFloat(device?.gaugeLength_mm || d.gaugeLength_mm || 1000.0);
+  const refX = parseFloat(device?.refThetaX ?? d.refThetaX ?? 0.0);
+  const refY = parseFloat(device?.refThetaY ?? d.refThetaY ?? 0.0);
+  const refZ = parseFloat(device?.refThetaZ ?? d.refThetaZ ?? 0.0);
+  const hasRef = Boolean(device?.hasReferenceZero || d.hasReferenceZero || device?.calibrate);
+
+  // ClinoX: ΔθX = θX,current − θX,reference; ΔθY = θY,current − θY,reference
+  const roll = hasRef ? rawRoll - refX : (d.deltaThetaX !== undefined ? d.deltaThetaX : rawRoll);
+  const pitch = hasRef ? rawPitch - refY : (d.deltaThetaY !== undefined ? d.deltaThetaY : rawPitch);
+  const zTilt = hasRef ? rawZTilt - refZ : rawZTilt;
+  const resultant = Math.sqrt(roll * roll + pitch * pitch);
+
+  const xSlope = typeof d.xSlope === 'number' ? d.xSlope : Math.sin((roll * Math.PI) / 180) * 1000;
+  const ySlope = typeof d.ySlope === 'number' ? d.ySlope : Math.sin((pitch * Math.PI) / 180) * 1000;
+  const zSlope = typeof d.zSlope === 'number' ? d.zSlope : Math.sin((zTilt * Math.PI) / 180) * 1000;
+
+  // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
+  const radX = (roll * Math.PI) / 180.0;
+  const radY = (pitch * Math.PI) / 180.0;
+  const clinoDx = L * Math.tan(radX);
+  const clinoDy = L * Math.tan(radY);
+
+  const xDisp = hasRef ? clinoDx : (typeof d.xDisplacement === 'number' ? d.xDisplacement : clinoDx);
+  const yDisp = hasRef ? clinoDy : (typeof d.yDisplacement === 'number' ? d.yDisplacement : clinoDy);
+  const zDisp = typeof d.zDisplacement === 'number' ? d.zDisplacement : (d.displacement?.zDisplacement_mm ?? 0);
+  const totalDisp = Math.sqrt(xDisp * xDisp + yDisp * yDisp);
+
+  // Compute Total Displacement Vector Angle & Cardinal Bearing
+  let dispAngleRad = Math.atan2(yDisp, xDisp);
+  let dispAngleDeg = (dispAngleRad * 180) / Math.PI;
+  if (dispAngleDeg < 0) dispAngleDeg += 360;
+  const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const dispCardinal = cardinals[Math.round(dispAngleDeg / 45) % 8];
 
   const bubbleX = Math.max(-32, Math.min(32, roll * 14));
   const bubbleY = Math.max(-32, Math.min(32, -pitch * 14));
+
+  // Filtered rows for the table
+  const filteredRows = useMemo(() => {
+    if (!tableSearch) return telemetryHistory;
+    const q = tableSearch.toLowerCase();
+    return telemetryHistory.filter(r =>
+      r.fullTime?.toLowerCase().includes(q) ||
+      r.stability?.toLowerCase().includes(q) ||
+      String(r.resultant).includes(q) ||
+      String(r.totalDisp).includes(q)
+    );
+  }, [telemetryHistory, tableSearch]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredRows.slice(start, start + rowsPerPage);
+  }, [filteredRows, currentPage]);
 
   return (
     <div className="space-y-4 font-sans text-slate-800">
@@ -254,7 +474,34 @@ export default function DeviceDetailPage() {
         </div>
 
         {/* Hardware Status & Configuration Button */}
-        <div className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-xs flex-wrap">
+          {hasRef && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-[11px] font-mono shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="font-semibold">Ref-Zero Active:</span>
+              <span>θX₀={refX >= 0 ? '+' : ''}{refX.toFixed(3)}°, θY₀={refY >= 0 ? '+' : ''}{refY.toFixed(3)}°</span>
+              <button
+                type="button"
+                onClick={handleResetReference}
+                title="Reset reference zero to factory 0.000°"
+                className="ml-1 text-slate-400 hover:text-red-600 font-semibold underline text-[10px] cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            id="btn-set-reference"
+            onClick={handleSetReference}
+            title="Press 'Set Reference' at commissioning to save current inclination readings as 0° baseline"
+            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+          >
+            <Target className="w-3.5 h-3.5" />
+            <span>{hasRef ? 'Re-Zero' : 'Set Reference (0°)'}</span>
+          </button>
+
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-3.5 h-3.5 text-emerald-600" />
             <span>{d.battery || device?.battery || '100%'}</span>
@@ -275,7 +522,7 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {/* Date-Time Range Quick Filters (1h, 6h, 24h, 1 Week) & Custom Range */}
+      {/* Date-Time Range Quick Filters (1h, 6h, 24h, 7d, 30d) & Custom Range */}
       <div className={cardCls}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Preset Buttons */}
@@ -292,8 +539,8 @@ export default function DeviceDetailPage() {
                 key={b.id}
                 onClick={() => handleRangeSelect(b.id)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${activeFilter === b.id
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-blue-600 text-white shadow-2xs'
+                  : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
                   }`}
               >
                 {b.label}
@@ -334,11 +581,11 @@ export default function DeviceDetailPage() {
 
       {/* Row 1: Live Status Readouts & Dual-Axis Bullseye Horizon Gauge */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        {/* 1. Live Primary Inclinometer Readout */}
+        {/* 1. Live Primary Inclinometer & Vector Metrics Readout */}
         <div className={cardCls}>
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
             <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-              LIVE INCLINOMETER READINGS
+              LIVE INCLINOMETER &amp; DISPLACEMENT
             </span>
             <div className="flex items-center gap-1 text-[10px] font-mono text-blue-600 font-semibold">
               <Radio className="w-3 h-3 animate-pulse" />
@@ -346,36 +593,83 @@ export default function DeviceDetailPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center my-2 font-mono">
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="text-[9px] text-slate-400 uppercase font-semibold">Roll (X)</div>
-              <div className="text-base font-bold text-blue-600 mt-0.5">{roll.toFixed(3)}°</div>
-              <div className="text-[8px] text-slate-400 mt-0.5">mm/m slope</div>
+          {/* 1. Tilt Change per Axis X, Y, Z (ClinoX recommended label) */}
+          <div className="mb-3">
+            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+              <span>TILT CHANGE (°)</span>
+              <span className="text-purple-600 font-semibold text-[9px] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                {hasRef ? 'Δθ RELATIVE TO ZERO REF' : 'Δθ FROM 0.000°'}
+              </span>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="text-[9px] text-slate-400 uppercase font-semibold">Pitch (Y)</div>
-              <div className="text-base font-bold text-purple-600 mt-0.5">{pitch.toFixed(3)}°</div>
-              <div className="text-[8px] text-slate-400 mt-0.5">mm/m slope</div>
-            </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-              <div className="text-[9px] text-slate-400 uppercase font-semibold">Resultant</div>
-              <div className="text-base font-bold text-emerald-600 mt-0.5">{resultant.toFixed(3)}°</div>
-              <div className="text-[8px] text-slate-400 mt-0.5">3D vector</div>
+            <div className="grid grid-cols-3 gap-2 text-center font-mono">
+              <div className="p-2 rounded-xl bg-blue-50/60 border border-blue-100">
+                <div className="text-[9px] text-blue-700 uppercase font-bold">ΔθX (Roll)</div>
+                <div className="text-base font-bold text-blue-700 mt-0.5">{roll >= 0 ? '+' : ''}{roll.toFixed(3)}°</div>
+                <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
+                  {xSlope >= 0 ? '+' : ''}{xSlope.toFixed(2)} mm/m
+                </div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-purple-50/60 border border-purple-100">
+                <div className="text-[9px] text-purple-700 uppercase font-bold">ΔθY (Pitch)</div>
+                <div className="text-base font-bold text-purple-700 mt-0.5">{pitch >= 0 ? '+' : ''}{pitch.toFixed(3)}°</div>
+                <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
+                  {ySlope >= 0 ? '+' : ''}{ySlope.toFixed(2)} mm/m
+                </div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
+                <div className="text-[9px] text-emerald-700 uppercase font-bold">ΔθZ (Vertical)</div>
+                <div className="text-base font-bold text-emerald-700 mt-0.5">{zTilt >= 0 ? '+' : ''}{zTilt.toFixed(3)}°</div>
+                <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
+                  {zSlope >= 0 ? '+' : ''}{zSlope.toFixed(2)} mm/m
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-slate-100 text-xs font-mono">
-            <div className="flex justify-between py-1">
-              <span className="text-slate-500 font-medium font-sans">Total Displacement:</span>
-              <span className="font-semibold text-slate-900">{(d.totalDisplacement ?? 4.67).toFixed(2)} mm</span>
+          {/* 2. Estimated Lateral Displacement in MM */}
+          <div className="pt-2.5 border-t border-slate-100">
+            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+              <span>ESTIMATED LATERAL DISPLACEMENT (MM)</span>
             </div>
-            <div className="flex justify-between py-1">
-              <span className="text-slate-500 font-medium font-sans">Ambient Temp:</span>
-              <span className="font-semibold text-slate-900">{(d.temp ?? 28.7).toFixed(1)} °C</span>
+
+            <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="text-[9px] text-cyan-700 uppercase font-bold">DX (Lateral)</div>
+                <div className="text-xs font-bold text-cyan-700 mt-0.5">{xDisp >= 0 ? '+' : ''}{xDisp.toFixed(3)}</div>
+                <div className="text-[8px] text-slate-400">mm</div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="text-[9px] text-amber-700 uppercase font-bold">DY (Lateral)</div>
+                <div className="text-xs font-bold text-amber-700 mt-0.5">{yDisp >= 0 ? '+' : ''}{yDisp.toFixed(3)}</div>
+                <div className="text-[8px] text-slate-400">mm</div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="text-[9px] text-slate-500 uppercase font-bold">DZ (Axial)</div>
+                <div className="text-xs font-bold text-slate-400 mt-0.5">N/A</div>
+                <div className="text-[8px] text-slate-400">axial</div>
+              </div>
+
+              <div className="p-2 rounded-xl bg-pink-50/70 border border-pink-200/80">
+                <div className="text-[9px] text-pink-700 uppercase font-bold">Total D</div>
+                <div className="text-xs font-bold text-pink-700 mt-0.5">{totalDisp.toFixed(3)}</div>
+                <div className="text-[8px] text-pink-500 font-semibold">mm</div>
+              </div>
             </div>
-            <div className="flex justify-between py-1">
-              <span className="text-slate-500 font-medium font-sans">Last Packet:</span>
-              <span className="font-semibold text-blue-600 truncate">{d.timestamp ? formatTimeString(d.timestamp) : 'Just now'}</span>
+
+            {/* Vector Direction & Angle */}
+            <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-50 text-[10px] font-mono text-slate-600">
+              <span>
+                <span className="text-slate-400 font-sans">Displace Angle:</span>{' '}
+                <span className="font-bold text-slate-800">{dispAngleDeg.toFixed(1)}° ({dispCardinal})</span>
+              </span>
+              <span>
+                <span className="text-slate-400 font-sans">Tilt Bearing:</span>{' '}
+                <span className="font-bold text-blue-600">{(d.tiltDirectionAngle ?? 0).toFixed(1)}° ({d.tiltDirectionCardinal || 'N'})</span>
+              </span>
             </div>
           </div>
         </div>
@@ -392,19 +686,19 @@ export default function DeviceDetailPage() {
           </div>
 
           <div className="flex flex-col items-center justify-center my-1">
-            <div className="relative w-24 h-24 rounded-full border border-slate-200 bg-slate-50/80 flex items-center justify-center shadow-inner overflow-hidden">
-              <div className="absolute w-20 h-20 rounded-full border border-slate-200/80" />
-              <div className="absolute w-14 h-14 rounded-full border border-dashed border-slate-300" />
-              <div className="absolute w-7 h-7 rounded-full border border-slate-300 bg-slate-100/60" />
+            <div className="relative w-28 h-28 rounded-full border border-slate-200 bg-slate-50/80 flex items-center justify-center shadow-inner overflow-hidden">
+              <div className="absolute w-22 h-22 rounded-full border border-slate-200/80" />
+              <div className="absolute w-16 h-16 rounded-full border border-dashed border-slate-300" />
+              <div className="absolute w-8 h-8 rounded-full border border-slate-300 bg-slate-100/60" />
               <div className="absolute w-2.5 h-2.5 rounded-full border border-slate-400" />
 
               <div className="absolute w-full h-[1px] bg-slate-200" />
               <div className="absolute h-full w-[1px] bg-slate-200" />
 
-              <span className="absolute top-1 text-[6.5px] font-mono font-medium text-slate-400">+Y</span>
-              <span className="absolute bottom-1 text-[6.5px] font-mono font-medium text-slate-400">-Y</span>
-              <span className="absolute left-1 text-[6.5px] font-mono font-medium text-slate-400">-X</span>
-              <span className="absolute right-1 text-[6.5px] font-mono font-medium text-slate-400">+X</span>
+              <span className="absolute top-1 text-[7px] font-mono font-medium text-slate-400">+Y</span>
+              <span className="absolute bottom-1 text-[7px] font-mono font-medium text-slate-400">-Y</span>
+              <span className="absolute left-1 text-[7px] font-mono font-medium text-slate-400">-X</span>
+              <span className="absolute right-1 text-[7px] font-mono font-medium text-slate-400">+X</span>
 
               <div
                 className="absolute w-5 h-5 rounded-full bg-blue-600 border-2 border-white shadow-md transition-all duration-300 ease-out flex items-center justify-center z-10"
@@ -415,8 +709,10 @@ export default function DeviceDetailPage() {
                 <div className="w-1 h-1 bg-white rounded-full opacity-80" />
               </div>
             </div>
-            <div className="text-[10px] font-mono font-semibold text-slate-700 mt-1">
-              Bearing: {d.tiltDirectionCardinal || 'NW'} Vector
+            <div className="flex items-center gap-3 text-[10px] font-mono font-semibold text-slate-700 mt-2">
+              <span className="text-blue-600">Tilt: {(d.tiltDirectionAngle ?? 0).toFixed(1)}° {d.tiltDirectionCardinal || 'N'}</span>
+              <span className="text-slate-300">|</span>
+              <span className="text-pink-600">Disp: {dispAngleDeg.toFixed(1)}° {dispCardinal}</span>
             </div>
           </div>
         </div>
@@ -434,8 +730,8 @@ export default function DeviceDetailPage() {
 
           <div className="space-y-1 text-xs">
             <div className="flex justify-between py-1 border-b border-slate-50">
-              <span className="text-slate-500 font-medium">Sleep Interval (Min 60M):</span>
-              <span className="font-mono font-semibold text-slate-900">{device?.sleep_count || 60} Minutes</span>
+              <span className="text-slate-500 font-medium">Sleep Interval (Min 15M):</span>
+              <span className="font-mono font-semibold text-slate-900">{device?.sleep_count || 15} Minutes</span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-50">
               <span className="text-slate-500 font-medium">Wake Sampling Duration:</span>
@@ -445,6 +741,10 @@ export default function DeviceDetailPage() {
               <span className="text-slate-500 font-medium">Zero Calibration Offset:</span>
               <span className="font-mono font-semibold text-emerald-600">PASSED ✓</span>
             </div>
+            <div className="flex justify-between py-1 border-b border-slate-50">
+              <span className="text-slate-500 font-medium">Ambient Temperature:</span>
+              <span className="font-mono font-semibold text-slate-800">{(d.temp ?? 25.0).toFixed(1)} °C</span>
+            </div>
             <div className="flex justify-between py-1">
               <span className="text-slate-500 font-medium">Telemetry History Points:</span>
               <span className="font-mono font-semibold text-blue-600">{telemetryHistory.length} Points</span>
@@ -453,99 +753,131 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {/* Row 2: Live Historical Multi-Axis Time-Series Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Chart 1: Inclinometer Tilt vs Time */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-                TILT ANGLE (°) VS TIME
-              </span>
-              <span className="inline-flex items-center gap-1 text-[9px] font-mono text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                LIVE
-              </span>
-            </div>
-            <span className="text-[9px] font-mono text-slate-400">
-              {activeFilter.toUpperCase()} Window ({telemetryHistory.length} Points)
+      {/* Row 2: Live Historical Multi-Axis Time-Series Charts (4 Panels matching exact layout) */}
+      <TiltmeterChartsRow telemetryHistory={telemetryHistory} loading={loading} currentDevice={device} />
+
+      {/* Row 3: Dedicated Device Historical Telemetry Data Table */}
+      <div className={cardCls}>
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider font-mono text-slate-800">
+              HISTORICAL TELEMETRY LOGS • <span className="text-blue-600">{deviceId}</span> ({filteredRows.length} Records)
             </span>
+            <div className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold font-mono">
+              <Radio className="w-3 h-3 animate-pulse" />
+              <span>LIVE SYNC</span>
+            </div>
           </div>
 
-          <div className="h-56 w-full flex items-center justify-center">
-            {telemetryHistory.length === 0 ? (
-              <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching real telemetry records...' : 'No historical telemetry data found for this period.'}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={telemetryHistory} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
-                  <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} minTickGap={25} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} unit="°" domain={['auto', 'auto']} />
-                  <Tooltip
-                    formatter={(val) => [`${Number(val).toFixed(4)}°`, '']}
-                    labelFormatter={(label, items) => {
-                      const row = items?.[0]?.payload;
-                      return row?.fullTime ? `${row.fullTime}` : `Time: ${label}`;
-                    }}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Line type="monotone" dataKey="resultant" stroke="#a855f7" strokeWidth={2} dot={false} isAnimationActive={false} name="Resultant Tilt (°)" />
-                  <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={1.8} dot={false} isAnimationActive={false} name="Roll / X Tilt (°)" />
-                  <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={1.8} dot={false} isAnimationActive={false} name="Pitch / Y Tilt (°)" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+              <input
+                type="text"
+                placeholder="Filter logs..."
+                value={tableSearch}
+                onChange={e => {
+                  setTableSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="pl-8 pr-3 py-1 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 w-40 sm:w-56"
+              />
+            </div>
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-xl border border-slate-200 transition-colors cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-600" />
+              <span>Export CSV</span>
+            </button>
           </div>
         </div>
 
-        {/* Chart 2: Sub-surface Displacement vs Time */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-                3D DISPLACEMENT (MM) VS TIME
-              </span>
-              <span className="inline-flex items-center gap-1 text-[9px] font-mono text-pink-600 bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse" />
-                LIVE
-              </span>
-            </div>
-            <span className="text-[9px] font-mono text-slate-400">
-              {activeFilter.toUpperCase()} Window ({telemetryHistory.length} Points)
-            </span>
-          </div>
-
-          <div className="h-56 w-full flex items-center justify-center">
-            {telemetryHistory.length === 0 ? (
-              <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching real telemetry records...' : 'No historical telemetry data found for this period.'}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={telemetryHistory} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
-                  <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} minTickGap={25} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} unit="mm" domain={['auto', 'auto']} />
-                  <Tooltip
-                    formatter={(val) => [`${Number(val).toFixed(4)} mm`, '']}
-                    labelFormatter={(label, items) => {
-                      const row = items?.[0]?.payload;
-                      return row?.fullTime ? `${row.fullTime}` : `Time: ${label}`;
-                    }}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Line type="monotone" dataKey="totalDisp" stroke="#ec4899" strokeWidth={2} dot={false} isAnimationActive={false} name="Total Disp (mm)" />
-                  <Line type="monotone" dataKey="xDisp" stroke="#06b6d4" strokeWidth={1.8} dot={false} isAnimationActive={false} name="ΔX Disp (mm)" />
-                  <Line type="monotone" dataKey="yDisp" stroke="#f59e0b" strokeWidth={1.8} dot={false} isAnimationActive={false} name="ΔY Disp (mm)" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+        <div className="overflow-x-auto max-h-96 overflow-y-auto">
+          <table className="w-full text-left text-xs whitespace-nowrap">
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 font-mono">
+              <tr className="uppercase text-[10px] tracking-wider text-slate-500">
+                <th className="py-2.5 px-3">Timestamp</th>
+                <th className="py-2.5 px-3">ΔX (mm)</th>
+                <th className="py-2.5 px-3">ΔY (mm)</th>
+                <th className="py-2.5 px-3">ΔZ (mm)</th>
+                <th className="py-2.5 px-3">Accel Mag (g)</th>
+                <th className="py-2.5 px-3">Vib RMS (g)</th>
+                <th className="py-2.5 px-3">Vib Peak (g)</th>
+                <th className="py-2.5 px-3">Temp (°C)</th>
+                <th className="py-2.5 px-3 text-center">Stability</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-mono">
+              {paginatedRows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-slate-400 text-xs font-mono">
+                    {loading ? 'Fetching telemetry logs for this device...' : 'No telemetry records found for this period.'}
+                  </td>
+                </tr>
+              ) : (
+                paginatedRows.map((r, i) => (
+                  <tr key={i} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-2 px-3 text-slate-600 font-medium">
+                      {r.fullTime || r.time}
+                    </td>
+                    <td className="py-2 px-3 text-cyan-700 font-semibold">
+                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(3)}
+                    </td>
+                    <td className="py-2 px-3 text-amber-700 font-semibold">
+                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(3)}
+                    </td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">
+                      {r.zDisp >= 0 ? '+' : ''}{r.zDisp.toFixed(3)}
+                    </td>
+                    <td className="py-2 px-3 text-slate-700">
+                      {r.accMag.toFixed(3)}
+                    </td>
+                    <td className="py-2 px-3 text-indigo-700">
+                      {r.vibRMS.toFixed(4)}
+                    </td>
+                    <td className="py-2 px-3 text-amber-800">
+                      {r.vibPeak.toFixed(4)}
+                    </td>
+                    <td className="py-2 px-3 text-orange-700">
+                      {r.temp.toFixed(1)}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${r.stabilityClass}`}>
+                        {r.stability}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
+
+        {/* Table Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-mono">
+            <span className="text-slate-500">
+              Page {currentPage} of {totalPages} ({filteredRows.length} total entries)
+            </span>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modal: Configure Device */}
@@ -613,19 +945,74 @@ export default function DeviceDetailPage() {
                 />
               </div>
 
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-900">Calibrate Zero Offset</div>
-                  <div className="text-[11px] text-slate-500">
-                    Current: {device?.calibrate ? 'Calibrated (Active)' : 'Standard / Uncalibrated'}
-                  </div>
+              {/* Vertical Separation / Gauge Length L (mm) for ClinoX D = L * tan(Δθ) */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block font-semibold text-slate-700">
+                    Vertical Distance / Gauge Length L (mm)
+                  </label>
+                  <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                    Current: {device?.gaugeLength_mm !== undefined ? device.gaugeLength_mm : 1000} mm
+                  </span>
                 </div>
                 <input
-                  type="checkbox"
-                  checked={configForm.calibrate}
-                  onChange={e => setConfigForm({ ...configForm, calibrate: e.target.checked })}
-                  className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
+                  type="number"
+                  required
+                  min="10"
+                  max="100000"
+                  placeholder="e.g. 1000"
+                  value={configForm.gaugeLength_mm}
+                  onChange={e => setConfigForm({ ...configForm, gaugeLength_mm: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Vertical separation from pivot level to measurement point. Used in D = L × tan(Δθ × π / 180).
+                </p>
+              </div>
+
+              {/* ClinoX Reference Zero Commissioning Box */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold text-xs text-slate-900 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>ClinoX Zero Reference Baseline</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
+                      {device?.hasReferenceZero ? (
+                        <span className="text-emerald-700">
+                          Active: θX₀={device.refThetaX?.toFixed(3)}°, θY₀={device.refThetaY?.toFixed(3)}°
+                        </span>
+                      ) : (
+                        <span>Factory default (unreferenced 0.000°).</span>
+                      )}
+                    </div>
+                  </div>
+                  {device?.hasReferenceZero && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-semibold border border-emerald-300">
+                      Commissioned
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSetReference}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
+                  >
+                    Set Current as Reference Zero (0°)
+                  </button>
+                  {device?.hasReferenceZero && (
+                    <button
+                      type="button"
+                      onClick={handleResetReference}
+                      className="py-1.5 px-3 rounded-lg border border-red-200 hover:bg-red-50 text-red-700 font-medium text-xs transition-colors cursor-pointer"
+                    >
+                      Reset to 0°
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">

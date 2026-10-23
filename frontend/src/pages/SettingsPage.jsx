@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Save, CheckCircle2, Sliders, Shield, Upload, Trash2, Image as ImageIcon, AlertTriangle, RefreshCw } from 'lucide-react';
+import {
+  Settings, Save, CheckCircle2, Sliders, Shield, Upload, Trash2,
+  Image as ImageIcon, AlertTriangle, RefreshCw, Mail, Server, ExternalLink, AtSign
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getOrganizations, uploadOrganizationLogo, deleteOrganizationLogo, getOrganizationLogo, formatAssetUrl } from '../api/apiClient';
+import {
+  getOrganizations, uploadOrganizationLogo, deleteOrganizationLogo,
+  getOrganizationLogo, formatAssetUrl, getNotificationConfig, updateNotificationConfig
+} from '../api/apiClient';
 import defaultAppLogo from '../assets/logo/logo250x150.png';
 
 const MAX_LOGO_SIZE_BYTES = 2.5 * 1024 * 1024; // 2.5 MB
@@ -23,7 +29,22 @@ export default function SettingsPage() {
   const [autoZeroOffset, setAutoZeroOffset] = useState(true);
   const [savedNotice, setSavedNotice] = useState(false);
 
-  // Fetch latest organization logo
+  // Email Notification & SMTP State
+  const [smtpSettings, setSmtpSettings] = useState({
+    host: 'smtp.gmail.com',
+    port: 587,
+    from: 'Inclinometer Alert System <alerts@inclinox.com>',
+    configured: false,
+    secure: false,
+  });
+  const [autoSendAlertEmail, setAutoSendAlertEmail] = useState(true);
+  const [emailRecipients, setEmailRecipients] = useState([
+    'admin@inclinox.com',
+    'geotech-ops@inclinox.com',
+  ]);
+  const [updatingAutoSend, setUpdatingAutoSend] = useState(false);
+
+  // Fetch latest organization logo & notification configuration
   useEffect(() => {
     getOrganizationLogo()
       .then(res => {
@@ -33,7 +54,34 @@ export default function SettingsPage() {
         }
       })
       .catch(() => {});
+
+    getNotificationConfig()
+      .then(res => {
+        if (res) {
+          if (res.smtp) setSmtpSettings(res.smtp);
+          if (typeof res.autoSendEmail === 'boolean') setAutoSendAlertEmail(res.autoSendEmail);
+          if (Array.isArray(res.recipients)) setEmailRecipients(res.recipients);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not load notification settings on Settings page:', err.message);
+      });
   }, []);
+
+  const handleToggleAutoSend = async () => {
+    const nextVal = !autoSendAlertEmail;
+    setAutoSendAlertEmail(nextVal);
+    setUpdatingAutoSend(true);
+    try {
+      await updateNotificationConfig({ autoSendEmail: nextVal });
+      setSavedNotice(true);
+      setTimeout(() => setSavedNotice(false), 3000);
+    } catch (err) {
+      setAutoSendAlertEmail(!nextVal);
+    } finally {
+      setUpdatingAutoSend(false);
+    }
+  };
 
   const handleFileSelect = (e) => {
     setLogoError('');
@@ -336,6 +384,110 @@ export default function SettingsPage() {
           >
             {autoZeroOffset ? 'ENABLED' : 'DISABLED'}
           </button>
+        </div>
+      </div>
+
+      {/* 4. Automated Email Alerts & Sender SMTP Distribution */}
+      <div className={cardCls}>
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-4">
+          <div className="flex items-center gap-2">
+            <Mail className="w-5 h-5 text-blue-600" />
+            <div>
+              <h3 className="text-sm font-black text-slate-950">Automated Email Alerts & Sender SMTP</h3>
+              <p className="text-[11px] text-slate-500">
+                Configure outgoing SMTP mail server and multi-recipient instant alert dispatch
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href="#/alarms"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all shadow-2xs"
+            >
+              <span>Manage Distribution List</span>
+              <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+            </a>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          {/* SMTP Gateway Summary */}
+          <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/70 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Server className="w-4 h-4 text-slate-600" />
+                Outgoing SMTP Server
+              </span>
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${
+                smtpSettings.configured
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  : 'bg-amber-100 text-amber-800 border border-amber-200'
+              }`}>
+                {smtpSettings.configured ? 'SMTP AUTH ACTIVE' : 'DEV MOCK GATEWAY'}
+              </span>
+            </div>
+
+            <div className="space-y-1.5 font-mono text-[11px] text-slate-600 bg-white p-3 rounded-lg border border-slate-200">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Host:</span>
+                <span className="font-bold text-slate-800">{smtpSettings.host}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Port / Security:</span>
+                <span className="font-bold text-slate-800">{smtpSettings.port} ({smtpSettings.secure ? 'SSL' : 'TLS/STARTTLS'})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Sender (FROM):</span>
+                <span className="font-bold text-slate-800 truncate max-w-[200px]" title={smtpSettings.from}>
+                  {smtpSettings.from}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Auto-Dispatch Status & Recipients Overview */}
+          <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/70 space-y-3 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-slate-800">Auto-Send on Critical Breach</span>
+                <button
+                  type="button"
+                  onClick={handleToggleAutoSend}
+                  disabled={updatingAutoSend}
+                  className={`px-3 py-1.5 rounded-lg font-bold font-mono text-xs border transition-all cursor-pointer ${
+                    autoSendAlertEmail
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs'
+                      : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  {updatingAutoSend ? 'UPDATING...' : autoSendAlertEmail ? 'AUTO-SEND ACTIVE' : 'DISABLED'}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Immediately dispatches HTML geotechnical breach alerts when tilt exceeds critical thresholds.
+              </p>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200">
+              <div className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                <span>Active Recipients ({emailRecipients.length}):</span>
+                <a href="#/alarms" className="text-blue-600 hover:underline text-[10px] font-semibold">
+                  + Add Email
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+                {emailRecipients.map(email => (
+                  <span
+                    key={email}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[10px] font-mono text-slate-700"
+                  >
+                    <AtSign className="w-2.5 h-2.5 text-blue-500" />
+                    {email}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

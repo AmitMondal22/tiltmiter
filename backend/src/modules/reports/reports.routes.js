@@ -1,11 +1,11 @@
 import { Op } from 'sequelize';
 import { TelemetryRecord, Device, Site, Project, Organization } from '../../models/index.js';
 import { inMemoryTelemetryStore } from '../../config/influx.js';
-import { authenticate } from '../../middleware/authMiddleware.js';
+import { authenticateOptional } from '../../middleware/authMiddleware.js';
 
 export async function reportsRoutes(fastify) {
   // Project-wise, Site-wise, Device-wise Date-to-Date Analytics & Report Generation
-  fastify.get('/api/reports/analytics', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+  fastify.get('/api/reports/analytics', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     try {
       const { organizationId, projectId, siteId, deviceId, fromDate, toDate } = req.query || {};
 
@@ -69,19 +69,34 @@ export async function reportsRoutes(fastify) {
       // Compute analytics statistics on real records
       let sumTilt = 0;
       let maxTilt = 0;
+      let maxX = 0;
+      let maxY = 0;
+      let maxZ = 0;
       let maxDisp = 0;
+      let maxXDisp = 0;
+      let maxYDisp = 0;
       let maxVib = 0;
       let sumTemp = 0;
 
       (records || []).forEach(r => {
         const tilt = parseFloat(r.resultantTilt || 0);
+        const xt = Math.abs(parseFloat(r.xTilt || 0));
+        const yt = Math.abs(parseFloat(r.yTilt || 0));
+        const zt = Math.abs(parseFloat(r.zTilt || r.resultantTilt || 0));
         const disp = parseFloat(r.totalDisplacement || 0);
+        const xd = Math.abs(parseFloat(r.xDisplacement || 0));
+        const yd = Math.abs(parseFloat(r.yDisplacement || 0));
         const vib = parseFloat(r.vibration?.vibrationPeak || r.vibrationPeak || 0);
         const temp = parseFloat(r.temperature || 0);
 
         sumTilt += tilt;
         if (tilt > maxTilt) maxTilt = tilt;
+        if (xt > maxX) maxX = xt;
+        if (yt > maxY) maxY = yt;
+        if (zt > maxZ) maxZ = zt;
         if (disp > maxDisp) maxDisp = disp;
+        if (xd > maxXDisp) maxXDisp = xd;
+        if (yd > maxYDisp) maxYDisp = yd;
         if (vib > maxVib) maxVib = vib;
         sumTemp += temp;
       });
@@ -97,7 +112,12 @@ export async function reportsRoutes(fastify) {
           totalDataPoints: totalCount,
           averageResultantTilt: parseFloat(avgTilt),
           maxResultantTilt: parseFloat(maxTilt.toFixed(4)),
+          maxXTilt: parseFloat(maxX.toFixed(4)),
+          maxYTilt: parseFloat(maxY.toFixed(4)),
+          maxZTilt: parseFloat(maxZ.toFixed(4)),
           maxTotalDisplacement_mm: parseFloat(maxDisp.toFixed(4)),
+          maxXDisplacement_mm: parseFloat(maxXDisp.toFixed(4)),
+          maxYDisplacement_mm: parseFloat(maxYDisp.toFixed(4)),
           maxVibrationPeak_g: parseFloat(maxVib.toFixed(4)),
           averageTemperature_C: parseFloat(avgTemp),
         },
@@ -106,12 +126,18 @@ export async function reportsRoutes(fastify) {
           time: new Date(r.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
           deviceId: r.deviceId,
           resultantTilt: parseFloat(r.resultantTilt || 0),
+          resultant: parseFloat(r.resultantTilt || 0),
           xTilt: parseFloat(r.xTilt || 0),
           yTilt: parseFloat(r.yTilt || 0),
+          zTilt: parseFloat(r.zTilt || r.resultantTilt || 0),
           totalDisplacement: parseFloat(r.totalDisplacement || 0),
+          totalDisp: parseFloat(r.totalDisplacement || 0),
           xDisplacement: parseFloat(r.xDisplacement || 0),
+          xDisp: parseFloat(r.xDisplacement || 0),
           yDisplacement: parseFloat(r.yDisplacement || 0),
+          yDisp: parseFloat(r.yDisplacement || 0),
           zDisplacement: parseFloat(r.zDisplacement || 0),
+          zDisp: parseFloat(r.zDisplacement || 0),
           accMag: parseFloat(r.accMag || 0.982),
           vibrationRMS: parseFloat(r.vibrationRMS || 0.045),
           vibrationPeak: parseFloat(r.vibrationPeak || 0.104),

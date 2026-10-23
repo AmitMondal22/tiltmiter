@@ -59,6 +59,7 @@ export default function TrendsPage() {
               resultant: parseFloat(pt.resultant || pt.resultantTilt || 0),
               xTilt: parseFloat(pt.xTilt || pt.tiltX || 0),
               yTilt: parseFloat(pt.yTilt || pt.tiltY || 0),
+              zTilt: parseFloat(pt.zTilt || pt.tiltZ || pt.resultant || 0),
               totalDisp: parseFloat(pt.totalDisp || pt.totalDisplacement || 0),
               xDisp: parseFloat(pt.xDisp || pt.xDisplacement || 0),
               yDisp: parseFloat(pt.yDisp || pt.yDisplacement || 0),
@@ -113,6 +114,7 @@ export default function TrendsPage() {
             resultant: parsed.resultantTilt,
             xTilt: parsed.xTilt,
             yTilt: parsed.yTilt,
+            zTilt: parsed.zTilt || parsed.resultantTilt || 0,
             totalDisp: parsed.totalDisplacement,
             xDisp: parsed.xDisplacement,
             yDisp: parsed.yDisplacement,
@@ -150,9 +152,9 @@ export default function TrendsPage() {
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,ResultantTilt_deg,XTilt_deg,YTilt_deg,TotalDisplacement_mm,XDisp_mm,YDisp_mm,ZDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,XTilt_deg,YTilt_deg,ZTilt_deg,ResultantTilt_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C';
     const rows = telemetryLogs.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedDeviceId},${r.resultant.toFixed(4)},${r.xTilt.toFixed(4)},${r.yTilt.toFixed(4)},${r.totalDisp.toFixed(4)},${r.xDisp.toFixed(4)},${r.yDisp.toFixed(4)},${r.zDisp.toFixed(4)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temperature.toFixed(2)}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedDeviceId},${r.xTilt.toFixed(4)},${r.yTilt.toFixed(4)},${r.zTilt.toFixed(4)},${r.resultant.toFixed(4)},${r.xDisp.toFixed(4)},${r.yDisp.toFixed(4)},${r.zDisp.toFixed(4)},${r.totalDisp.toFixed(4)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temperature.toFixed(2)}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -274,7 +276,7 @@ export default function TrendsPage() {
               </span>
             </div>
             <span className="text-[9px] font-mono text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded">
-              Roll (X), Pitch (Y), Resultant
+              X, Y, Z &amp; Resultant Tilt (°)
             </span>
           </div>
 
@@ -291,9 +293,10 @@ export default function TrendsPage() {
                   <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} />
                   <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
                   <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+                  <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={2} dot={false} name="X Tilt (°)" />
+                  <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={2} dot={false} name="Y Tilt (°)" />
+                  <Line type="monotone" dataKey="zTilt" stroke="#f59e0b" strokeWidth={2} dot={false} name="Z Tilt (°)" />
                   <Line type="monotone" dataKey="resultant" stroke="#a855f7" strokeWidth={2} dot={false} name="Resultant Tilt (°)" />
-                  <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={2} dot={false} name="Roll X (°)" />
-                  <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={2} dot={false} name="Pitch Y (°)" />
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -422,53 +425,57 @@ export default function TrendsPage() {
         <div className="overflow-x-auto max-h-72 overflow-y-auto">
           <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200">
-              <tr className="uppercase text-[10px] tracking-wider">
-                <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3">Resultant Tilt</th>
-                <th className="py-2.5 px-3">Roll (X)</th>
-                <th className="py-2.5 px-3">Pitch (Y)</th>
-                <th className="py-2.5 px-3">Total Displacement</th>
-                <th className="py-2.5 px-3">X Disp</th>
-                <th className="py-2.5 px-3">Y Disp</th>
-                <th className="py-2.5 px-3">Peak Vibration</th>
-                <th className="py-2.5 px-3">Temperature</th>
+              <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
+                <th className="py-2.5 px-3">Timestamp (IST)</th>
+                <th className="py-2.5 px-3 text-blue-700">X Tilt (°)</th>
+                <th className="py-2.5 px-3 text-emerald-700">Y Tilt (°)</th>
+                <th className="py-2.5 px-3 text-amber-700">Z Tilt (°)</th>
+                <th className="py-2.5 px-3 text-purple-700">Resultant Tilt (°)</th>
+                <th className="py-2.5 px-3 text-cyan-700">X Disp (mm)</th>
+                <th className="py-2.5 px-3 text-amber-700">Y Disp (mm)</th>
+                <th className="py-2.5 px-3 text-pink-700">Total Disp (mm)</th>
+                <th className="py-2.5 px-3 text-slate-700">Peak Vib (g)</th>
+                <th className="py-2.5 px-3 text-emerald-700">Temp (°C)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {telemetryLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
+                  <td colSpan={10} className="py-8 text-center text-slate-400 text-xs">
                     {loading ? 'Fetching telemetry logs...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
               ) : (
                 telemetryLogs.map((r, i) => (
                   <tr key={i} className="hover:bg-slate-50/80 transition-colors font-mono">
-                    <td className="py-2 px-3 text-slate-600">
+                    <td className="py-2 px-3 text-slate-700 font-medium font-sans">
                       {formatFullDateTime(r.timestamp || r.time)}
                     </td>
-                    <td className="py-2 px-3 font-semibold text-purple-700">
+                    <td className="py-2 px-3 text-blue-700 font-semibold">
+                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(4)}°
+                    </td>
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">
+                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(4)}°
+                    </td>
+                    <td className="py-2 px-3 text-amber-700 font-semibold">
+                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(4)}°
+                    </td>
+                    <td className="py-2 px-3 font-bold text-purple-700">
                       {r.resultant.toFixed(4)}°
                     </td>
-                    <td className="py-2 px-3 text-blue-700">
-                      {r.xTilt.toFixed(4)}°
+                    <td className="py-2 px-3 text-cyan-700 font-semibold">
+                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(3)} mm
                     </td>
-                    <td className="py-2 px-3 text-emerald-700">
-                      {r.yTilt.toFixed(4)}°
+                    <td className="py-2 px-3 text-amber-700 font-semibold">
+                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(3)} mm
                     </td>
-                    <td className="py-2 px-3 font-semibold text-pink-700">
+                    <td className="py-2 px-3 font-bold text-pink-700">
                       {r.totalDisp.toFixed(3)} mm
                     </td>
-                    <td className="py-2 px-3">
-                      {r.xDisp.toFixed(3)} mm
-                    </td>
-                    <td className="py-2 px-3">
-                      {r.yDisp.toFixed(3)} mm
-                    </td>
-                    <td className="py-2 px-3 text-amber-700">
+                    <td className="py-2 px-3 text-slate-700">
                       {r.vibPeak.toFixed(4)} g
                     </td>
-                    <td className="py-2 px-3 text-emerald-700">
+                    <td className="py-2 px-3 text-emerald-700 font-semibold">
                       {r.temperature.toFixed(1)} °C
                     </td>
                   </tr>

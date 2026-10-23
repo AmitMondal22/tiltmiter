@@ -157,41 +157,60 @@ export default function ReportsPage({ currentDevice }) {
 
   // Calculated Stats
   const stats = useMemo(() => {
-    if (summaryStats && summaryStats.totalDataPoints > 0) {
-      return {
-        count: summaryStats.totalDataPoints,
-        maxTilt: summaryStats.maxResultantTilt || 0,
-        maxDisp: summaryStats.maxTotalDisplacement_mm || 0,
-        maxVib: summaryStats.maxVibrationPeak_g || 0,
-        avgTemp: summaryStats.averageTemperature_C || 0,
-      };
-    }
-    if (!reportRows || reportRows.length === 0) {
-      return { count: 0, maxTilt: 0, maxDisp: 0, maxVib: 0, avgTemp: 0 };
-    }
     let maxTilt = 0;
+    let maxXTilt = 0;
+    let maxYTilt = 0;
+    let maxZTilt = 0;
     let maxDisp = 0;
+    let maxXDisp = 0;
+    let maxYDisp = 0;
     let maxVib = 0;
     let tempSum = 0;
 
     reportRows.forEach(r => {
       const t = parseFloat(r.resultant || r.resultantTilt || 0);
+      const xt = Math.abs(parseFloat(r.xTilt || r.tiltX || 0));
+      const yt = Math.abs(parseFloat(r.yTilt || r.tiltY || 0));
+      const zt = Math.abs(parseFloat(r.zTilt || r.tiltZ || r.resultantTilt || 0));
       const d = parseFloat(r.totalDisp || r.totalDisplacement || 0);
+      const xd = Math.abs(parseFloat(r.xDisp || r.xDisplacement || 0));
+      const yd = Math.abs(parseFloat(r.yDisp || r.yDisplacement || 0));
       const v = parseFloat(r.vibPeak || r.vibrationPeak || 0);
       const temp = parseFloat(r.temperature || r.temp || 0);
 
       if (t > maxTilt) maxTilt = t;
+      if (xt > maxXTilt) maxXTilt = xt;
+      if (yt > maxYTilt) maxYTilt = yt;
+      if (zt > maxZTilt) maxZTilt = zt;
       if (d > maxDisp) maxDisp = d;
+      if (xd > maxXDisp) maxXDisp = xd;
+      if (yd > maxYDisp) maxYDisp = yd;
       if (v > maxVib) maxVib = v;
       tempSum += temp;
     });
 
+    if (summaryStats && summaryStats.totalDataPoints > 0) {
+      maxTilt = summaryStats.maxResultantTilt || maxTilt;
+      maxXTilt = summaryStats.maxXTilt || maxXTilt;
+      maxYTilt = summaryStats.maxYTilt || maxYTilt;
+      maxZTilt = summaryStats.maxZTilt || maxZTilt;
+      maxDisp = summaryStats.maxTotalDisplacement_mm || maxDisp;
+      maxXDisp = summaryStats.maxXDisplacement_mm || maxXDisp;
+      maxYDisp = summaryStats.maxYDisplacement_mm || maxYDisp;
+      maxVib = summaryStats.maxVibrationPeak_g || maxVib;
+    }
+
     return {
-      count: reportRows.length,
+      count: summaryStats?.totalDataPoints || reportRows.length,
       maxTilt,
+      maxXTilt,
+      maxYTilt,
+      maxZTilt,
       maxDisp,
+      maxXDisp,
+      maxYDisp,
       maxVib,
-      avgTemp: (tempSum / reportRows.length).toFixed(1),
+      avgTemp: reportRows.length > 0 ? (tempSum / reportRows.length).toFixed(1) : (summaryStats?.averageTemperature_C || 0),
     };
   }, [reportRows, summaryStats]);
 
@@ -211,9 +230,14 @@ export default function ReportsPage({ currentDevice }) {
       'Timestamp_IST',
       'Timestamp_UTC',
       'Device_ID',
-      'Delta_X_mm',
-      'Delta_Y_mm',
-      'Delta_Z_mm',
+      'XTilt_deg',
+      'YTilt_deg',
+      'ZTilt_deg',
+      'ResultantTilt_deg',
+      'XDisp_mm',
+      'YDisp_mm',
+      'ZDisp_mm',
+      'TotalDisp_mm',
       'Acceleration_Mag_g',
       'Vibration_RMS_g',
       'Vibration_Peak_g',
@@ -229,9 +253,14 @@ export default function ReportsPage({ currentDevice }) {
         `"${formatFullDateTime(r.timestamp || r.time)}"`,
         r.timestamp || '',
         r.deviceId || selectedDevice,
+        Number(r.xTilt || r.tiltX || 0).toFixed(4),
+        Number(r.yTilt || r.tiltY || 0).toFixed(4),
+        Number(r.zTilt || r.tiltZ || r.resultantTilt || 0).toFixed(4),
+        Number(r.resultant || r.resultantTilt || 0).toFixed(4),
         Number(r.xDisp || r.xDisplacement || 0).toFixed(4),
         Number(r.yDisp || r.yDisplacement || 0).toFixed(4),
         Number(r.zDisp || r.zDisplacement || 0).toFixed(4),
+        Number(d).toFixed(4),
         Number(r.accMag || 0.982).toFixed(3),
         Number(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4),
         Number(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4),
@@ -457,8 +486,24 @@ export default function ReportsPage({ currentDevice }) {
                     <td className="py-2 px-3 text-right font-mono font-bold text-purple-700">{Number(stats.maxTilt).toFixed(4)}°</td>
                   </tr>
                   <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Max Total Disp (Δ)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-pink-700">{Number(stats.maxDisp).toFixed(4)} mm</td>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Max X Tilt (θX)</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-blue-700">{Number(stats.maxXTilt).toFixed(4)}°</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Max Y Tilt (θY)</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{Number(stats.maxYTilt).toFixed(4)}°</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Max Total Disp (Total D)</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-pink-700">{Number(stats.maxDisp).toFixed(3)} mm</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Max X Disp (DX)</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-cyan-700">{Number(stats.maxXDisp).toFixed(3)} mm</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Max Y Disp (DY)</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxYDisp).toFixed(3)} mm</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Peak Vibration Shock</td>
@@ -527,7 +572,8 @@ export default function ReportsPage({ currentDevice }) {
                 <span className="text-xs font-extrabold text-slate-900 mr-1">Parameter:</span>
                 {[
                   { id: 'ALL', label: 'All Columns' },
-                  { id: 'DISPLACEMENT', label: 'Displacement (ΔX, ΔY, ΔZ)' },
+                  { id: 'TILT', label: 'Tilt Angle (X, Y, Z, Resultant °)' },
+                  { id: 'DISPLACEMENT', label: 'Displacement (X, Y, Total mm)' },
                   { id: 'VIBRATION', label: 'Vibration (g)' },
                   { id: 'ENVIRONMENT', label: 'Thermal & Stability' },
                 ].map(tab => (
@@ -570,12 +616,22 @@ export default function ReportsPage({ currentDevice }) {
                     <th className="py-2.5 px-3 text-left whitespace-nowrap">Timestamp (IST)</th>
                     <th className="py-2.5 px-3 text-left whitespace-nowrap font-mono">Node ID</th>
 
-                    {/* Right-Aligned Data Columns (Displacement: ΔX, ΔY, ΔZ) */}
+                    {/* Right-Aligned Data Columns (Tilt: X, Y, Z, Resultant (°)) */}
+                    {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
+                      <>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-blue-700">X Tilt (°)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-emerald-700">Y Tilt (°)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-amber-700">Z Tilt (°)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-700">Resultant (°)</th>
+                      </>
+                    )}
+
+                    {/* Right-Aligned Data Columns (Displacement: X, Y, Total mm) */}
                     {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                       <>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔX (mm)</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔY (mm)</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-600">ΔZ (mm)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-cyan-700">X Disp (mm)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-amber-700">Y Disp (mm)</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-pink-700">Total Disp (mm)</th>
                       </>
                     )}
 
@@ -600,7 +656,7 @@ export default function ReportsPage({ currentDevice }) {
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono text-[11px]">
                   {paginatedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="py-12 text-center text-slate-400 font-sans text-xs">
+                      <td colSpan={14} className="py-12 text-center text-slate-400 font-sans text-xs">
                         {loading ? 'Querying records from PostgreSQL time-series store...' : 'No telemetry data points found for this range. Try adjusting the query range.'}
                       </td>
                     </tr>
@@ -622,12 +678,36 @@ export default function ReportsPage({ currentDevice }) {
                             {r.deviceId || selectedDevice}
                           </td>
 
-                          {/* Right-aligned Numerical Displacement Columns (ΔX, ΔY, ΔZ) */}
+                          {/* Right-aligned Numerical Tilt Columns (X, Y, Z, Resultant) */}
+                          {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
+                            <>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-blue-700 font-semibold">
+                                {Number(r.xTilt || r.tiltX || 0) >= 0 ? '+' : ''}{Number(r.xTilt || r.tiltX || 0).toFixed(4)}°
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-semibold">
+                                {Number(r.yTilt || r.tiltY || 0) >= 0 ? '+' : ''}{Number(r.yTilt || r.tiltY || 0).toFixed(4)}°
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
+                                {Number(r.zTilt || r.tiltZ || r.resultantTilt || 0) >= 0 ? '+' : ''}{Number(r.zTilt || r.tiltZ || r.resultantTilt || 0).toFixed(4)}°
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-purple-700 font-bold">
+                                {Number(r.resultant || r.resultantTilt || 0).toFixed(4)}°
+                              </td>
+                            </>
+                          )}
+
+                          {/* Right-aligned Numerical Displacement Columns (X, Y, Total mm) */}
                           {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                             <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600 font-semibold">{(r.xDisp || r.xDisplacement || 0).toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600 font-semibold">{(r.yDisp || r.yDisplacement || 0).toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-600 font-semibold">{(r.zDisp || r.zDisplacement || 0).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-cyan-700 font-semibold">
+                                {Number(r.xDisp || r.xDisplacement || 0) >= 0 ? '+' : ''}{Number(r.xDisp || r.xDisplacement || 0).toFixed(3)} mm
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
+                                {Number(r.yDisp || r.yDisplacement || 0) >= 0 ? '+' : ''}{Number(r.yDisp || r.yDisplacement || 0).toFixed(3)} mm
+                              </td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-pink-700 font-bold">
+                                {Number(r.totalDisp || r.totalDisplacement || 0).toFixed(3)} mm
+                              </td>
                             </>
                           )}
 
@@ -643,7 +723,7 @@ export default function ReportsPage({ currentDevice }) {
                           {/* Right-aligned Numerical Environment Columns */}
                           {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
                             <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-bold">{Number(r.temperature || r.temp || 28.5).toFixed(1)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-bold">{Number(r.temperature || r.temp || 28.5).toFixed(1)} °C</td>
                               <td className="py-2 px-3 text-center whitespace-nowrap font-sans">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${statusBadge}`}>
                                   {status}

@@ -179,3 +179,25 @@ export function broadcastTelemetry(data) {
     }
   }
 }
+
+export function broadcastAlarm(alarm) {
+  if (!alarm) return;
+  const payload = JSON.stringify({
+    type: 'ALARM_TRIGGERED',
+    data: alarm,
+    timestamp: new Date().toISOString(),
+  });
+
+  for (const client of clients) {
+    try {
+      if (client.readyState === 1) { // OPEN
+        client.send(payload);
+      } else if (client.readyState === 2 || client.readyState === 3) {
+        clients.delete(client);
+      }
+    } catch (err) {
+      clients.delete(client);
+    }
+  }
+}
+

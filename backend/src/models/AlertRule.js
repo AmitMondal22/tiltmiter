@@ -7,41 +7,66 @@ export const AlertRule = sequelize.define('AlertRule', {
     autoIncrement: true,
     primaryKey: true,
   },
-  organizationId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-  siteId: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-  deviceId: {
-    type: DataTypes.STRING,
-    allowNull: true,
-  },
   ruleName: {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  projectId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  projectName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  siteId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  siteName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  assetId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  assetName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  deviceIds: {
+    type: DataTypes.JSON, // Array of device IDs e.g. ["DEV-001", "DEV-002"]
+    defaultValue: [],
+  },
+  emails: {
+    type: DataTypes.JSON, // Array of email addresses e.g. ["system@techavo.in"]
+    defaultValue: [],
+  },
   parameter: {
-    type: DataTypes.STRING, // tilt, roll, pitch, vibration, displacement, temperature, battery
-    allowNull: false,
+    type: DataTypes.STRING, // 'tilt', 'displacement', 'vibration', 'temperature'
+    defaultValue: 'tilt',
   },
   condition: {
-    type: DataTypes.STRING, // GREATER_THAN, LESS_THAN, RATE_OF_CHANGE, DEV_FROM_BASELINE
-    allowNull: false,
+    type: DataTypes.STRING, // 'GREATER_THAN', 'LESS_THAN', '>'
+    defaultValue: 'GREATER_THAN',
+  },
+  operator: {
+    type: DataTypes.STRING, // '>', '<', '>='
+    defaultValue: '>',
   },
   thresholdValue: {
     type: DataTypes.FLOAT,
     allowNull: false,
-  },
-  timeWindowMinutes: {
-    type: DataTypes.INTEGER,
-    defaultValue: 10,
+    defaultValue: 2.0,
   },
   severity: {
-    type: DataTypes.STRING, // INFO, WARNING, CRITICAL, EMERGENCY
-    defaultValue: 'WARNING',
+    type: DataTypes.STRING, // 'INFO', 'WARNING', 'CRITICAL', 'EMERGENCY'
+    defaultValue: 'CRITICAL',
+  },
+  message: {
+    type: DataTypes.STRING,
+    allowNull: true,
   },
   enabled: {
     type: DataTypes.BOOLEAN,
@@ -51,3 +76,4 @@ export const AlertRule = sequelize.define('AlertRule', {
   tableName: 'alert_rules',
   timestamps: true,
 });
+

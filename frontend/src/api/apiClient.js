@@ -434,3 +434,94 @@ export async function deleteUser(id) {
     method: 'DELETE',
   });
 }
+
+// Notifications, SMTP & Multiple Recipient Emails API
+export async function getNotificationConfig() {
+  return await request('/notifications/config');
+}
+
+export async function updateNotificationConfig(config) {
+  return await request('/notifications/config', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
+
+export async function addNotificationRecipient(email) {
+  return await request('/notifications/recipients', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function removeNotificationRecipient(email) {
+  return await request(`/notifications/recipients/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function sendTestAlertEmail(email = null) {
+  return await request('/notifications/test-email', {
+    method: 'POST',
+    body: JSON.stringify(email ? { email } : {}),
+  });
+}
+
+export async function verifySmtpConnection() {
+  return await request('/notifications/verify-smtp');
+}
+
+// Multi-Device Alert Generation & Dispatch API
+export async function generateAlert(payload) {
+  return await request('/alarms/generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getAlarmDevices() {
+  return await request('/alarms/devices');
+}
+
+export async function clearAlarms() {
+  return await request('/alarms/clear', {
+    method: 'DELETE',
+  });
+}
+
+// Alert Rules CRUD & Hierarchy API
+export async function getAlertRules() {
+  return await request('/alert-rules');
+}
+
+export async function createAlertRule(data) {
+  return await request('/alert-rules', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAlertRule(id, data) {
+  return await request(`/alert-rules/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteAlertRule(id) {
+  return await request(`/alert-rules/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function triggerAlertRule(id) {
+  return await request(`/alert-rules/${id}/trigger`, {
+    method: 'POST',
+  });
+}
+
+export async function getAlertHierarchy() {
+  return await request('/alert-rules/hierarchy');
+}
+
+

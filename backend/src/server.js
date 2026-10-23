@@ -23,6 +23,7 @@ import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.route
 import { incidentsRoutes } from './modules/incidents/incidents.routes.js';
 import { maintenanceRoutes } from './modules/maintenance/maintenance.routes.js';
 import { structuresRoutes } from './modules/structures/structures.routes.js';
+import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
 
 import fastifyStatic from '@fastify/static';
 import path from 'path';
@@ -104,6 +105,7 @@ await fastify.register(subscriptionsRoutes);
 await fastify.register(incidentsRoutes);
 await fastify.register(maintenanceRoutes);
 await fastify.register(structuresRoutes);
+await fastify.register(notificationsRoutes);
 
 // Health Check Endpoint
 fastify.get('/health', async () => {

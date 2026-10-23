@@ -391,9 +391,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,DeltaX_mm,DeltaY_mm,DeltaZ_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,XTilt_deg,YTilt_deg,ZTilt_deg,ResultantTilt_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
     const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedId},${r.xDisp.toFixed(3)},${r.yDisp.toFixed(3)},${r.zDisp.toFixed(3)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temp.toFixed(1)},${r.stability}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedId},${r.xTilt.toFixed(4)},${r.yTilt.toFixed(4)},${r.zTilt.toFixed(4)},${r.resultant.toFixed(4)},${r.xDisp.toFixed(3)},${r.yDisp.toFixed(3)},${r.zDisp.toFixed(3)},${r.totalDisp.toFixed(3)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temp.toFixed(1)},${r.stability}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -443,9 +443,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   if (dispAngleDeg < 0) dispAngleDeg += 360;
   const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const dispCardinal = cardinals[Math.round(dispAngleDeg / 45) % 8];
-
-  const bubbleX = Math.max(-32, Math.min(32, roll * 14));
-  const bubbleY = Math.max(-32, Math.min(32, -pitch * 14));
 
   const filteredRows = useMemo(() => {
     if (!tableSearch) return telemetryHistory;
@@ -649,8 +646,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         </div>
       </div>
 
-      {/* Row 1: Live Status Readouts & Dual-Axis Bullseye Horizon Gauge */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {/* Row 1: Live Status Readouts & Device Sampling Config */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* 1. Live Primary Inclinometer & Vector Metrics Readout */}
         <div className={cardCls}>
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
@@ -744,50 +741,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           </div>
         </div>
 
-        {/* 2. Dual-Axis Bullseye Horizon Gauge */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-              DUAL-AXIS BULLSEYE LEVEL
-            </span>
-            <span className="text-[9px] font-mono text-blue-600 font-semibold px-1.5 py-0.2 rounded-md bg-blue-50 border border-blue-200">
-              MEMS
-            </span>
-          </div>
-
-          <div className="flex flex-col items-center justify-center my-1">
-            <div className="relative w-28 h-28 rounded-full border border-slate-200 bg-slate-50/80 flex items-center justify-center shadow-inner overflow-hidden">
-              <div className="absolute w-22 h-22 rounded-full border border-slate-200/80" />
-              <div className="absolute w-16 h-16 rounded-full border border-dashed border-slate-300" />
-              <div className="absolute w-8 h-8 rounded-full border border-slate-300 bg-slate-100/60" />
-              <div className="absolute w-2.5 h-2.5 rounded-full border border-slate-400" />
-
-              <div className="absolute w-full h-[1px] bg-slate-200" />
-              <div className="absolute h-full w-[1px] bg-slate-200" />
-
-              <span className="absolute top-1 text-[7px] font-mono font-medium text-slate-400">+Y</span>
-              <span className="absolute bottom-1 text-[7px] font-mono font-medium text-slate-400">-Y</span>
-              <span className="absolute left-1 text-[7px] font-mono font-medium text-slate-400">-X</span>
-              <span className="absolute right-1 text-[7px] font-mono font-medium text-slate-400">+X</span>
-
-              <div
-                className="absolute w-5 h-5 rounded-full bg-blue-600 border-2 border-white shadow-md transition-all duration-300 ease-out flex items-center justify-center z-10"
-                style={{
-                  transform: `translate(${bubbleX}px, ${bubbleY}px)`,
-                }}
-              >
-                <div className="w-1 h-1 bg-white rounded-full opacity-80" />
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-[10px] font-mono font-semibold text-slate-700 mt-2">
-              <span className="text-blue-600">Tilt: {(d.tiltDirectionAngle ?? 0).toFixed(1)}° {d.tiltDirectionCardinal || 'N'}</span>
-              <span className="text-slate-300">|</span>
-              <span className="text-pink-600">Disp: {dispAngleDeg.toFixed(1)}° {dispCardinal}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 3. Sensor Health & Hardware Configuration */}
+        {/* 2. Sensor Health & Hardware Configuration */}
         <div className={cardCls}>
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-1">
             <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
@@ -866,53 +820,61 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full text-left text-xs whitespace-nowrap">
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 font-mono">
-              <tr className="uppercase text-[10px] tracking-wider text-slate-500">
+              <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
                 <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3">ΔX (mm)</th>
-                <th className="py-2.5 px-3">ΔY (mm)</th>
-                <th className="py-2.5 px-3">ΔZ (mm)</th>
-                <th className="py-2.5 px-3">Accel Mag (g)</th>
-                <th className="py-2.5 px-3">Vib RMS (g)</th>
-                <th className="py-2.5 px-3">Vib Peak (g)</th>
-                <th className="py-2.5 px-3">Temp (°C)</th>
+                <th className="py-2.5 px-3 text-blue-700">X Tilt (°)</th>
+                <th className="py-2.5 px-3 text-purple-700">Y Tilt (°)</th>
+                <th className="py-2.5 px-3 text-emerald-700">Z Tilt (°)</th>
+                <th className="py-2.5 px-3 text-purple-900">Resultant (°)</th>
+                <th className="py-2.5 px-3 text-cyan-700">X Disp (mm)</th>
+                <th className="py-2.5 px-3 text-amber-700">Y Disp (mm)</th>
+                <th className="py-2.5 px-3 text-pink-700">Total Disp (mm)</th>
+                <th className="py-2.5 px-3 text-amber-800">Vib Peak (g)</th>
+                <th className="py-2.5 px-3 text-orange-700">Temp (°C)</th>
                 <th className="py-2.5 px-3 text-center">Stability</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={11} className="py-8 text-center text-slate-400 text-xs font-mono">
                     {loading ? 'Fetching telemetry logs for this device...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
               ) : (
                 paginatedRows.map((r, i) => (
                   <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-2 px-3 text-slate-600 font-medium">
+                    <td className="py-2 px-3 text-slate-600 font-medium font-sans">
                       {r.fullTime || r.time}
                     </td>
-                    <td className="py-2 px-3 text-cyan-700 font-semibold">
-                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(3)}
+                    <td className="py-2 px-3 text-blue-700 font-semibold">
+                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(3)}°
                     </td>
-                    <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(3)}
+                    <td className="py-2 px-3 text-purple-700 font-semibold">
+                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(3)}°
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {r.zDisp >= 0 ? '+' : ''}{r.zDisp.toFixed(3)}
+                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(3)}°
                     </td>
-                    <td className="py-2 px-3 text-slate-700">
-                      {r.accMag.toFixed(3)}
+                    <td className="py-2 px-3 text-purple-900 font-bold">
+                      {r.resultant.toFixed(3)}°
                     </td>
-                    <td className="py-2 px-3 text-indigo-700">
-                      {r.vibRMS.toFixed(4)}
+                    <td className="py-2 px-3 text-cyan-700 font-semibold">
+                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(3)} mm
+                    </td>
+                    <td className="py-2 px-3 text-amber-700 font-semibold">
+                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(3)} mm
+                    </td>
+                    <td className="py-2 px-3 text-pink-700 font-bold">
+                      {r.totalDisp.toFixed(3)} mm
                     </td>
                     <td className="py-2 px-3 text-amber-800">
-                      {r.vibPeak.toFixed(4)}
+                      {r.vibPeak.toFixed(4)} g
                     </td>
                     <td className="py-2 px-3 text-orange-700">
-                      {r.temp.toFixed(1)}
+                      {r.temp.toFixed(1)} °C
                     </td>
-                    <td className="py-2 px-3 text-center">
+                    <td className="py-2 px-3 text-center font-sans">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${r.stabilityClass}`}>
                         {r.stability}
                       </span>

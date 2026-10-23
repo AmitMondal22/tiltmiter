@@ -377,6 +377,22 @@ export async function resetDeviceReference(id) {
   });
 }
 
+// Set Tilt and Displacement to 0 (Updating only tilt and displacement data)
+export async function zeroDeviceReadings(id, options = {}) {
+  return await request(`/devices/${id}/zero-readings`, {
+    method: 'POST',
+    body: JSON.stringify(options),
+  });
+}
+
+// Bulk Set Tilt and Displacement to 0 for All or Selected Devices
+export async function zeroAllDevicesReadings(options = {}) {
+  return await request('/devices/bulk/zero-readings', {
+    method: 'POST',
+    body: JSON.stringify(options),
+  });
+}
+
 // Historical Telemetry API
 export async function getDeviceTelemetry(deviceId, fromDate, toDate, range) {
   let query = `/telemetry/${deviceId}`;

@@ -483,6 +483,14 @@ export default function DeviceDetailPage() {
           </div>
 
           <button
+            onClick={() => navigate(`/zero-calibration?deviceId=${deviceId}`)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl shadow-2xs transition-all cursor-pointer"
+          >
+            <Target className="w-3.5 h-3.5 text-blue-600" />
+            <span>Zero Calibration</span>
+          </button>
+
+          <button
             onClick={handleOpenConfigModal}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-xl shadow-xs transition-all cursor-pointer"
           >

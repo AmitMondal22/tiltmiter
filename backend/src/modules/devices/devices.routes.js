@@ -1,8 +1,10 @@
 import pkg from 'sequelize';
 const { Op } = pkg;
-import { Device, Site, Structure, Project, Organization } from '../../models/index.js';
+import { Device, Site, Structure, Project, Organization, TelemetryRecord } from '../../models/index.js';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
+import { broadcastTelemetry } from '../../websocket/websocket.service.js';
+import { inMemoryTelemetryStore } from '../../config/influx.js';
 
 export async function devicesRoutes(fastify) {
   // Query devices scoped by organization
@@ -291,6 +293,259 @@ export async function devicesRoutes(fastify) {
       });
     } catch (err) {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
+    }
+  });
+
+  // Set Tilt & Displacement to 0 for a specific device (Updating ONLY tilt and displacement data)
+  fastify.post('/api/devices/:id/zero-readings', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const { updateHistory = false, setReference = false } = req.body || {};
+
+      let device = await Device.findByPk(id);
+      if (!device) {
+        device = await Device.findOne({
+          where: {
+            [Op.or]: [{ id }, { id: id.toUpperCase() }, { id: id.toLowerCase() }]
+          }
+        });
+      }
+      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Device ${id} not found.` });
+
+      if (req.user.role !== 'SUPER_ADMIN') {
+        if (req.user.role === 'ORG_ADMIN' && device.organizationId !== req.user.organizationId) {
+          return reply.status(403).send({
+            statusCode: 403,
+            error: 'Forbidden',
+            message: 'Cannot modify devices belonging to other organizations.',
+          });
+        }
+      }
+
+      const previousValues = {
+        xTilt: device.xTilt ?? 0.0,
+        yTilt: device.yTilt ?? 0.0,
+        resultantTilt: device.resultantTilt ?? 0.0,
+        xDisplacement: device.xDisplacement ?? 0.0,
+        yDisplacement: device.yDisplacement ?? 0.0,
+        totalDisplacement: device.totalDisplacement ?? 0.0,
+      };
+
+      // ONLY tilt and displacement data are updated to 0.000.
+      // All other device data (name, status, battery, signalStrength, temperature, organization, etc.) are strictly preserved!
+      const fieldsToUpdate = {
+        xTilt: 0.0,
+        yTilt: 0.0,
+        resultantTilt: 0.0,
+        xDisplacement: 0.0,
+        yDisplacement: 0.0,
+        totalDisplacement: 0.0,
+      };
+
+      if (setReference) {
+        fieldsToUpdate.refThetaX = parseFloat(device.xTilt || 0.0);
+        fieldsToUpdate.refThetaY = parseFloat(device.yTilt || 0.0);
+        fieldsToUpdate.refThetaZ = parseFloat(device.zTilt || 0.0);
+        fieldsToUpdate.refTimestamp = new Date();
+        fieldsToUpdate.refOperator = req.user?.fullName || req.user?.username || 'Operator';
+        fieldsToUpdate.hasReferenceZero = true;
+        fieldsToUpdate.calibrate = true;
+      }
+
+      await device.update(fieldsToUpdate);
+
+      let historyRecordsUpdated = 0;
+      if (updateHistory) {
+        const [count] = await TelemetryRecord.update(
+          {
+            xTilt: 0.0,
+            yTilt: 0.0,
+            resultantTilt: 0.0,
+            xDisplacement: 0.0,
+            yDisplacement: 0.0,
+            totalDisplacement: 0.0,
+          },
+          { where: { deviceId: device.id } }
+        );
+        historyRecordsUpdated = count;
+      }
+
+      const zeroTimestamp = new Date();
+      await TelemetryRecord.create({
+        deviceId: device.id,
+        timestamp: zeroTimestamp,
+        xTilt: 0.0,
+        yTilt: 0.0,
+        resultantTilt: 0.0,
+        xDisplacement: 0.0,
+        yDisplacement: 0.0,
+        totalDisplacement: 0.0,
+        temperature: device.temperature || 25.0,
+        rawPayload: { note: 'Manual Zero Calibration Applied', operator: req.user?.username },
+      }).catch(() => {});
+
+      if (inMemoryTelemetryStore && inMemoryTelemetryStore.has(device.id)) {
+        const hist = inMemoryTelemetryStore.get(device.id);
+        hist.push({
+          deviceId: device.id,
+          timestamp: zeroTimestamp.toISOString(),
+          time: zeroTimestamp.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+          xTilt: 0.0,
+          yTilt: 0.0,
+          resultantTilt: 0.0,
+          tiltX: 0.0,
+          tiltY: 0.0,
+          resultant: 0.0,
+          xDisplacement: 0.0,
+          yDisplacement: 0.0,
+          totalDisplacement: 0.0,
+          xDisp: 0.0,
+          yDisp: 0.0,
+          totalDisp: 0.0,
+          temperature: `${device.temperature || 25.0} °C`,
+        });
+        if (hist.length > 100) hist.shift();
+      }
+
+      broadcastTelemetry({
+        deviceId: device.id,
+        xTilt: 0.0,
+        yTilt: 0.0,
+        resultantTilt: 0.0,
+        xDisplacement: 0.0,
+        yDisplacement: 0.0,
+        totalDisplacement: 0.0,
+        roll: 0.0,
+        pitch: 0.0,
+        tilt: 0.0,
+        tempVal: device.temperature || 25.0,
+        temperature: `${device.temperature || 25.0} °C`,
+        batteryVoltage: parseFloat(device.battery) || 13.0,
+        csq: parseInt(device.signalStrength) || 19,
+        timestamp: zeroTimestamp.toISOString(),
+        status: device.status,
+      });
+
+      const reloadedDevice = await Device.findByPk(device.id, {
+        include: [{ model: Site, include: [Project, Organization] }, Structure]
+      });
+
+      return reply.send({
+        statusCode: 200,
+        message: `Tilt and Displacement for device ${device.id} have been set to 0.000. All other device data preserved.`,
+        deviceId: device.id,
+        device: reloadedDevice || device,
+        previousValues,
+        updatedFields: fieldsToUpdate,
+        historyRecordsUpdated,
+      });
+    } catch (err) {
+      return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
+    }
+  });
+
+  // Bulk / All Devices: Set Tilt & Displacement to 0 (Updating ONLY tilt and displacement data)
+  fastify.post('/api/devices/bulk/zero-readings', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { updateHistory = false, setReference = false, deviceIds = [] } = req.body || {};
+      const where = {};
+      if (req.user.role !== 'SUPER_ADMIN') {
+        if (req.user.organizationId) {
+          where.organizationId = req.user.organizationId;
+        } else {
+          return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'No organization assigned.' });
+        }
+      }
+      if (deviceIds && deviceIds.length > 0) {
+        where.id = { [Op.in]: deviceIds };
+      }
+
+      const devices = await Device.findAll({ where });
+      if (!devices || devices.length === 0) {
+        return reply.status(404).send({ statusCode: 404, message: 'No matching devices found to update.' });
+      }
+
+      const updatedDeviceIds = [];
+      const zeroTimestamp = new Date();
+
+      for (const dev of devices) {
+        const fieldsToUpdate = {
+          xTilt: 0.0,
+          yTilt: 0.0,
+          resultantTilt: 0.0,
+          xDisplacement: 0.0,
+          yDisplacement: 0.0,
+          totalDisplacement: 0.0,
+        };
+
+        if (setReference) {
+          fieldsToUpdate.refThetaX = parseFloat(dev.xTilt || 0.0);
+          fieldsToUpdate.refThetaY = parseFloat(dev.yTilt || 0.0);
+          fieldsToUpdate.refThetaZ = parseFloat(dev.zTilt || 0.0);
+          fieldsToUpdate.refTimestamp = zeroTimestamp;
+          fieldsToUpdate.refOperator = req.user?.fullName || req.user?.username || 'Operator';
+          fieldsToUpdate.hasReferenceZero = true;
+          fieldsToUpdate.calibrate = true;
+        }
+
+        await dev.update(fieldsToUpdate);
+        updatedDeviceIds.push(dev.id);
+
+        if (updateHistory) {
+          await TelemetryRecord.update(
+            {
+              xTilt: 0.0,
+              yTilt: 0.0,
+              resultantTilt: 0.0,
+              xDisplacement: 0.0,
+              yDisplacement: 0.0,
+              totalDisplacement: 0.0,
+            },
+            { where: { deviceId: dev.id } }
+          );
+        }
+
+        await TelemetryRecord.create({
+          deviceId: dev.id,
+          timestamp: zeroTimestamp,
+          xTilt: 0.0,
+          yTilt: 0.0,
+          resultantTilt: 0.0,
+          xDisplacement: 0.0,
+          yDisplacement: 0.0,
+          totalDisplacement: 0.0,
+          temperature: dev.temperature || 25.0,
+          rawPayload: { note: 'Bulk Zero Calibration Applied', operator: req.user?.username },
+        }).catch(() => {});
+
+        broadcastTelemetry({
+          deviceId: dev.id,
+          xTilt: 0.0,
+          yTilt: 0.0,
+          resultantTilt: 0.0,
+          xDisplacement: 0.0,
+          yDisplacement: 0.0,
+          totalDisplacement: 0.0,
+          roll: 0.0,
+          pitch: 0.0,
+          tilt: 0.0,
+          tempVal: dev.temperature || 25.0,
+          temperature: `${dev.temperature || 25.0} °C`,
+          batteryVoltage: parseFloat(dev.battery) || 13.0,
+          csq: parseInt(dev.signalStrength) || 19,
+          timestamp: zeroTimestamp.toISOString(),
+          status: dev.status,
+        });
+      }
+
+      return reply.send({
+        statusCode: 200,
+        message: `Successfully set Tilt and Displacement to 0.000 for ${updatedDeviceIds.length} device(s). All other fields remained unchanged.`,
+        updatedDeviceCount: updatedDeviceIds.length,
+        updatedDeviceIds,
+      });
+    } catch (err) {
+      return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
     }
   });
 

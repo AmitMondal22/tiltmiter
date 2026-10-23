@@ -1,4 +1,5 @@
-import { Op } from 'sequelize';
+import pkg from 'sequelize';
+const { Op } = pkg;
 import { TelemetryRecord, Device, Site, Project, Organization } from '../../models/index.js';
 import { inMemoryTelemetryStore } from '../../config/influx.js';
 import { authenticateOptional } from '../../middleware/authMiddleware.js';

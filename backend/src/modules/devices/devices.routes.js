@@ -1,4 +1,5 @@
-import { Op } from 'sequelize';
+import pkg from 'sequelize';
+const { Op } = pkg;
 import { Device, Site, Structure, Project, Organization } from '../../models/index.js';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';

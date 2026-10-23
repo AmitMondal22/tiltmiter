@@ -1,7 +1,10 @@
-import { Sequelize } from 'sequelize';
+import pkg from 'sequelize';
+const { Sequelize, DataTypes, Op } = pkg;
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+export { Sequelize, DataTypes, Op };
 
 export const sequelize = new Sequelize(
   process.env.DB_NAME || 'tiltmeter_db',

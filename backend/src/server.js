@@ -5,7 +5,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import dotenv from 'dotenv';
 
 import { testDbConnection } from './config/db.js';
-import { initSequelize } from './config/sequelize.js';
+import { initSequelize, sequelize } from './config/sequelize.js';
 import { seedDatabase } from './db/seed.js';
 import { registerWebSocketHandler } from './websocket/websocket.service.js';
 
@@ -115,12 +115,30 @@ fastify.get('/health', async () => {
 const PORT = parseInt(process.env.PORT || '5001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
+// Graceful shutdown handlers: closes connections safely so PM2 restarts don't leak PostgreSQL connection slots
+const closeGracefully = async (signal) => {
+  console.log(`[Server] Received ${signal}, closing database connections cleanly...`);
+  try {
+    await fastify.close();
+    await sequelize.close();
+    console.log('[Server] Database connections closed safely.');
+  } catch (err) {
+    console.error('[Server] Error during graceful shutdown:', err.message);
+  }
+  process.exit(0);
+};
+
+process.on('SIGINT', () => closeGracefully('SIGINT'));
+process.on('SIGTERM', () => closeGracefully('SIGTERM'));
+
 async function startServer() {
   try {
-    // 1. Connect PostgreSQL & Sync Sequelize Models
+    // 1. Connect PostgreSQL & Verify Sequelize Models
     await testDbConnection();
-    await initSequelize();
-    await seedDatabase();
+    const isDbConnected = await initSequelize();
+    if (isDbConnected) {
+      await seedDatabase();
+    }
 
     // 2. Start Fastify Server
     await fastify.listen({ port: PORT, host: HOST });

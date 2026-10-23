@@ -3,16 +3,10 @@ import { sequelize, initSequelize } from '../config/sequelize.js';
 import { User } from '../models/index.js';
 
 export async function seedDatabase() {
-  console.log('🔄 Initializing PostgreSQL Database Schema...');
+  console.log('🔄 Checking database initial state...');
 
   try {
-    const isDbConnected = await initSequelize();
-    if (!isDbConnected) {
-      console.log('⚠️ PostgreSQL DB not connected locally.');
-      return;
-    }
-
-    // Individual DDL statement execution for column safety
+    // Column safety migrations (runs once if not present)
     const addColumnQueries = [
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS "partnerId" INTEGER;',
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS "organizationId" INTEGER;',
@@ -36,17 +30,13 @@ export async function seedDatabase() {
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "hasReferenceZero" BOOLEAN DEFAULT false;',
     ];
 
-
     for (const q of addColumnQueries) {
       try {
         await sequelize.query(q);
       } catch (migErr) {
-        // Ignored if exists
+        // Ignored if column already exists
       }
     }
-
-    // Sync database schema with zero dummy seed data
-    await sequelize.sync({ alter: true });
 
     // Ensure root Super Administrator exists only if no users are registered
     const userCount = await User.count();

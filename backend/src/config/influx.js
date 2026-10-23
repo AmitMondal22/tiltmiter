@@ -77,64 +77,45 @@ export async function saveTelemetryPoint(data) {
 
   // 2. Mirror into PostgreSQL for relational audit table & Device status
   try {
-    const existing = await TelemetryRecord.findOne({
-      where: { deviceId, timestamp }
+    await TelemetryRecord.create({
+      deviceId,
+      timestamp,
+      xTilt,
+      yTilt,
+      resultantTilt,
+      xDisplacement,
+      yDisplacement,
+      zDisplacement,
+      totalDisplacement,
+      temperature: tempVal,
+      acceleration: data.acceleration || null,
+      gyroscope: data.gyroscope || null,
+      vibration: data.vibration || null,
+      displacement: data.displacement || null,
+      rawPayload: data.rawPayload || data,
+    }, { ignoreDuplicates: true }).catch(() => {});
+
+    await Device.upsert({
+      id: deviceId,
+      name: `Tiltmeter ${deviceId}`,
+      xTilt,
+      yTilt,
+      resultantTilt,
+      xDisplacement,
+      yDisplacement,
+      totalDisplacement,
+      temperature: tempVal,
+      battery: `${batteryVoltage} V`,
+      signalStrength: `${csq} CSQ`,
+      status: data.tiltStatus || 'ONLINE',
+      lastSeen: timestamp,
     });
-
-    if (!existing) {
-      await TelemetryRecord.create({
-        deviceId,
-        timestamp,
-        xTilt,
-        yTilt,
-        resultantTilt,
-        xDisplacement,
-        yDisplacement,
-        zDisplacement,
-        totalDisplacement,
-        temperature: tempVal,
-        acceleration: data.acceleration || null,
-        gyroscope: data.gyroscope || null,
-        vibration: data.vibration || null,
-        displacement: data.displacement || null,
-        rawPayload: data.rawPayload || data,
-      });
-    }
-
-    const existingDevice = await Device.findByPk(deviceId);
-    if (existingDevice) {
-      await existingDevice.update({
-        xTilt,
-        yTilt,
-        resultantTilt,
-        xDisplacement,
-        yDisplacement,
-        totalDisplacement,
-        temperature: tempVal,
-        battery: `${batteryVoltage} V`,
-        signalStrength: `${csq} CSQ`,
-        status: data.tiltStatus || existingDevice.status || 'ONLINE',
-        lastSeen: timestamp,
-      });
-    } else {
-      await Device.create({
-        id: deviceId,
-        name: `Tiltmeter ${deviceId}`,
-        xTilt,
-        yTilt,
-        resultantTilt,
-        xDisplacement,
-        yDisplacement,
-        totalDisplacement,
-        temperature: tempVal,
-        battery: `${batteryVoltage} V`,
-        signalStrength: `${csq} CSQ`,
-        status: data.tiltStatus || 'ONLINE',
-        lastSeen: timestamp,
-      });
-    }
   } catch (err) {
-    console.error(`[PostgreSQL Telemetry Error] Failed to persist ${deviceId} at ${isoTimestamp}:`, err.message);
+    const nowMs = Date.now();
+    if (!global.__lastPgErrorTime || nowMs - global.__lastPgErrorTime > 15000) {
+      global.__lastPgErrorTime = nowMs;
+      console.warn(`[PostgreSQL Telemetry Warning] Database temporarily busy or connections throttled for ${deviceId}:`, err.message);
+    }
   }
 
   // 3. Save in in-memory time-series ring buffer (last 100 distinct points)

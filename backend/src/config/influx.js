@@ -10,7 +10,11 @@ const org = process.env.INFLUX_ORG || 'tiltmeter_org';
 const bucket = process.env.INFLUX_BUCKET || 'telemetry_bucket';
 
 export const influxDB = new InfluxDB({ url, token });
-export const writeApi = influxDB.getWriteApi(org, bucket, 'ns');
+export const writeApi = influxDB.getWriteApi(org, bucket, 'ns', {
+  maxRetries: 0,
+  maxRetryTime: 500,
+  writeFailed: () => {},
+});
 export const queryApi = influxDB.getQueryApi(org);
 
 // Fallback in-memory ring buffer for high-frequency telemetry stream

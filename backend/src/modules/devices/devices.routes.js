@@ -424,7 +424,6 @@ export async function devicesRoutes(fastify) {
         device: reloadedDevice || device,
         previousValues,
         updatedFields: fieldsToUpdate,
-        historyRecordsUpdated,
       });
     } catch (err) {
       return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });

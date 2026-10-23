@@ -57,11 +57,11 @@ export default function TiltPositionVisualizer({ currentDevice }) {
       {/* Numerical Degree Readouts */}
       <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-100 text-center font-mono">
         <div className="p-1 rounded-lg bg-slate-50 border border-slate-100">
-          <span className="text-[8px] text-slate-500 uppercase font-medium block">Roll (X)</span>
+          <span className="text-[8px] text-slate-500 uppercase font-medium block">Tilt X</span>
           <span className="text-[11px] font-semibold text-blue-600">{roll.toFixed(2)}°</span>
         </div>
         <div className="p-1 rounded-lg bg-slate-50 border border-slate-100">
-          <span className="text-[8px] text-slate-500 uppercase font-medium block">Pitch (Y)</span>
+          <span className="text-[8px] text-slate-500 uppercase font-medium block">Tilt Y</span>
           <span className="text-[11px] font-semibold text-purple-600">{pitch.toFixed(2)}°</span>
         </div>
         <div className="p-1 rounded-lg bg-slate-50 border border-slate-100">

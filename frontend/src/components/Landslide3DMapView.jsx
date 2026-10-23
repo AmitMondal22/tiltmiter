@@ -783,11 +783,11 @@ export default function Landslide3DMapView({
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-blue-900/40 font-mono text-[11px]">
                     <div>
-                      <span className="text-slate-400 text-[10px] block">ΔX (Roll Disp):</span>
+                      <span className="text-slate-400 text-[10px] block">ΔX:</span>
                       <span className="text-cyan-300 font-bold">{Number(selectedItem.xDisplacement || 12.4).toFixed(2)} mm</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 text-[10px] block">ΔY (Pitch Disp):</span>
+                      <span className="text-slate-400 text-[10px] block">ΔY:</span>
                       <span className="text-amber-300 font-bold">{Number(selectedItem.yDisplacement || 11.3).toFixed(2)} mm</span>
                     </div>
                   </div>
@@ -802,11 +802,11 @@ export default function Landslide3DMapView({
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-purple-900/40 font-mono text-[11px]">
                     <div>
-                      <span className="text-slate-400 text-[10px] block">θX (Roll Tilt):</span>
+                      <span className="text-slate-400 text-[10px] block">θX:</span>
                       <span className="text-purple-300 font-bold">{Number(selectedItem.xTilt || 1.9).toFixed(2)}°</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 text-[10px] block">θY (Pitch Tilt):</span>
+                      <span className="text-slate-400 text-[10px] block">θY:</span>
                       <span className="text-pink-300 font-bold">{Number(selectedItem.yTilt || 2.0).toFixed(2)}°</span>
                     </div>
                   </div>

@@ -541,33 +541,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
         {/* Hardware Status & Configuration Button */}
         <div className="flex items-center gap-2 text-xs flex-wrap">
-          {hasRef && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-[11px] font-mono shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-semibold">Ref-Zero Active:</span>
-              <span>θX₀={refX >= 0 ? '+' : ''}{refX.toFixed(3)}°, θY₀={refY >= 0 ? '+' : ''}{refY.toFixed(3)}°</span>
-              <button
-                type="button"
-                onClick={handleResetReference}
-                title="Reset reference zero to factory 0.000°"
-                className="ml-1 text-slate-400 hover:text-red-600 font-semibold underline text-[10px] cursor-pointer"
-              >
-                Reset
-              </button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            id="btn-set-reference-dash"
-            onClick={handleSetReference}
-            title="Press 'Set Reference' at commissioning to save current inclination readings as 0° baseline"
-            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-          >
-            <Target className="w-3.5 h-3.5" />
-            <span>{hasRef ? 'Re-Zero' : 'Set Reference (0°)'}</span>
-          </button>
-
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-4 h-4 text-emerald-600" />
             <span>{d.battery || activeDevice?.battery || '100%'}</span>
@@ -670,7 +643,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             </div>
             <div className="grid grid-cols-3 gap-2 text-center font-mono">
               <div className="p-2 rounded-xl bg-blue-50/60 border border-blue-100">
-                <div className="text-[9px] text-blue-700 uppercase font-bold">ΔθX (Roll)</div>
+                <div className="text-[9px] text-blue-700 uppercase font-bold">ΔθX</div>
                 <div className="text-base font-bold text-blue-700 mt-0.5">{roll >= 0 ? '+' : ''}{roll.toFixed(3)}°</div>
                 <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
                   {xSlope >= 0 ? '+' : ''}{xSlope.toFixed(2)} mm/m
@@ -678,7 +651,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               </div>
 
               <div className="p-2 rounded-xl bg-purple-50/60 border border-purple-100">
-                <div className="text-[9px] text-purple-700 uppercase font-bold">ΔθY (Pitch)</div>
+                <div className="text-[9px] text-purple-700 uppercase font-bold">ΔθY</div>
                 <div className="text-base font-bold text-purple-700 mt-0.5">{pitch >= 0 ? '+' : ''}{pitch.toFixed(3)}°</div>
                 <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
                   {ySlope >= 0 ? '+' : ''}{ySlope.toFixed(2)} mm/m
@@ -686,7 +659,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               </div>
 
               <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                <div className="text-[9px] text-emerald-700 uppercase font-bold">ΔθZ (Vertical)</div>
+                <div className="text-[9px] text-emerald-700 uppercase font-bold">ΔθZ</div>
                 <div className="text-base font-bold text-emerald-700 mt-0.5">{zTilt >= 0 ? '+' : ''}{zTilt.toFixed(3)}°</div>
                 <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
                   {zSlope >= 0 ? '+' : ''}{zSlope.toFixed(2)} mm/m
@@ -703,21 +676,21 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
             <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="text-[9px] text-cyan-700 uppercase font-bold">DX (Lateral)</div>
+                <div className="text-[9px] text-cyan-700 uppercase font-bold">DX</div>
                 <div className="text-xs font-bold text-cyan-700 mt-0.5">{xDisp >= 0 ? '+' : ''}{xDisp.toFixed(3)}</div>
                 <div className="text-[8px] text-slate-400">mm</div>
               </div>
 
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="text-[9px] text-amber-700 uppercase font-bold">DY (Lateral)</div>
+                <div className="text-[9px] text-amber-700 uppercase font-bold">DY</div>
                 <div className="text-xs font-bold text-amber-700 mt-0.5">{yDisp >= 0 ? '+' : ''}{yDisp.toFixed(3)}</div>
                 <div className="text-[8px] text-slate-400">mm</div>
               </div>
 
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="text-[9px] text-slate-500 uppercase font-bold">DZ (Axial)</div>
+                <div className="text-[9px] text-slate-500 uppercase font-bold">DZ</div>
                 <div className="text-xs font-bold text-slate-400 mt-0.5">N/A</div>
-                <div className="text-[8px] text-slate-400">axial</div>
+                <div className="text-[8px] text-slate-400">mm</div>
               </div>
 
               <div className="p-2 rounded-xl bg-pink-50/70 border border-pink-200/80">

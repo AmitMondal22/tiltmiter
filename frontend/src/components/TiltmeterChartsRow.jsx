@@ -112,10 +112,10 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       const rawY = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
       const rawZ = parseFloat(pt.zTilt ?? pt.tiltZ ?? pt.resultant ?? pt.resultantTilt ?? 0) || 0;
 
-      // Relative tilt change from saved reference zero: Δθ = θ,current − θ,reference
-      const xT = hasRef ? rawX - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : rawX);
-      const yT = hasRef ? rawY - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : rawY);
-      const zT = hasRef ? rawZ - refZ : rawZ;
+      // Relative tilt change: If pt.xTilt is defined (stored from DB or ingestion), it is already relative to reference zero or zeroed!
+      const xT = (pt.deltaThetaX !== undefined) ? pt.deltaThetaX : (pt.xTilt !== undefined ? rawX : (hasRef ? rawX - refX : rawX));
+      const yT = (pt.deltaThetaY !== undefined) ? pt.deltaThetaY : (pt.yTilt !== undefined ? rawY : (hasRef ? rawY - refY : rawY));
+      const zT = (pt.zTilt !== undefined) ? rawZ : (hasRef ? rawZ - refZ : rawZ);
 
       // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
       const radX = (xT * Math.PI) / 180.0;
@@ -123,9 +123,9 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       const clinoDx = L * Math.tan(radX);
       const clinoDy = L * Math.tan(radY);
 
-      // Estimated lateral displacement (mm)
-      const xD = hasRef ? clinoDx : (pt.xDisp !== undefined ? parseFloat(pt.xDisp) : clinoDx);
-      const yD = hasRef ? clinoDy : (pt.yDisp !== undefined ? parseFloat(pt.yDisp) : clinoDy);
+      // Estimated lateral displacement (mm): use stored displacement directly when present
+      const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : (pt.xDisplacement !== undefined && pt.xDisplacement !== null ? parseFloat(pt.xDisplacement) : clinoDx);
+      const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : (pt.yDisplacement !== undefined && pt.yDisplacement !== null ? parseFloat(pt.yDisplacement) : clinoDy);
 
       // Acceleration: convert to g if > 3
       const rawAx = parseFloat(pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? 0.012) || 0.012;

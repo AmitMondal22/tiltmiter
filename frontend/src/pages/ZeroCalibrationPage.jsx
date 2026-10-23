@@ -44,6 +44,7 @@ export default function ZeroCalibrationPage({ isDark = false }) {
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   // Calibration scope options
+  const [updateScope, setUpdateScope] = useState('all'); // 'all' = all datapoints | 'last' = only last data point
   const [setReferenceBaseline, setSetReferenceBaseline] = useState(true);
   const [isBulkMode, setIsBulkMode] = useState(false);
 
@@ -137,8 +138,8 @@ export default function ZeroCalibrationPage({ isDark = false }) {
 
     try {
       const res = await zeroDeviceReadings(selectedDeviceId, {
+        scope: updateScope,
         setReference: setReferenceBaseline,
-        updateHistory: false,
       });
 
       if (res?.statusCode === 200 || res?.message) {
@@ -197,8 +198,8 @@ export default function ZeroCalibrationPage({ isDark = false }) {
     try {
       const targetIds = filteredDevices.map(d => d.id);
       const res = await zeroAllDevicesReadings({
+        scope: updateScope,
         setReference: setReferenceBaseline,
-        updateHistory: false,
         deviceIds: targetIds,
       });
 
@@ -713,15 +714,76 @@ export default function ZeroCalibrationPage({ isDark = false }) {
                   </div>
                 </label>
 
+                {/* Scope Selection: All Datapoints vs Only Last Data Point */}
+                <div className="p-3.5 rounded-xl border border-blue-200/80 bg-blue-50/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-blue-600" />
+                      Target Datapoints Scope (Without Changing Date / Time)
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Timestamps Preserved
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div
+                      onClick={() => setUpdateScope('all')}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                        updateScope === 'all'
+                          ? 'bg-white border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="updateScope"
+                        checked={updateScope === 'all'}
+                        onChange={() => setUpdateScope('all')}
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-900">All Datapoints (Recommended)</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Updates Tilt & Displacement to 0.000 across all stored data points of the device, keeping original date & time unchanged.
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      onClick={() => setUpdateScope('last')}
+                      className={`p-2.5 rounded-xl border cursor-pointer transition-all flex items-start gap-2.5 ${
+                        updateScope === 'last'
+                          ? 'bg-white border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                          : 'bg-white/80 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="updateScope"
+                        checked={updateScope === 'last'}
+                        onChange={() => setUpdateScope('last')}
+                        className="mt-0.5 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-900">Only Last Data Point</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          Updates only the single latest data point to 0.000 without changing its timestamp.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Guarantee: Past History Protected */}
                 <div className="flex items-start gap-3 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
                     <span className="font-bold text-emerald-950">
-                      Historical Data Strictly Preserved
+                      Original Date & Time Strictly Preserved
                     </span>
                     <p className="text-emerald-800 text-[11px] mt-0.5">
-                      All past telemetry log records remain intact and will <strong className="font-semibold">never be deleted or overwritten</strong>. Only the instantaneous device readings and future incoming packets update to the calibrated 0.000 baseline.
+                      All timestamps and records retain their original date and time. No new timestamps or records are inserted.
                     </p>
                   </div>
                 </div>
@@ -850,9 +912,15 @@ export default function ZeroCalibrationPage({ isDark = false }) {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Historical Telemetry:</span>
+                <span className="text-slate-500 font-medium">Datapoint Scope:</span>
+                <span className="font-bold text-blue-600">
+                  {updateScope === 'all' ? 'All Datapoints' : 'Only Last Data Point'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-medium">Record Date & Time:</span>
                 <span className="font-semibold text-emerald-700">
-                  Strictly Preserved (Never Deleted)
+                  Strictly Preserved (Unchanged)
                 </span>
               </div>
             </div>

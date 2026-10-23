@@ -123,33 +123,27 @@ export function parseTelemetry(data) {
   const vibRaw = typeof data.vibration?.vibration === 'number' ? data.vibration.vibration : (parseFloat(data.vibration?.vibration) || 0);
   const vibStatus = data.vibration?.vibrationStatus || 'NORMAL';
 
-  // Displacement: prioritize hardware measurement if valid, otherwise compute via ClinoX D = L * tan(Δθ * π / 180)
+  // Displacement: prioritize hardware / database measurement if valid, otherwise compute via ClinoX D = L * tan(Δθ * π / 180)
   const rawXDisp = data.displacement?.xDisplacement_mm ?? data.xDisplacement;
   const rawYDisp = data.displacement?.yDisplacement_mm ?? data.yDisplacement;
   const rawZDisp = data.displacement?.zDisplacement_mm ?? data.zDisplacement;
 
-  const xDisp = hasReferenceZero
-    ? clinoX.xDisp
-    : (typeof rawXDisp === 'number'
-      ? rawXDisp
-      : (rawXDisp !== undefined && !isNaN(parseFloat(rawXDisp)) ? parseFloat(rawXDisp) : clinoX.xDisp));
+  const xDisp = typeof rawXDisp === 'number' && !isNaN(rawXDisp)
+    ? rawXDisp
+    : (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp)) ? parseFloat(rawXDisp) : clinoX.xDisp);
 
-  const yDisp = hasReferenceZero
-    ? clinoX.yDisp
-    : (typeof rawYDisp === 'number'
-      ? rawYDisp
-      : (rawYDisp !== undefined && !isNaN(parseFloat(rawYDisp)) ? parseFloat(rawYDisp) : clinoX.yDisp));
+  const yDisp = typeof rawYDisp === 'number' && !isNaN(rawYDisp)
+    ? rawYDisp
+    : (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp)) ? parseFloat(rawYDisp) : clinoX.yDisp);
 
-  const zDisp = typeof rawZDisp === 'number'
+  const zDisp = typeof rawZDisp === 'number' && !isNaN(rawZDisp)
     ? rawZDisp
-    : (rawZDisp !== undefined && !isNaN(parseFloat(rawZDisp)) ? parseFloat(rawZDisp) : 0);
+    : (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp)) ? parseFloat(rawZDisp) : 0);
 
   const rawTotalDisp = data.displacement?.totalDisplacement_mm ?? data.totalDisplacement;
-  const totalDisp = hasReferenceZero
-    ? clinoX.totalDisp
-    : (typeof rawTotalDisp === 'number'
-      ? rawTotalDisp
-      : (rawTotalDisp !== undefined && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : Math.sqrt(xDisp * xDisp + yDisp * yDisp)));
+  const totalDisp = typeof rawTotalDisp === 'number' && !isNaN(rawTotalDisp)
+    ? rawTotalDisp
+    : (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : Math.sqrt(xDisp * xDisp + yDisp * yDisp));
 
   // Environment & Calibration
   const temp = data.environment?.temperature ?? (typeof data.temperature === 'number' ? data.temperature : parseFloat(data.temperature) || 25.0);

@@ -299,14 +299,18 @@ export async function devicesRoutes(fastify) {
   // Set Tilt & Displacement to 0 for a specific device (Updating ONLY tilt and displacement data)
   fastify.post('/api/devices/:id/zero-readings', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
-      const { id } = req.params;
-      const { updateHistory = false, setReference = false } = req.body || {};
+      const id = req.params?.id || req.body?.deviceId;
+      const { scope = 'all', setReference = true } = req.body || {};
+
+      if (!id) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Device ID is required.' });
+      }
 
       let device = await Device.findByPk(id);
       if (!device) {
         device = await Device.findOne({
           where: {
-            [Op.or]: [{ id }, { id: id.toUpperCase() }, { id: id.toLowerCase() }]
+            [Op.or]: [{ id }, { id: String(id).toUpperCase() }, { id: String(id).toLowerCase() }]
           }
         });
       }
@@ -328,6 +332,7 @@ export async function devicesRoutes(fastify) {
         resultantTilt: device.resultantTilt ?? 0.0,
         xDisplacement: device.xDisplacement ?? 0.0,
         yDisplacement: device.yDisplacement ?? 0.0,
+        zDisplacement: device.zDisplacement ?? 0.0,
         totalDisplacement: device.totalDisplacement ?? 0.0,
       };
 
@@ -335,65 +340,152 @@ export async function devicesRoutes(fastify) {
       const currentRawY = parseFloat(device.yTilt || 0.0);
       const currentRawZ = parseFloat(device.zTilt || 0.0);
 
-      // ONLY tilt and displacement data are updated to 0.000.
-      // All other device data (name, status, battery, signalStrength, temperature, organization, etc.) are strictly preserved!
+      // 1. Update Device current readings and baseline reference (keeping original date/time and non-tilt fields untouched)
       const fieldsToUpdate = {
         xTilt: 0.0,
         yTilt: 0.0,
         resultantTilt: 0.0,
         xDisplacement: 0.0,
         yDisplacement: 0.0,
+        zDisplacement: 0.0,
         totalDisplacement: 0.0,
-        refThetaX: currentRawX,
-        refThetaY: currentRawY,
-        refThetaZ: currentRawZ,
-        refTimestamp: new Date(),
-        refOperator: req.user?.fullName || req.user?.username || 'Operator',
-        hasReferenceZero: true,
-        calibrate: true,
       };
 
-      await device.update(fieldsToUpdate);
-      // NOTE: Old historical telemetry records are NEVER overwritten or deleted.
-      // Only new incoming packets and the live device state reflect the zero baseline.
-
-      const zeroTimestamp = new Date();
-      await TelemetryRecord.create({
-        deviceId: device.id,
-        timestamp: zeroTimestamp,
-        xTilt: 0.0,
-        yTilt: 0.0,
-        resultantTilt: 0.0,
-        xDisplacement: 0.0,
-        yDisplacement: 0.0,
-        totalDisplacement: 0.0,
-        temperature: device.temperature || 25.0,
-        rawPayload: { note: 'Manual Zero Calibration Applied', operator: req.user?.username },
-      }).catch(() => {});
-
-      if (inMemoryTelemetryStore && inMemoryTelemetryStore.has(device.id)) {
-        const hist = inMemoryTelemetryStore.get(device.id);
-        hist.push({
-          deviceId: device.id,
-          timestamp: zeroTimestamp.toISOString(),
-          time: zeroTimestamp.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-          xTilt: 0.0,
-          yTilt: 0.0,
-          resultantTilt: 0.0,
-          tiltX: 0.0,
-          tiltY: 0.0,
-          resultant: 0.0,
-          xDisplacement: 0.0,
-          yDisplacement: 0.0,
-          totalDisplacement: 0.0,
-          xDisp: 0.0,
-          yDisp: 0.0,
-          totalDisp: 0.0,
-          temperature: `${device.temperature || 25.0} °C`,
-        });
-        if (hist.length > 100) hist.shift();
+      if (setReference) {
+        fieldsToUpdate.refThetaX = currentRawX;
+        fieldsToUpdate.refThetaY = currentRawY;
+        fieldsToUpdate.refThetaZ = currentRawZ;
+        fieldsToUpdate.refTimestamp = device.lastSeen || new Date();
+        fieldsToUpdate.refOperator = req.user?.fullName || req.user?.username || 'Operator';
+        fieldsToUpdate.hasReferenceZero = true;
+        fieldsToUpdate.calibrate = true;
       }
 
+      await device.update(fieldsToUpdate);
+
+      // 2. Update datapoint records in TelemetryRecord WITHOUT CHANGING DATE TIME
+      let recordsUpdatedCount = 0;
+      if (scope === 'last') {
+        // Find single latest record for this device
+        const latestRecord = await TelemetryRecord.findOne({
+          where: {
+            [Op.or]: [
+              { deviceId: device.id },
+              { deviceId: device.id.toUpperCase() },
+              { deviceId: device.id.toLowerCase() }
+            ]
+          },
+          order: [['timestamp', 'DESC']],
+        });
+
+        if (latestRecord) {
+          await latestRecord.update({
+            xTilt: 0.0,
+            yTilt: 0.0,
+            resultantTilt: 0.0,
+            xDisplacement: 0.0,
+            yDisplacement: 0.0,
+            zDisplacement: 0.0,
+            totalDisplacement: 0.0,
+            // Original timestamp is completely preserved without change
+          });
+          recordsUpdatedCount = 1;
+        } else if (device.lastSeen) {
+          // If no record exists, create baseline record with original lastSeen date time
+          await TelemetryRecord.create({
+            deviceId: device.id,
+            timestamp: device.lastSeen,
+            xTilt: 0.0,
+            yTilt: 0.0,
+            resultantTilt: 0.0,
+            xDisplacement: 0.0,
+            yDisplacement: 0.0,
+            zDisplacement: 0.0,
+            totalDisplacement: 0.0,
+            temperature: parseFloat(device.temperature) || 25.0,
+          });
+          recordsUpdatedCount = 1;
+        }
+      } else {
+        // scope === 'all': update all datapoints of the selected device without changing date time
+        const [count] = await TelemetryRecord.update(
+          {
+            xTilt: 0.0,
+            yTilt: 0.0,
+            resultantTilt: 0.0,
+            xDisplacement: 0.0,
+            yDisplacement: 0.0,
+            zDisplacement: 0.0,
+            totalDisplacement: 0.0,
+            // Original timestamp is completely preserved without change
+          },
+          {
+            where: {
+              [Op.or]: [
+                { deviceId: device.id },
+                { deviceId: device.id.toUpperCase() },
+                { deviceId: device.id.toLowerCase() }
+              ]
+            }
+          }
+        );
+        recordsUpdatedCount = count;
+        if (count === 0 && device.lastSeen) {
+          await TelemetryRecord.create({
+            deviceId: device.id,
+            timestamp: device.lastSeen,
+            xTilt: 0.0,
+            yTilt: 0.0,
+            resultantTilt: 0.0,
+            xDisplacement: 0.0,
+            yDisplacement: 0.0,
+            zDisplacement: 0.0,
+            totalDisplacement: 0.0,
+            temperature: parseFloat(device.temperature) || 25.0,
+          });
+          recordsUpdatedCount = 1;
+        }
+      }
+
+      // 3. Update in-memory telemetry points preserving their original timestamp/time
+      if (inMemoryTelemetryStore && inMemoryTelemetryStore.has(device.id)) {
+        const hist = inMemoryTelemetryStore.get(device.id);
+        if (scope === 'last' && hist.length > 0) {
+          const lastPt = hist[hist.length - 1];
+          lastPt.xTilt = 0.0;
+          lastPt.yTilt = 0.0;
+          lastPt.resultantTilt = 0.0;
+          lastPt.tiltX = 0.0;
+          lastPt.tiltY = 0.0;
+          lastPt.resultant = 0.0;
+          lastPt.xDisplacement = 0.0;
+          lastPt.yDisplacement = 0.0;
+          lastPt.zDisplacement = 0.0;
+          lastPt.totalDisplacement = 0.0;
+          lastPt.xDisp = 0.0;
+          lastPt.yDisp = 0.0;
+          lastPt.totalDisp = 0.0;
+        } else {
+          hist.forEach(pt => {
+            pt.xTilt = 0.0;
+            pt.yTilt = 0.0;
+            pt.resultantTilt = 0.0;
+            pt.tiltX = 0.0;
+            pt.tiltY = 0.0;
+            pt.resultant = 0.0;
+            pt.xDisplacement = 0.0;
+            pt.yDisplacement = 0.0;
+            pt.zDisplacement = 0.0;
+            pt.totalDisplacement = 0.0;
+            pt.xDisp = 0.0;
+            pt.yDisp = 0.0;
+            pt.totalDisp = 0.0;
+          });
+        }
+      }
+
+      // 4. Broadcast live update preserving original lastSeen date time
+      const originalTime = device.lastSeen ? new Date(device.lastSeen).toISOString() : new Date().toISOString();
       broadcastTelemetry({
         deviceId: device.id,
         xTilt: 0.0,
@@ -409,7 +501,7 @@ export async function devicesRoutes(fastify) {
         temperature: `${device.temperature || 25.0} °C`,
         batteryVoltage: parseFloat(device.battery) || 13.0,
         csq: parseInt(device.signalStrength) || 19,
-        timestamp: zeroTimestamp.toISOString(),
+        timestamp: originalTime,
         status: device.status,
       });
 
@@ -419,8 +511,12 @@ export async function devicesRoutes(fastify) {
 
       return reply.send({
         statusCode: 200,
-        message: `Tilt and Displacement for device ${device.id} have been set to 0.000. All other device data preserved.`,
+        message: scope === 'last'
+          ? `Last data point for device ${device.id} updated to 0.000 without changing date/time.`
+          : `All ${recordsUpdatedCount} data point(s) for device ${device.id} updated to 0.000 without changing date/time.`,
         deviceId: device.id,
+        scope,
+        recordsUpdatedCount,
         device: reloadedDevice || device,
         previousValues,
         updatedFields: fieldsToUpdate,
@@ -430,10 +526,10 @@ export async function devicesRoutes(fastify) {
     }
   });
 
-  // Bulk / All Devices: Set Tilt & Displacement to 0 (Updating ONLY tilt and displacement data)
+  // Bulk / All Devices: Set Tilt & Displacement to 0 (Updating ONLY tilt and displacement data without changing date/time)
   fastify.post('/api/devices/bulk/zero-readings', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
-      const { updateHistory = false, setReference = false, deviceIds = [] } = req.body || {};
+      const { scope = 'all', setReference = true, deviceIds = [] } = req.body || {};
       const where = {};
       if (req.user.role !== 'SUPER_ADMIN') {
         if (req.user.organizationId) {
@@ -452,7 +548,6 @@ export async function devicesRoutes(fastify) {
       }
 
       const updatedDeviceIds = [];
-      const zeroTimestamp = new Date();
 
       for (const dev of devices) {
         const currentRawX = parseFloat(dev.xTilt || 0.0);
@@ -465,33 +560,135 @@ export async function devicesRoutes(fastify) {
           resultantTilt: 0.0,
           xDisplacement: 0.0,
           yDisplacement: 0.0,
+          zDisplacement: 0.0,
           totalDisplacement: 0.0,
-          refThetaX: currentRawX,
-          refThetaY: currentRawY,
-          refThetaZ: currentRawZ,
-          refTimestamp: zeroTimestamp,
-          refOperator: req.user?.fullName || req.user?.username || 'Operator',
-          hasReferenceZero: true,
-          calibrate: true,
         };
+
+        if (setReference) {
+          fieldsToUpdate.refThetaX = currentRawX;
+          fieldsToUpdate.refThetaY = currentRawY;
+          fieldsToUpdate.refThetaZ = currentRawZ;
+          fieldsToUpdate.refTimestamp = dev.lastSeen || new Date();
+          fieldsToUpdate.refOperator = req.user?.fullName || req.user?.username || 'Operator';
+          fieldsToUpdate.hasReferenceZero = true;
+          fieldsToUpdate.calibrate = true;
+        }
 
         await dev.update(fieldsToUpdate);
         updatedDeviceIds.push(dev.id);
-        // NOTE: Old historical telemetry records are strictly preserved and never overwritten or deleted.
 
-        await TelemetryRecord.create({
-          deviceId: dev.id,
-          timestamp: zeroTimestamp,
-          xTilt: 0.0,
-          yTilt: 0.0,
-          resultantTilt: 0.0,
-          xDisplacement: 0.0,
-          yDisplacement: 0.0,
-          totalDisplacement: 0.0,
-          temperature: dev.temperature || 25.0,
-          rawPayload: { note: 'Bulk Zero Calibration Applied', operator: req.user?.username },
-        }).catch(() => {});
+        // Update datapoint records in TelemetryRecord WITHOUT CHANGING DATE TIME
+        if (scope === 'last') {
+          const lastRec = await TelemetryRecord.findOne({
+            where: {
+              [Op.or]: [
+                { deviceId: dev.id },
+                { deviceId: dev.id.toUpperCase() },
+                { deviceId: dev.id.toLowerCase() }
+              ]
+            },
+            order: [['timestamp', 'DESC']],
+          });
+          if (lastRec) {
+            await lastRec.update({
+              xTilt: 0.0,
+              yTilt: 0.0,
+              resultantTilt: 0.0,
+              xDisplacement: 0.0,
+              yDisplacement: 0.0,
+              zDisplacement: 0.0,
+              totalDisplacement: 0.0,
+              // Original timestamp is completely preserved without change
+            });
+          } else if (dev.lastSeen) {
+            await TelemetryRecord.create({
+              deviceId: dev.id,
+              timestamp: dev.lastSeen,
+              xTilt: 0.0,
+              yTilt: 0.0,
+              resultantTilt: 0.0,
+              xDisplacement: 0.0,
+              yDisplacement: 0.0,
+              zDisplacement: 0.0,
+              totalDisplacement: 0.0,
+              temperature: parseFloat(dev.temperature) || 25.0,
+            });
+          }
+        } else {
+          // scope === 'all': update all datapoints of the device without changing date time
+          const [bulkCount] = await TelemetryRecord.update(
+            {
+              xTilt: 0.0,
+              yTilt: 0.0,
+              resultantTilt: 0.0,
+              xDisplacement: 0.0,
+              yDisplacement: 0.0,
+              zDisplacement: 0.0,
+              totalDisplacement: 0.0,
+              // Original timestamp is completely preserved without change
+            },
+            {
+              where: {
+                [Op.or]: [
+                  { deviceId: dev.id },
+                  { deviceId: dev.id.toUpperCase() },
+                  { deviceId: dev.id.toLowerCase() }
+                ]
+              }
+            }
+          );
+          if (bulkCount === 0 && dev.lastSeen) {
+            await TelemetryRecord.create({
+              deviceId: dev.id,
+              timestamp: dev.lastSeen,
+              xTilt: 0.0,
+              yTilt: 0.0,
+              resultantTilt: 0.0,
+              xDisplacement: 0.0,
+              yDisplacement: 0.0,
+              zDisplacement: 0.0,
+              totalDisplacement: 0.0,
+              temperature: parseFloat(dev.temperature) || 25.0,
+            });
+          }
+        }
 
+        // Update in-memory telemetry points preserving their original timestamp/time
+        if (inMemoryTelemetryStore && inMemoryTelemetryStore.has(dev.id)) {
+          const hist = inMemoryTelemetryStore.get(dev.id);
+          if (scope === 'last' && hist.length > 0) {
+            const lastPt = hist[hist.length - 1];
+            lastPt.xTilt = 0.0;
+            lastPt.yTilt = 0.0;
+            lastPt.resultantTilt = 0.0;
+            lastPt.tiltX = 0.0;
+            lastPt.tiltY = 0.0;
+            lastPt.resultant = 0.0;
+            lastPt.xDisplacement = 0.0;
+            lastPt.yDisplacement = 0.0;
+            lastPt.totalDisplacement = 0.0;
+            lastPt.xDisp = 0.0;
+            lastPt.yDisp = 0.0;
+            lastPt.totalDisp = 0.0;
+          } else {
+            hist.forEach(pt => {
+              pt.xTilt = 0.0;
+              pt.yTilt = 0.0;
+              pt.resultantTilt = 0.0;
+              pt.tiltX = 0.0;
+              pt.tiltY = 0.0;
+              pt.resultant = 0.0;
+              pt.xDisplacement = 0.0;
+              pt.yDisplacement = 0.0;
+              pt.totalDisplacement = 0.0;
+              pt.xDisp = 0.0;
+              pt.yDisp = 0.0;
+              pt.totalDisp = 0.0;
+            });
+          }
+        }
+
+        const originalTime = dev.lastSeen ? new Date(dev.lastSeen).toISOString() : new Date().toISOString();
         broadcastTelemetry({
           deviceId: dev.id,
           xTilt: 0.0,
@@ -507,14 +704,17 @@ export async function devicesRoutes(fastify) {
           temperature: `${dev.temperature || 25.0} °C`,
           batteryVoltage: parseFloat(dev.battery) || 13.0,
           csq: parseInt(dev.signalStrength) || 19,
-          timestamp: zeroTimestamp.toISOString(),
+          timestamp: originalTime,
           status: dev.status,
         });
       }
 
       return reply.send({
         statusCode: 200,
-        message: `Successfully set Tilt and Displacement to 0.000 for ${updatedDeviceIds.length} device(s). All other fields remained unchanged.`,
+        message: scope === 'last'
+          ? `Last data point for ${updatedDeviceIds.length} device(s) updated to 0.000 without changing date/time.`
+          : `All data points for ${updatedDeviceIds.length} device(s) updated to 0.000 without changing date/time.`,
+        scope,
         updatedDeviceCount: updatedDeviceIds.length,
         updatedDeviceIds,
       });

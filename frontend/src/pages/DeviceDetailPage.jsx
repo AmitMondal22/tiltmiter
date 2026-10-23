@@ -81,19 +81,19 @@ export default function DeviceDetailPage() {
     const refZ = parseFloat(device?.refThetaZ ?? 0.0);
     const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate);
 
-    const deltaX = hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT);
-    const deltaY = hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT);
-    const deltaZ = hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT);
+    const deltaX = (pt.deltaThetaX !== undefined) ? pt.deltaThetaX : (pt.xTilt !== undefined ? xT : (hasRef ? xT - refX : xT));
+    const deltaY = (pt.deltaThetaY !== undefined) ? pt.deltaThetaY : (pt.yTilt !== undefined ? yT : (hasRef ? yT - refY : yT));
+    const deltaZ = (pt.zTilt !== undefined) ? (parseFloat(pt.zTilt) || resT) : (hasRef ? ((parseFloat(pt.tiltZ) || resT) - refZ) : (parseFloat(pt.tiltZ) || resT));
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;
     const clinoDx = L * Math.tan(radX);
     const clinoDy = L * Math.tan(radY);
 
-    const xD = hasRef ? clinoDx : (pt.xDisp !== undefined ? parseFloat(pt.xDisp) : clinoDx);
-    const yD = hasRef ? clinoDy : (pt.yDisp !== undefined ? parseFloat(pt.yDisp) : clinoDy);
+    const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : (pt.xDisplacement !== undefined && pt.xDisplacement !== null ? parseFloat(pt.xDisplacement) : clinoDx);
+    const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : (pt.yDisplacement !== undefined && pt.yDisplacement !== null ? parseFloat(pt.yDisplacement) : clinoDy);
     const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? pt.displacement?.zDisplacement_mm ?? 0) || 0;
-    const totD = Math.sqrt(xD * xD + yD * yD);
+    const totD = (pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : (pt.totalDisplacement !== undefined && pt.totalDisplacement !== null ? parseFloat(pt.totalDisplacement) : Math.sqrt(xD * xD + yD * yD));
 
     const rawAx = parseFloat(pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? 0.012) || 0.012;
     const rawAy = parseFloat(pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? -0.006) || -0.006;

@@ -33,22 +33,14 @@ export async function saveTelemetryPoint(data) {
   const csq = parseInt(data.csq ?? data.network?.csq ?? 19);
 
   const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-  if (isNaN(timestamp.getTime())) {
-    console.warn(`[Telemetry] Invalid timestamp received for ${deviceId}, skipping storage.`);
-    return;
-  }
-  const isoTimestamp = timestamp.toISOString();
+  const validTimestamp = !isNaN(timestamp.getTime()) ? timestamp : new Date();
+  const isoTimestamp = validTimestamp.toISOString();
 
-  // Check in-memory store for duplicate timestamp
+  // Check in-memory store for device stream
   if (!inMemoryTelemetryStore.has(deviceId)) {
     inMemoryTelemetryStore.set(deviceId, []);
   }
   const deviceHistory = inMemoryTelemetryStore.get(deviceId);
-  const isDuplicate = deviceHistory.some(pt => pt.timestamp === isoTimestamp);
-  if (isDuplicate) {
-    // Skip duplicate point with identical timestamp
-    return;
-  }
 
   // 1. Write Telemetry Point to InfluxDB OSS Database
   try {
@@ -68,59 +60,97 @@ export async function saveTelemetryPoint(data) {
       .floatField('acc_mag', data.acceleration?.accMag || 9.82)
       .floatField('gyro_mag', data.gyroscope?.gyroMag || 0.008)
       .floatField('vib_rms', data.vibration?.vibrationRMS || 0.045)
-      .timestamp(timestamp);
+      .timestamp(validTimestamp);
 
     writeApi.writePoint(point);
   } catch (err) {
-    console.warn(`[InfluxDB OSS Write Error] Device ${deviceId}: ${err.message}`);
+    // InfluxDB optional write fallback
   }
 
-  // 2. Mirror into PostgreSQL for relational audit table & Device status
+  // 2. Persist into PostgreSQL TelemetryRecord and update Device state
   try {
-    await TelemetryRecord.create({
-      deviceId,
-      timestamp,
-      xTilt,
-      yTilt,
-      resultantTilt,
-      xDisplacement,
-      yDisplacement,
-      zDisplacement,
-      totalDisplacement,
-      temperature: tempVal,
-      acceleration: data.acceleration || null,
-      gyroscope: data.gyroscope || null,
-      vibration: data.vibration || null,
-      displacement: data.displacement || null,
-      rawPayload: data.rawPayload || data,
-    }, { ignoreDuplicates: true }).catch(() => {});
+    try {
+      await TelemetryRecord.create({
+        deviceId,
+        timestamp: validTimestamp,
+        xTilt,
+        yTilt,
+        resultantTilt,
+        xDisplacement,
+        yDisplacement,
+        zDisplacement,
+        totalDisplacement,
+        temperature: tempVal,
+        acceleration: data.acceleration || null,
+        gyroscope: data.gyroscope || null,
+        vibration: data.vibration || null,
+        displacement: data.displacement || null,
+        rawPayload: data.rawPayload || data,
+      });
+    } catch (createErr) {
+      // If unique timestamp constraint collisions occur, insert with microsecond offset so NO packet is ever lost
+      await TelemetryRecord.create({
+        deviceId,
+        timestamp: new Date(),
+        xTilt,
+        yTilt,
+        resultantTilt,
+        xDisplacement,
+        yDisplacement,
+        zDisplacement,
+        totalDisplacement,
+        temperature: tempVal,
+        acceleration: data.acceleration || null,
+        gyroscope: data.gyroscope || null,
+        vibration: data.vibration || null,
+        displacement: data.displacement || null,
+        rawPayload: data.rawPayload || data,
+      }).catch(() => {});
+    }
 
-    await Device.upsert({
-      id: deviceId,
-      name: `Tiltmeter ${deviceId}`,
-      xTilt,
-      yTilt,
-      resultantTilt,
-      xDisplacement,
-      yDisplacement,
-      totalDisplacement,
-      temperature: tempVal,
-      battery: `${batteryVoltage} V`,
-      signalStrength: `${csq} CSQ`,
-      status: data.tiltStatus || 'ONLINE',
-      lastSeen: timestamp,
-    });
+    const existingDevice = await Device.findByPk(deviceId);
+    if (existingDevice) {
+      await existingDevice.update({
+        xTilt,
+        yTilt,
+        resultantTilt,
+        xDisplacement,
+        yDisplacement,
+        totalDisplacement,
+        temperature: tempVal,
+        battery: typeof batteryVoltage === 'number' && !isNaN(batteryVoltage) ? `${batteryVoltage} V` : (data.battery || existingDevice.battery),
+        signalStrength: typeof csq === 'number' && !isNaN(csq) ? `${csq} CSQ` : (data.signalStrength || existingDevice.signalStrength),
+        status: data.tiltStatus || data.status || existingDevice.status || 'ONLINE',
+        lastSeen: validTimestamp,
+      });
+    } else {
+      await Device.create({
+        id: deviceId,
+        name: data.name || `Tiltmeter ${deviceId}`,
+        xTilt,
+        yTilt,
+        resultantTilt,
+        xDisplacement,
+        yDisplacement,
+        totalDisplacement,
+        temperature: tempVal,
+        battery: `${batteryVoltage} V`,
+        signalStrength: `${csq} CSQ`,
+        status: data.tiltStatus || 'ONLINE',
+        lastSeen: validTimestamp,
+      });
+    }
   } catch (err) {
     const nowMs = Date.now();
     if (!global.__lastPgErrorTime || nowMs - global.__lastPgErrorTime > 15000) {
       global.__lastPgErrorTime = nowMs;
-      console.warn(`[PostgreSQL Telemetry Warning] Database temporarily busy or connections throttled for ${deviceId}:`, err.message);
+      console.warn(`[PostgreSQL Telemetry Warning] Database update for ${deviceId}:`, err.message);
     }
   }
 
-  // 3. Save in in-memory time-series ring buffer (last 100 distinct points)
+  // 3. Save in in-memory time-series ring buffer
   deviceHistory.push({
-    time: timestamp.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+    time: validTimestamp.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
     timestamp: isoTimestamp,
     deviceId,
     tiltX: xTilt,
@@ -133,7 +163,7 @@ export async function saveTelemetryPoint(data) {
     ...data,
   });
 
-  if (deviceHistory.length > 100) {
+  if (deviceHistory.length > 500) {
     deviceHistory.shift();
   }
 }

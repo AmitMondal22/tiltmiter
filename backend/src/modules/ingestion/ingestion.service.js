@@ -40,10 +40,20 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const zSlope = Math.sin((zTilt * Math.PI) / 180) * 1000;
   const resultantSlope = Math.sin((tiltVal * Math.PI) / 180) * 1000;
 
-  // 3. ClinoX Conversion: Tilt Change to Lateral Displacement (D = L * tan(Δθ * π / 180))
-  const L = parseFloat(rawPayload.gaugeLength_mm || rawPayload.L || 1000.0);
-  const refX = parseFloat(rawPayload.refThetaX ?? rawPayload.baselineRoll ?? 0.0);
-  const refY = parseFloat(rawPayload.refThetaY ?? rawPayload.baselinePitch ?? 0.0);
+  // 3. ClinoX Conversion & Database Reference Zero Lookup
+  let deviceRecord = null;
+  try {
+    deviceRecord = await Device.findByPk(deviceId);
+  } catch (e) {}
+
+  const hasRefZero = Boolean(deviceRecord?.hasReferenceZero);
+  const dbRefX = deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null ? parseFloat(deviceRecord.refThetaX) : 0.0;
+  const dbRefY = deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null ? parseFloat(deviceRecord.refThetaY) : 0.0;
+  const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;
+
+  const L = parseFloat(rawPayload.gaugeLength_mm || rawPayload.L || dbGaugeL);
+  const refX = parseFloat(rawPayload.refThetaX ?? rawPayload.baselineRoll ?? (hasRefZero ? dbRefX : 0.0));
+  const refY = parseFloat(rawPayload.refThetaY ?? rawPayload.baselinePitch ?? (hasRefZero ? dbRefY : 0.0));
   const deltaThetaX = roll - refX;
   const deltaThetaY = pitch - refY;
 
@@ -64,6 +74,11 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     ? rawTotalDisp
     : Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp);
 
+  // If device is tare zero calibrated, report tilt relative to zero reference baseline
+  const activeXTilt = hasRefZero ? deltaThetaX : roll;
+  const activeYTilt = hasRefZero ? deltaThetaY : pitch;
+  const activeResultant = hasRefZero ? Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) : tiltVal;
+
   // 4. Parse environment, battery voltage & cellular CSQ
   const temp = parseFloat(rawPayload.environment?.temperature ?? rawPayload.temperature ?? rawPayload.tempVal ?? 25.0) || 25.0;
   const batteryVoltage = parseFloat(rawPayload.power?.batteryVoltage ?? rawPayload.batteryVoltage ?? 13.03) || 13.03;
@@ -83,13 +98,15 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     deviceId,
 
     // Mapped flat fields for UI component binding
-    xTilt: roll,
-    yTilt: pitch,
+    xTilt: activeXTilt,
+    yTilt: activeYTilt,
     zTilt,
-    resultantTilt: tiltVal,
-    roll,
-    pitch,
-    tilt: tiltVal,
+    resultantTilt: activeResultant,
+    roll: activeXTilt,
+    pitch: activeYTilt,
+    rawRoll: roll,
+    rawPitch: pitch,
+    tilt: activeResultant,
     tiltStatus: rawPayload.tilt?.tiltStatus || 'NORMAL',
 
     // Calculated slopes in mm/m

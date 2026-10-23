@@ -331,6 +331,10 @@ export async function devicesRoutes(fastify) {
         totalDisplacement: device.totalDisplacement ?? 0.0,
       };
 
+      const currentRawX = parseFloat(device.xTilt || 0.0);
+      const currentRawY = parseFloat(device.yTilt || 0.0);
+      const currentRawZ = parseFloat(device.zTilt || 0.0);
+
       // ONLY tilt and displacement data are updated to 0.000.
       // All other device data (name, status, battery, signalStrength, temperature, organization, etc.) are strictly preserved!
       const fieldsToUpdate = {
@@ -340,35 +344,18 @@ export async function devicesRoutes(fastify) {
         xDisplacement: 0.0,
         yDisplacement: 0.0,
         totalDisplacement: 0.0,
+        refThetaX: currentRawX,
+        refThetaY: currentRawY,
+        refThetaZ: currentRawZ,
+        refTimestamp: new Date(),
+        refOperator: req.user?.fullName || req.user?.username || 'Operator',
+        hasReferenceZero: true,
+        calibrate: true,
       };
 
-      if (setReference) {
-        fieldsToUpdate.refThetaX = parseFloat(device.xTilt || 0.0);
-        fieldsToUpdate.refThetaY = parseFloat(device.yTilt || 0.0);
-        fieldsToUpdate.refThetaZ = parseFloat(device.zTilt || 0.0);
-        fieldsToUpdate.refTimestamp = new Date();
-        fieldsToUpdate.refOperator = req.user?.fullName || req.user?.username || 'Operator';
-        fieldsToUpdate.hasReferenceZero = true;
-        fieldsToUpdate.calibrate = true;
-      }
-
       await device.update(fieldsToUpdate);
-
-      let historyRecordsUpdated = 0;
-      if (updateHistory) {
-        const [count] = await TelemetryRecord.update(
-          {
-            xTilt: 0.0,
-            yTilt: 0.0,
-            resultantTilt: 0.0,
-            xDisplacement: 0.0,
-            yDisplacement: 0.0,
-            totalDisplacement: 0.0,
-          },
-          { where: { deviceId: device.id } }
-        );
-        historyRecordsUpdated = count;
-      }
+      // NOTE: Old historical telemetry records are NEVER overwritten or deleted.
+      // Only new incoming packets and the live device state reflect the zero baseline.
 
       const zeroTimestamp = new Date();
       await TelemetryRecord.create({
@@ -469,6 +456,10 @@ export async function devicesRoutes(fastify) {
       const zeroTimestamp = new Date();
 
       for (const dev of devices) {
+        const currentRawX = parseFloat(dev.xTilt || 0.0);
+        const currentRawY = parseFloat(dev.yTilt || 0.0);
+        const currentRawZ = parseFloat(dev.zTilt || 0.0);
+
         const fieldsToUpdate = {
           xTilt: 0.0,
           yTilt: 0.0,
@@ -476,34 +467,18 @@ export async function devicesRoutes(fastify) {
           xDisplacement: 0.0,
           yDisplacement: 0.0,
           totalDisplacement: 0.0,
+          refThetaX: currentRawX,
+          refThetaY: currentRawY,
+          refThetaZ: currentRawZ,
+          refTimestamp: zeroTimestamp,
+          refOperator: req.user?.fullName || req.user?.username || 'Operator',
+          hasReferenceZero: true,
+          calibrate: true,
         };
-
-        if (setReference) {
-          fieldsToUpdate.refThetaX = parseFloat(dev.xTilt || 0.0);
-          fieldsToUpdate.refThetaY = parseFloat(dev.yTilt || 0.0);
-          fieldsToUpdate.refThetaZ = parseFloat(dev.zTilt || 0.0);
-          fieldsToUpdate.refTimestamp = zeroTimestamp;
-          fieldsToUpdate.refOperator = req.user?.fullName || req.user?.username || 'Operator';
-          fieldsToUpdate.hasReferenceZero = true;
-          fieldsToUpdate.calibrate = true;
-        }
 
         await dev.update(fieldsToUpdate);
         updatedDeviceIds.push(dev.id);
-
-        if (updateHistory) {
-          await TelemetryRecord.update(
-            {
-              xTilt: 0.0,
-              yTilt: 0.0,
-              resultantTilt: 0.0,
-              xDisplacement: 0.0,
-              yDisplacement: 0.0,
-              totalDisplacement: 0.0,
-            },
-            { where: { deviceId: dev.id } }
-          );
-        }
+        // NOTE: Old historical telemetry records are strictly preserved and never overwritten or deleted.
 
         await TelemetryRecord.create({
           deviceId: dev.id,

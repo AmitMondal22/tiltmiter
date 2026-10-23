@@ -44,7 +44,6 @@ export default function ZeroCalibrationPage({ isDark = false }) {
   const [statusFilter, setStatusFilter] = useState('ALL');
 
   // Calibration scope options
-  const [updateHistory, setUpdateHistory] = useState(false);
   const [setReferenceBaseline, setSetReferenceBaseline] = useState(true);
   const [isBulkMode, setIsBulkMode] = useState(false);
 
@@ -138,8 +137,8 @@ export default function ZeroCalibrationPage({ isDark = false }) {
 
     try {
       const res = await zeroDeviceReadings(selectedDeviceId, {
-        updateHistory,
         setReference: setReferenceBaseline,
+        updateHistory: false,
       });
 
       if (res?.statusCode === 200 || res?.message) {
@@ -198,8 +197,8 @@ export default function ZeroCalibrationPage({ isDark = false }) {
     try {
       const targetIds = filteredDevices.map(d => d.id);
       const res = await zeroAllDevicesReadings({
-        updateHistory,
         setReference: setReferenceBaseline,
+        updateHistory: false,
         deviceIds: targetIds,
       });
 
@@ -714,23 +713,18 @@ export default function ZeroCalibrationPage({ isDark = false }) {
                   </div>
                 </label>
 
-                {/* Option 3: Update Stored History */}
-                <label className="flex items-start gap-3 p-2.5 rounded-lg bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={updateHistory}
-                    onChange={(e) => setUpdateHistory(e.target.checked)}
-                    className="mt-0.5 rounded text-blue-600 focus:ring-blue-500"
-                  />
+                {/* Guarantee: Past History Protected */}
+                <div className="flex items-start gap-3 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                   <div>
-                    <span className="font-bold text-slate-900">
-                      Update All Historical Telemetry Records to Zero
+                    <span className="font-bold text-emerald-950">
+                      Historical Data Strictly Preserved
                     </span>
-                    <p className="text-slate-500 text-[11px] mt-0.5">
-                      Optional: In addition to resetting current state, retroactively updates all stored past records in the telemetry table for this device to 0.000 tilt and 0.000 mm displacement.
+                    <p className="text-emerald-800 text-[11px] mt-0.5">
+                      All past telemetry log records remain intact and will <strong className="font-semibold">never be deleted or overwritten</strong>. Only the instantaneous device readings and future incoming packets update to the calibrated 0.000 baseline.
                     </p>
                   </div>
-                </label>
+                </div>
               </div>
             </div>
 
@@ -856,9 +850,9 @@ export default function ZeroCalibrationPage({ isDark = false }) {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500 font-medium">Historical Telemetry Rewrite:</span>
-                <span className="font-semibold text-slate-800">
-                  {updateHistory ? 'Yes (All records set to 0)' : 'No (Current state + live only)'}
+                <span className="text-slate-500 font-medium">Historical Telemetry:</span>
+                <span className="font-semibold text-emerald-700">
+                  Strictly Preserved (Never Deleted)
                 </span>
               </div>
             </div>

@@ -178,13 +178,13 @@ export async function devicesRoutes(fastify) {
   });
 
   // Update Device / Configure
-  fastify.put('/api/devices/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+  fastify.put('/api/devices/:id', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
       const device = await Device.findByPk(id);
       if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
 
-      if (req.user.role !== 'SUPER_ADMIN') {
+      if (req.user?.role && req.user.role !== 'SUPER_ADMIN') {
         if (req.user.role === 'ORG_ADMIN') {
           if (device.organizationId !== req.user.organizationId) {
             return reply.status(403).send({

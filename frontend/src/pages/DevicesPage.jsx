@@ -512,19 +512,28 @@ export default function DevicesPage() {
                 />
               </div>
 
+              {/* Enable / Disable Zero Calibration Offset */}
               <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-slate-900">Calibrate Zero Offset</div>
-                  <div className="text-[11px] text-slate-500">
-                    Current: {selectedDevice?.calibrate ? 'Calibrated (Active)' : 'Standard / Uncalibrated'}
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {configForm.calibrate
+                      ? 'Enabled: Zero offset calibration is applied to telemetry.'
+                      : 'Disabled: Standard raw telemetry is reported.'}
                   </div>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={configForm.calibrate}
-                  onChange={e => setConfigForm({ ...configForm, calibrate: e.target.checked })}
-                  className="w-4 h-4 accent-blue-600 rounded cursor-pointer"
-                />
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(configForm.calibrate)}
+                    onChange={e => setConfigForm({ ...configForm, calibrate: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  <span className="ml-2 text-xs font-bold text-slate-700">
+                    {configForm.calibrate ? 'Enabled' : 'Disabled'}
+                  </span>
+                </label>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">

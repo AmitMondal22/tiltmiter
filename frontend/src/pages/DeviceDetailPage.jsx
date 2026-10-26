@@ -234,6 +234,7 @@ export default function DeviceDetailPage() {
         sleep_count: device.sleep_count !== undefined ? device.sleep_count : '',
         wake_count: device.wake_count !== undefined ? device.wake_count : '',
         calibrate: Boolean(device.calibrate),
+        status: device.status || 'ONLINE',
         gaugeLength_mm: device.gaugeLength_mm !== undefined ? device.gaugeLength_mm : 1000,
       });
     }
@@ -920,49 +921,50 @@ export default function DeviceDetailPage() {
                 </p>
               </div>
 
-              {/* ClinoX Reference Zero Commissioning Box */}
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/80 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-semibold text-xs text-slate-900 flex items-center gap-1.5">
-                      <Target className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>ClinoX Zero Reference Baseline</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
-                      {device?.hasReferenceZero ? (
-                        <span className="text-emerald-700">
-                          Active: θX₀={device.refThetaX?.toFixed(3)}°, θY₀={device.refThetaY?.toFixed(3)}°
-                        </span>
-                      ) : (
-                        <span>Factory default (unreferenced 0.000°).</span>
-                      )}
-                    </div>
+              {/* Enable / Disable Zero Calibration Offset */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-slate-900">Calibrate Zero Offset</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {configForm.calibrate
+                      ? 'Enabled: Zero offset calibration is applied to telemetry.'
+                      : 'Disabled: Standard raw telemetry is reported.'}
                   </div>
-                  {device?.hasReferenceZero && (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-semibold border border-emerald-300">
-                      Commissioned
-                    </span>
-                  )}
                 </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(configForm.calibrate)}
+                    onChange={e => setConfigForm({ ...configForm, calibrate: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  <span className="ml-2 text-xs font-bold text-slate-700">
+                    {configForm.calibrate ? 'Enabled' : 'Disabled'}
+                  </span>
+                </label>
+              </div>
 
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSetReference}
-                    className="flex-1 py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-2xs transition-colors cursor-pointer"
-                  >
-                    Set Current as Reference Zero (0°)
-                  </button>
-                  {device?.hasReferenceZero && (
-                    <button
-                      type="button"
-                      onClick={handleResetReference}
-                      className="py-1.5 px-3 rounded-lg border border-red-200 hover:bg-red-50 text-red-700 font-medium text-xs transition-colors cursor-pointer"
-                    >
-                      Reset to 0°
-                    </button>
-                  )}
+              {/* Enable / Disable Device Operational State */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-slate-900">Device Operational State</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Enable or disable sensor device telemetry tracking.
+                  </div>
                 </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={configForm.status !== 'DISABLED' && configForm.status !== 'OFFLINE'}
+                    onChange={e => setConfigForm({ ...configForm, status: e.target.checked ? 'ONLINE' : 'DISABLED' })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  <span className="ml-2 text-xs font-bold text-slate-700">
+                    {configForm.status !== 'DISABLED' && configForm.status !== 'OFFLINE' ? 'Enabled' : 'Disabled'}
+                  </span>
+                </label>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">

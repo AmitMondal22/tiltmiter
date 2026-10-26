@@ -61,38 +61,47 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     }
   } catch (e) {}
 
+  const isHardwareCalibrated = Boolean(rawPayload.calibration?.calibrated);
   const hasRefZero = Boolean(deviceRecord?.calibrate ?? deviceRecord?.hasReferenceZero ?? false);
   const dbRefX = deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null ? parseFloat(deviceRecord.refThetaX) : 0.0;
   const dbRefY = deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null ? parseFloat(deviceRecord.refThetaY) : 0.0;
   const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;
 
   const L = parseFloat(rawPayload.gaugeLength_mm || rawPayload.L || dbGaugeL);
-  const refX = parseFloat(rawPayload.refThetaX ?? rawPayload.baselineRoll ?? (hasRefZero ? dbRefX : 0.0));
-  const refY = parseFloat(rawPayload.refThetaY ?? rawPayload.baselinePitch ?? (hasRefZero ? dbRefY : 0.0));
-  const deltaThetaX = roll - refX;
-  const deltaThetaY = pitch - refY;
+  // When hardware already reports calibrated: true, it sends delta angles directly relative to tare baseline
+  const refX = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaX ?? rawPayload.baselineRoll ?? (hasRefZero ? dbRefX : 0.0));
+  const refY = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaY ?? rawPayload.baselinePitch ?? (hasRefZero ? dbRefY : 0.0));
+  const deltaThetaX = isHardwareCalibrated ? roll : (roll - refX);
+  const deltaThetaY = isHardwareCalibrated ? pitch : (pitch - refY);
+
+  // If device is tare zero calibrated or hardware calibrated, report tilt relative to zero reference baseline
+  let activeXTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaX : roll;
+  let activeYTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaY : pitch;
+  let activeResultant = (hasRefZero || isHardwareCalibrated) ? Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) : tiltVal;
+
+  // Clean zero rounding for noise near zero
+  if ((isHardwareCalibrated || hasRefZero) && Math.abs(activeXTilt) < 0.015 && Math.abs(activeYTilt) < 0.015) {
+    activeXTilt = 0.0;
+    activeYTilt = 0.0;
+    activeResultant = 0.0;
+  }
 
   // Calculate estimated lateral displacement using ClinoX formula
-  let xDisp = rawPayload.displacement?.xDisplacement_mm !== undefined
+  let xDisp = (activeXTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (rawPayload.displacement?.xDisplacement_mm !== undefined
     ? parseFloat(rawPayload.displacement.xDisplacement_mm)
-    : (rawPayload.xDisplacement !== undefined ? parseFloat(rawPayload.xDisplacement) : L * Math.tan((deltaThetaX * Math.PI) / 180));
-  let yDisp = rawPayload.displacement?.yDisplacement_mm !== undefined
+    : (rawPayload.xDisplacement !== undefined ? parseFloat(rawPayload.xDisplacement) : L * Math.tan((deltaThetaX * Math.PI) / 180)));
+  let yDisp = (activeYTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (rawPayload.displacement?.yDisplacement_mm !== undefined
     ? parseFloat(rawPayload.displacement.yDisplacement_mm)
-    : (rawPayload.yDisplacement !== undefined ? parseFloat(rawPayload.yDisplacement) : L * Math.tan((deltaThetaY * Math.PI) / 180));
-  const zDisp = parseFloat(rawPayload.displacement?.zDisplacement_mm ?? rawPayload.zDisplacement ?? 0) || 0;
+    : (rawPayload.yDisplacement !== undefined ? parseFloat(rawPayload.yDisplacement) : L * Math.tan((deltaThetaY * Math.PI) / 180)));
+  const zDisp = (activeXTilt === 0.0 && activeYTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (parseFloat(rawPayload.displacement?.zDisplacement_mm ?? rawPayload.zDisplacement ?? 0) || 0);
 
   if (isNaN(xDisp)) xDisp = L * Math.tan((deltaThetaX * Math.PI) / 180);
   if (isNaN(yDisp)) yDisp = L * Math.tan((deltaThetaY * Math.PI) / 180);
 
   const rawTotalDisp = rawPayload.displacement?.totalDisplacement_mm ?? rawPayload.totalDisplacement;
-  const totalDisp = typeof rawTotalDisp === 'number' && !isNaN(rawTotalDisp)
+  const totalDisp = (activeXTilt === 0.0 && activeYTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (typeof rawTotalDisp === 'number' && !isNaN(rawTotalDisp)
     ? rawTotalDisp
-    : Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp);
-
-  // If device is tare zero calibrated, report tilt relative to zero reference baseline
-  const activeXTilt = hasRefZero ? deltaThetaX : roll;
-  const activeYTilt = hasRefZero ? deltaThetaY : pitch;
-  const activeResultant = hasRefZero ? Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) : tiltVal;
+    : Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp));
 
   // 4. Parse environment, battery voltage & cellular CSQ
   const temp = parseFloat(rawPayload.environment?.temperature ?? rawPayload.temperature ?? rawPayload.tempVal ?? 25.0) || 25.0;

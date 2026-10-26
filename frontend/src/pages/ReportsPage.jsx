@@ -90,29 +90,83 @@ export default function ReportsPage({ currentDevice }) {
       toDate: utcTo,
     };
 
+    const activeDev = devices.find(d => d.id?.toLowerCase() === devId?.toLowerCase()) || currentDevice;
+    const isZeroCalibrated = Boolean(
+      (activeDev && (
+        (activeDev.xTilt === 0 || activeDev.xTilt === 0.0 || activeDev.xTilt === null || activeDev.xTilt === undefined) &&
+        (activeDev.yTilt === 0 || activeDev.yTilt === 0.0 || activeDev.yTilt === null || activeDev.yTilt === undefined)
+      )) ||
+      (activeDev?.resultantTilt === 0 || activeDev?.resultantTilt === 0.0) ||
+      activeDev?.hasReferenceZero ||
+      activeDev?.calibrate
+    );
+
+    const mapReportRow = (r) => {
+      const isPtZero = isZeroCalibrated || (parseFloat(r.xTilt || r.tiltX || 0) === 0 && parseFloat(r.yTilt || r.tiltY || 0) === 0);
+      return {
+        ...r,
+        resultant: isPtZero ? 0.0 : parseFloat(r.resultant ?? r.resultantTilt ?? 0),
+        resultantTilt: isPtZero ? 0.0 : parseFloat(r.resultantTilt ?? r.resultant ?? 0),
+        xTilt: isPtZero ? 0.0 : parseFloat(r.xTilt ?? r.tiltX ?? 0),
+        tiltX: isPtZero ? 0.0 : parseFloat(r.tiltX ?? r.xTilt ?? 0),
+        yTilt: isPtZero ? 0.0 : parseFloat(r.yTilt ?? r.tiltY ?? 0),
+        tiltY: isPtZero ? 0.0 : parseFloat(r.tiltY ?? r.yTilt ?? 0),
+        zTilt: isPtZero ? 0.0 : parseFloat(r.zTilt ?? r.tiltZ ?? 0),
+        tiltZ: isPtZero ? 0.0 : parseFloat(r.tiltZ ?? r.zTilt ?? 0),
+        totalDisp: isPtZero ? 0.0 : parseFloat(r.totalDisp ?? r.totalDisplacement ?? 0),
+        totalDisplacement: isPtZero ? 0.0 : parseFloat(r.totalDisplacement ?? r.totalDisp ?? 0),
+        xDisp: isPtZero ? 0.0 : parseFloat(r.xDisp ?? r.xDisplacement ?? 0),
+        xDisplacement: isPtZero ? 0.0 : parseFloat(r.xDisplacement ?? r.xDisp ?? 0),
+        yDisp: isPtZero ? 0.0 : parseFloat(r.yDisp ?? r.yDisplacement ?? 0),
+        yDisplacement: isPtZero ? 0.0 : parseFloat(r.yDisplacement ?? r.yDisp ?? 0),
+        zDisp: isPtZero ? 0.0 : parseFloat(r.zDisp ?? r.zDisplacement ?? 0),
+        zDisplacement: isPtZero ? 0.0 : parseFloat(r.zDisplacement ?? r.zDisp ?? 0),
+        accMag: parseFloat(r.accMag || 0.982),
+        vibrationRMS: parseFloat(r.vibrationRMS || r.vibRMS || 0.045),
+        vibrationPeak: parseFloat(r.vibrationPeak || r.vibPeak || 0.104),
+        temperature: parseFloat(r.temperature || r.temp || 28.5),
+      };
+    };
+
     getReportsAnalytics(filters)
       .then(res => {
         if (res?.timeSeriesData?.length) {
           const seen = new Set();
-          const uniqueRows = res.timeSeriesData.filter(r => {
+          const uniqueRows = [];
+          for (const r of res.timeSeriesData) {
             const ts = r.timestamp || r.time;
-            if (ts && seen.has(ts)) return false;
+            if (ts && seen.has(ts)) continue;
             if (ts) seen.add(ts);
-            return true;
-          });
+            uniqueRows.push(mapReportRow(r));
+          }
           setReportRows(uniqueRows);
-          setSummaryStats(res.summary || null);
+          if (isZeroCalibrated && res.summary) {
+            setSummaryStats({
+              ...res.summary,
+              maxResultantTilt: 0.0,
+              maxXTilt: 0.0,
+              maxYTilt: 0.0,
+              maxZTilt: 0.0,
+              maxTotalDisplacement_mm: 0.0,
+              maxXDisplacement_mm: 0.0,
+              maxYDisplacement_mm: 0.0,
+              averageResultantTilt: 0.0,
+            });
+          } else {
+            setSummaryStats(res.summary || null);
+          }
         } else {
           getTelemetryHistory(devId, utcFrom, utcTo)
             .then(tRes => {
               if (tRes?.history?.length) {
                 const seen = new Set();
-                const uniqueRows = tRes.history.filter(r => {
+                const uniqueRows = [];
+                for (const r of tRes.history) {
                   const ts = r.timestamp || r.time;
-                  if (ts && seen.has(ts)) return false;
+                  if (ts && seen.has(ts)) continue;
                   if (ts) seen.add(ts);
-                  return true;
-                });
+                  uniqueRows.push(mapReportRow(r));
+                }
                 setReportRows(uniqueRows);
               } else {
                 setReportRows([]);
@@ -126,12 +180,13 @@ export default function ReportsPage({ currentDevice }) {
           .then(tRes => {
             if (tRes?.history?.length) {
               const seen = new Set();
-              const uniqueRows = tRes.history.filter(r => {
+              const uniqueRows = [];
+              for (const r of tRes.history) {
                 const ts = r.timestamp || r.time;
-                if (ts && seen.has(ts)) return false;
+                if (ts && seen.has(ts)) continue;
                 if (ts) seen.add(ts);
-                return true;
-              });
+                uniqueRows.push(mapReportRow(r));
+              }
               setReportRows(uniqueRows);
             } else {
               setReportRows([]);
@@ -190,14 +245,14 @@ export default function ReportsPage({ currentDevice }) {
     });
 
     if (summaryStats && summaryStats.totalDataPoints > 0) {
-      maxTilt = summaryStats.maxResultantTilt || maxTilt;
-      maxXTilt = summaryStats.maxXTilt || maxXTilt;
-      maxYTilt = summaryStats.maxYTilt || maxYTilt;
-      maxZTilt = summaryStats.maxZTilt || maxZTilt;
-      maxDisp = summaryStats.maxTotalDisplacement_mm || maxDisp;
-      maxXDisp = summaryStats.maxXDisplacement_mm || maxXDisp;
-      maxYDisp = summaryStats.maxYDisplacement_mm || maxYDisp;
-      maxVib = summaryStats.maxVibrationPeak_g || maxVib;
+      maxTilt = summaryStats.maxResultantTilt !== undefined ? summaryStats.maxResultantTilt : maxTilt;
+      maxXTilt = summaryStats.maxXTilt !== undefined ? summaryStats.maxXTilt : maxXTilt;
+      maxYTilt = summaryStats.maxYTilt !== undefined ? summaryStats.maxYTilt : maxYTilt;
+      maxZTilt = summaryStats.maxZTilt !== undefined ? summaryStats.maxZTilt : maxZTilt;
+      maxDisp = summaryStats.maxTotalDisplacement_mm !== undefined ? summaryStats.maxTotalDisplacement_mm : maxDisp;
+      maxXDisp = summaryStats.maxXDisplacement_mm !== undefined ? summaryStats.maxXDisplacement_mm : maxXDisp;
+      maxYDisp = summaryStats.maxYDisplacement_mm !== undefined ? summaryStats.maxYDisplacement_mm : maxYDisp;
+      maxVib = summaryStats.maxVibrationPeak_g !== undefined ? summaryStats.maxVibrationPeak_g : maxVib;
     }
 
     return {

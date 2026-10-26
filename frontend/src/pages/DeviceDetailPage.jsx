@@ -387,15 +387,22 @@ export default function DeviceDetailPage() {
   const refZ = parseFloat(device?.refThetaZ ?? d.refThetaZ ?? 0.0);
   const hasRef = Boolean(device?.hasReferenceZero || d.hasReferenceZero || device?.calibrate);
 
-  // ClinoX: ΔθX = θX,current − θX,reference; ΔθY = θY,current − θY,reference
-  const roll = hasRef ? rawRoll - refX : (d.deltaThetaX !== undefined ? d.deltaThetaX : rawRoll);
-  const pitch = hasRef ? rawPitch - refY : (d.deltaThetaY !== undefined ? d.deltaThetaY : rawPitch);
-  const zTilt = hasRef ? rawZTilt - refZ : rawZTilt;
-  const resultant = Math.sqrt(roll * roll + pitch * pitch);
+  const isZeroed = Boolean(
+    ((device?.xTilt === 0 || device?.xTilt === 0.0 || device?.xTilt === null || device?.xTilt === undefined) &&
+    (device?.yTilt === 0 || device?.yTilt === 0.0 || device?.yTilt === null || device?.yTilt === undefined)) ||
+    (device?.resultantTilt === 0 || device?.resultantTilt === 0.0) ||
+    (d.xTilt === 0.0 && d.yTilt === 0.0 && d.totalDisplacement === 0.0)
+  );
 
-  const xSlope = typeof d.xSlope === 'number' ? d.xSlope : Math.sin((roll * Math.PI) / 180) * 1000;
-  const ySlope = typeof d.ySlope === 'number' ? d.ySlope : Math.sin((pitch * Math.PI) / 180) * 1000;
-  const zSlope = typeof d.zSlope === 'number' ? d.zSlope : Math.sin((zTilt * Math.PI) / 180) * 1000;
+  // ClinoX: ΔθX = θX,current − θX,reference; ΔθY = θY,current − θY,reference
+  const roll = isZeroed ? 0.0 : (hasRef ? rawRoll - refX : (d.deltaThetaX !== undefined ? d.deltaThetaX : rawRoll));
+  const pitch = isZeroed ? 0.0 : (hasRef ? rawPitch - refY : (d.deltaThetaY !== undefined ? d.deltaThetaY : rawPitch));
+  const zTilt = isZeroed ? 0.0 : (hasRef ? rawZTilt - refZ : rawZTilt);
+  const resultant = isZeroed ? 0.0 : Math.sqrt(roll * roll + pitch * pitch);
+
+  const xSlope = isZeroed ? 0.0 : (typeof d.xSlope === 'number' ? d.xSlope : Math.sin((roll * Math.PI) / 180) * 1000);
+  const ySlope = isZeroed ? 0.0 : (typeof d.ySlope === 'number' ? d.ySlope : Math.sin((pitch * Math.PI) / 180) * 1000);
+  const zSlope = isZeroed ? 0.0 : (typeof d.zSlope === 'number' ? d.zSlope : Math.sin((zTilt * Math.PI) / 180) * 1000);
 
   // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
   const radX = (roll * Math.PI) / 180.0;
@@ -403,10 +410,10 @@ export default function DeviceDetailPage() {
   const clinoDx = L * Math.tan(radX);
   const clinoDy = L * Math.tan(radY);
 
-  const xDisp = hasRef ? clinoDx : (typeof d.xDisplacement === 'number' ? d.xDisplacement : clinoDx);
-  const yDisp = hasRef ? clinoDy : (typeof d.yDisplacement === 'number' ? d.yDisplacement : clinoDy);
-  const zDisp = typeof d.zDisplacement === 'number' ? d.zDisplacement : (d.displacement?.zDisplacement_mm ?? 0);
-  const totalDisp = Math.sqrt(xDisp * xDisp + yDisp * yDisp);
+  const xDisp = isZeroed ? 0.0 : (hasRef ? clinoDx : (typeof d.xDisplacement === 'number' ? d.xDisplacement : clinoDx));
+  const yDisp = isZeroed ? 0.0 : (hasRef ? clinoDy : (typeof d.yDisplacement === 'number' ? d.yDisplacement : clinoDy));
+  const zDisp = isZeroed ? 0.0 : (typeof d.zDisplacement === 'number' ? d.zDisplacement : (d.displacement?.zDisplacement_mm ?? 0));
+  const totalDisp = isZeroed ? 0.0 : Math.sqrt(xDisp * xDisp + yDisp * yDisp);
 
   // Compute Total Displacement Vector Angle & Cardinal Bearing
   let dispAngleRad = Math.atan2(yDisp, xDisp);

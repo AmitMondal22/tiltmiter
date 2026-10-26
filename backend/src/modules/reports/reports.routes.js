@@ -67,7 +67,102 @@ export async function reportsRoutes(fastify) {
         limit: 2000,
       });
 
-      // Compute analytics statistics on real records
+      // Fetch all unique devices from matching records for calibration status
+      const allDevIds = [...new Set(records.map(r => r.deviceId).filter(Boolean))];
+      if (deviceId) allDevIds.push(deviceId, String(deviceId).toUpperCase(), String(deviceId).toLowerCase());
+      
+      const devicesFound = await Device.findAll({
+        where: {
+          [Op.or]: [
+            { id: { [Op.in]: allDevIds } },
+            ...(deviceId ? [{ id: deviceId }, { id: String(deviceId).toUpperCase() }, { id: String(deviceId).toLowerCase() }] : [])
+          ]
+        }
+      });
+      const deviceMap = new Map();
+      for (const d of devicesFound) {
+        deviceMap.set(d.id, d);
+        deviceMap.set(d.id.toUpperCase(), d);
+        deviceMap.set(d.id.toLowerCase(), d);
+      }
+
+      // Format records respecting zero calibration & hardware tare state
+      const formattedRecords = (records || []).map(r => {
+        const dev = deviceMap.get(r.deviceId) || deviceMap.get(String(r.deviceId).toUpperCase()) || deviceMap.get(String(r.deviceId).toLowerCase());
+        const isHwCalibrated = Boolean(r.rawPayload?.calibration?.calibrated);
+        const hasRefZero = Boolean(dev?.hasReferenceZero || dev?.calibrate);
+        const isZeroCalibrated = isHwCalibrated || Boolean(
+          (dev && (
+            (dev.xTilt === 0.0 || dev.xTilt === 0 || dev.xTilt === null || dev.xTilt === undefined) &&
+            (dev.yTilt === 0.0 || dev.yTilt === 0 || dev.yTilt === null || dev.yTilt === undefined)
+          )) ||
+          (dev?.resultantTilt === 0.0 || dev?.resultantTilt === 0)
+        );
+
+        let finalXTilt = parseFloat(r.xTilt || 0);
+        let finalYTilt = parseFloat(r.yTilt || 0);
+        let finalZTilt = parseFloat(r.zTilt || r.resultantTilt || 0);
+        let finalResultant = parseFloat(r.resultantTilt || 0);
+        let finalXDisp = parseFloat(r.xDisplacement || 0);
+        let finalYDisp = parseFloat(r.yDisplacement || 0);
+        let finalZDisp = parseFloat(r.zDisplacement || 0);
+        let finalTotalDisp = parseFloat(r.totalDisplacement || 0);
+
+        if (isHwCalibrated) {
+          // Hardware already tare zeroed: use rawPayload delta tilt directly
+          finalXTilt = parseFloat(r.rawPayload?.tilt?.roll ?? 0) || 0;
+          finalYTilt = parseFloat(r.rawPayload?.tilt?.pitch ?? 0) || 0;
+          finalZTilt = parseFloat(r.rawPayload?.tilt?.zTilt ?? 0) || 0;
+          finalResultant = Math.sqrt(finalXTilt * finalXTilt + finalYTilt * finalYTilt);
+          if (Math.abs(finalXTilt) < 0.015 && Math.abs(finalYTilt) < 0.015) {
+            finalXTilt = 0.0;
+            finalYTilt = 0.0;
+            finalZTilt = 0.0;
+            finalResultant = 0.0;
+            finalXDisp = 0.0;
+            finalYDisp = 0.0;
+            finalZDisp = 0.0;
+            finalTotalDisp = 0.0;
+          }
+        } else if (isZeroCalibrated) {
+          finalXTilt = 0.0;
+          finalYTilt = 0.0;
+          finalZTilt = 0.0;
+          finalResultant = 0.0;
+          finalXDisp = 0.0;
+          finalYDisp = 0.0;
+          finalZDisp = 0.0;
+          finalTotalDisp = 0.0;
+        }
+
+        return {
+          timestamp: new Date(r.timestamp).toISOString(),
+          time: new Date(r.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+          deviceId: r.deviceId,
+          resultantTilt: Number(finalResultant.toFixed(4)),
+          resultant: Number(finalResultant.toFixed(4)),
+          xTilt: Number(finalXTilt.toFixed(4)),
+          tiltX: Number(finalXTilt.toFixed(4)),
+          yTilt: Number(finalYTilt.toFixed(4)),
+          tiltY: Number(finalYTilt.toFixed(4)),
+          zTilt: Number(finalZTilt.toFixed(4)),
+          tiltZ: Number(finalZTilt.toFixed(4)),
+          totalDisplacement: Number(finalTotalDisp.toFixed(4)),
+          totalDisp: Number(finalTotalDisp.toFixed(4)),
+          xDisplacement: Number(finalXDisp.toFixed(4)),
+          xDisp: Number(finalXDisp.toFixed(4)),
+          yDisplacement: Number(finalYDisp.toFixed(4)),
+          yDisp: Number(finalYDisp.toFixed(4)),
+          zDisplacement: Number(finalZDisp.toFixed(4)),
+          zDisp: Number(finalZDisp.toFixed(4)),
+          accMag: parseFloat(r.acceleration?.accMag || r.accMag || 0.982),
+          vibrationRMS: parseFloat(r.vibration?.vibrationRMS || r.vibrationRMS || 0.045),
+          vibrationPeak: parseFloat(r.vibration?.vibrationPeak || r.vibrationPeak || 0.104),
+          temperature: parseFloat(r.temperature || 28.5),
+        };
+      });
+
+      // Compute analytics statistics on formatted records
       let sumTilt = 0;
       let maxTilt = 0;
       let maxX = 0;
@@ -79,7 +174,7 @@ export async function reportsRoutes(fastify) {
       let maxVib = 0;
       let sumTemp = 0;
 
-      (records || []).forEach(r => {
+      formattedRecords.forEach(r => {
         const tilt = parseFloat(r.resultantTilt || 0);
         const xt = Math.abs(parseFloat(r.xTilt || 0));
         const yt = Math.abs(parseFloat(r.yTilt || 0));
@@ -87,7 +182,7 @@ export async function reportsRoutes(fastify) {
         const disp = parseFloat(r.totalDisplacement || 0);
         const xd = Math.abs(parseFloat(r.xDisplacement || 0));
         const yd = Math.abs(parseFloat(r.yDisplacement || 0));
-        const vib = parseFloat(r.vibration?.vibrationPeak || r.vibrationPeak || 0);
+        const vib = parseFloat(r.vibrationPeak || 0);
         const temp = parseFloat(r.temperature || 0);
 
         sumTilt += tilt;
@@ -102,7 +197,7 @@ export async function reportsRoutes(fastify) {
         sumTemp += temp;
       });
 
-      const totalCount = records ? records.length : 0;
+      const totalCount = formattedRecords.length;
       const avgTilt = totalCount > 0 ? (sumTilt / totalCount).toFixed(4) : 0;
       const avgTemp = totalCount > 0 ? (sumTemp / totalCount).toFixed(2) : 0;
 
@@ -122,28 +217,7 @@ export async function reportsRoutes(fastify) {
           maxVibrationPeak_g: parseFloat(maxVib.toFixed(4)),
           averageTemperature_C: parseFloat(avgTemp),
         },
-        timeSeriesData: (records || []).map(r => ({
-          timestamp: new Date(r.timestamp).toISOString(),
-          time: new Date(r.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-          deviceId: r.deviceId,
-          resultantTilt: parseFloat(r.resultantTilt || 0),
-          resultant: parseFloat(r.resultantTilt || 0),
-          xTilt: parseFloat(r.xTilt || 0),
-          yTilt: parseFloat(r.yTilt || 0),
-          zTilt: parseFloat(r.zTilt || r.resultantTilt || 0),
-          totalDisplacement: parseFloat(r.totalDisplacement || 0),
-          totalDisp: parseFloat(r.totalDisplacement || 0),
-          xDisplacement: parseFloat(r.xDisplacement || 0),
-          xDisp: parseFloat(r.xDisplacement || 0),
-          yDisplacement: parseFloat(r.yDisplacement || 0),
-          yDisp: parseFloat(r.yDisplacement || 0),
-          zDisplacement: parseFloat(r.zDisplacement || 0),
-          zDisp: parseFloat(r.zDisplacement || 0),
-          accMag: parseFloat(r.accMag || 0.982),
-          vibrationRMS: parseFloat(r.vibrationRMS || 0.045),
-          vibrationPeak: parseFloat(r.vibrationPeak || 0.104),
-          temperature: parseFloat(r.temperature || 28.5),
-        })),
+        timeSeriesData: formattedRecords,
       });
     } catch (err) {
       return reply.status(500).send({ statusCode: 500, error: 'Report Generation Error', message: err.message });

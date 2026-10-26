@@ -50,7 +50,9 @@ export default function TrendsPage() {
         (activeDev.xTilt === 0 || activeDev.xTilt === 0.0 || activeDev.xTilt === null || activeDev.xTilt === undefined) &&
         (activeDev.yTilt === 0 || activeDev.yTilt === 0.0 || activeDev.yTilt === null || activeDev.yTilt === undefined)
       )) ||
-      (activeDev?.resultantTilt === 0 || activeDev?.resultantTilt === 0.0)
+      (activeDev?.resultantTilt === 0 || activeDev?.resultantTilt === 0.0) ||
+      activeDev?.hasReferenceZero ||
+      activeDev?.calibrate
     );
 
     getTelemetryHistory(devId, utcFrom, utcTo, rangeKey)

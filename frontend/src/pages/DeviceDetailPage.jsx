@@ -42,6 +42,8 @@ export default function DeviceDetailPage() {
   // 1. Load individual device metadata using getDevice(deviceId)
   useEffect(() => {
     if (!deviceId) return;
+    setLiveData(null); // Clear previous device data immediately
+    setTelemetryHistory([]);
 
     getDevice(deviceId)
       .then(res => {
@@ -54,8 +56,7 @@ export default function DeviceDetailPage() {
             calibrate: Boolean(dev.calibrate),
             gaugeLength_mm: dev.gaugeLength_mm !== undefined ? dev.gaugeLength_mm : 1000,
           });
-          const parsed = parseTelemetry(dev);
-          setLiveData(parsed);
+          setLiveData(prev => prev || parseTelemetry(dev));
         } else {
           setDevice({ id: deviceId, name: `Tiltmeter ${deviceId}`, status: 'ONLINE' });
         }
@@ -181,7 +182,7 @@ export default function DeviceDetailPage() {
             setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
           }
           if (lastPoint) {
-            setLiveData(prev => prev || parseTelemetry(lastPoint));
+            setLiveData(parseTelemetry(lastPoint));
           }
         } else {
           setTelemetryHistory([]);
@@ -199,8 +200,10 @@ export default function DeviceDetailPage() {
   useEffect(() => {
     const unsubscribe = telemetryService.subscribe((packet) => {
       if (!packet) return;
-      const pktId = packet.deviceId || packet.id || packet.device_id;
-      if (!pktId || !deviceId || pktId.toLowerCase() === deviceId.toLowerCase()) {
+      const pktId = (packet.deviceId || packet.id || packet.device_id || '').toString().trim().toLowerCase();
+      const curId = (deviceId || '').toString().trim().toLowerCase();
+      // STRICT FILTER: Only accept packets that strictly belong to this device!
+      if (pktId && curId && pktId === curId) {
         const parsed = parseTelemetry(packet);
         setLiveData(parsed);
         const newPoint = mapPointData(parsed);

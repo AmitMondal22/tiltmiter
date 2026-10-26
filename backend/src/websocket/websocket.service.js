@@ -1,75 +1,108 @@
-import { Device } from '../models/index.js';
+import { Device, TelemetryRecord } from '../models/index.js';
+import pkg from 'sequelize';
+const { Op } = pkg;
 
 // WebSocket Live Telemetry Stream Broadcaster
 const clients = new Set();
 const latestTelemetryByDevice = new Map();
-let lastTelemetry = null;
 
 async function sendInitialData(socket, targetDeviceId) {
-  try {
-    // 1. If we have in-memory latest telemetry for target device or all devices, send immediately
-    if (targetDeviceId && latestTelemetryByDevice.has(targetDeviceId)) {
-      socket.send(JSON.stringify({
-        type: 'TELEMETRY_UPDATE',
-        data: latestTelemetryByDevice.get(targetDeviceId),
-        timestamp: new Date().toISOString()
-      }));
-      return;
-    }
+  if (!targetDeviceId) return;
+  const cleanTargetId = targetDeviceId.toString().trim();
+  const lowerTarget = cleanTargetId.toLowerCase();
 
-    if (latestTelemetryByDevice.size > 0) {
-      for (const [devId, devData] of latestTelemetryByDevice.entries()) {
-        if (!targetDeviceId || targetDeviceId === devId) {
+  try {
+    // 1. Check in-memory cache for this EXACT device (case-insensitive)
+    for (const [key, devData] of latestTelemetryByDevice.entries()) {
+      if (key && key.toLowerCase() === lowerTarget) {
+        if (socket.readyState === 1) {
           socket.send(JSON.stringify({
             type: 'TELEMETRY_UPDATE',
             data: devData,
             timestamp: new Date().toISOString()
           }));
         }
+        return;
+      }
+    }
+
+    // 2. Query latest telemetry record for this EXACT device from PostgreSQL
+    const latestRec = await TelemetryRecord.findOne({
+      where: {
+        [Op.or]: [
+          { deviceId: cleanTargetId },
+          { deviceId: cleanTargetId.toUpperCase() },
+          { deviceId: cleanTargetId.toLowerCase() }
+        ]
+      },
+      order: [['timestamp', 'DESC']],
+    });
+
+    if (latestRec) {
+      const rec = latestRec.toJSON ? latestRec.toJSON() : latestRec;
+      const payload = {
+        deviceId: rec.deviceId,
+        xTilt: rec.xTilt ?? 0,
+        yTilt: rec.yTilt ?? 0,
+        zTilt: rec.zTilt ?? 0,
+        resultantTilt: rec.resultantTilt ?? 0,
+        xDisplacement: rec.xDisplacement ?? 0,
+        yDisplacement: rec.yDisplacement ?? 0,
+        totalDisplacement: rec.totalDisplacement ?? 0,
+        temperature: rec.temperature !== null && rec.temperature !== undefined ? `${rec.temperature} °C` : '--',
+        temp: rec.temperature ?? null,
+        timestamp: rec.timestamp,
+        status: 'ONLINE',
+        rawPayload: rec.rawPayload || {}
+      };
+      latestTelemetryByDevice.set(rec.deviceId, payload);
+      latestTelemetryByDevice.set(rec.deviceId.toLowerCase(), payload);
+      if (socket.readyState === 1) {
+        socket.send(JSON.stringify({
+          type: 'TELEMETRY_UPDATE',
+          data: payload,
+          timestamp: new Date().toISOString()
+        }));
       }
       return;
     }
 
-    if (lastTelemetry) {
+    // 3. Fallback: check device row itself
+    const dev = await Device.findOne({
+      where: {
+        [Op.or]: [
+          { id: cleanTargetId },
+          { id: cleanTargetId.toUpperCase() },
+          { id: cleanTargetId.toLowerCase() }
+        ]
+      }
+    });
+
+    if (dev && socket.readyState === 1) {
+      const d = dev.toJSON();
+      const payload = {
+        deviceId: d.id,
+        xTilt: d.xTilt ?? 0,
+        yTilt: d.yTilt ?? 0,
+        resultantTilt: d.resultantTilt ?? 0,
+        xDisplacement: d.xDisplacement ?? 0,
+        yDisplacement: d.yDisplacement ?? 0,
+        totalDisplacement: d.totalDisplacement ?? 0,
+        temp: d.temperature ?? null,
+        temperature: d.temperature ? `${d.temperature} °C` : '--',
+        battery: d.battery || null,
+        signalStrength: d.signalStrength || null,
+        timestamp: d.lastSeen || new Date().toISOString(),
+        status: d.status || 'ONLINE',
+      };
       socket.send(JSON.stringify({
         type: 'TELEMETRY_UPDATE',
-        data: lastTelemetry,
+        data: payload,
         timestamp: new Date().toISOString()
       }));
-      return;
-    }
-
-    // 2. Otherwise load last known device state from database for immediate fast data
-    const devices = await Device.findAll({ limit: 10 });
-    if (devices && devices.length > 0) {
-      devices.forEach(dev => {
-        const d = dev.toJSON();
-        const payload = {
-          deviceId: d.id,
-          xTilt: d.xTilt ?? 0,
-          yTilt: d.yTilt ?? 0,
-          resultantTilt: d.resultantTilt ?? 0,
-          xDisplacement: d.xDisplacement ?? 0,
-          yDisplacement: d.yDisplacement ?? 0,
-          totalDisplacement: d.totalDisplacement ?? 0,
-          temp: d.temperature ?? 28.5,
-          timestamp: d.lastSeen || new Date().toISOString(),
-          status: d.status || 'ONLINE',
-        };
-        latestTelemetryByDevice.set(d.id, payload);
-        if (!targetDeviceId || targetDeviceId === d.id) {
-          try {
-            socket.send(JSON.stringify({
-              type: 'TELEMETRY_UPDATE',
-              data: payload,
-              timestamp: new Date().toISOString()
-            }));
-          } catch (e) {}
-        }
-      });
     }
   } catch (err) {
-    // Database query fallback
+    console.warn(`[WebSocket] sendInitialData error for ${cleanTargetId}:`, err.message);
   }
 }
 
@@ -152,11 +185,12 @@ export function registerWebSocketHandler(fastify) {
 
 export function broadcastTelemetry(data) {
   if (!data) return;
-  const devId = data.deviceId || data.id;
+  const devId = (data.deviceId || data.id || '').toString().trim();
+  const lowerDevId = devId.toLowerCase();
   if (devId) {
     latestTelemetryByDevice.set(devId, data);
+    latestTelemetryByDevice.set(lowerDevId, data);
   }
-  lastTelemetry = data;
 
   const payload = JSON.stringify({
     type: 'TELEMETRY_UPDATE',
@@ -167,8 +201,9 @@ export function broadcastTelemetry(data) {
   for (const client of clients) {
     try {
       if (client.readyState === 1) { // OPEN
-        // If client specifically targeted a device, only send if matches
-        if (!client.targetDeviceId || client.targetDeviceId === devId) {
+        const clientTarget = (client.targetDeviceId || '').toString().trim().toLowerCase();
+        // If client specifically targeted a device, only send if matches exactly
+        if (!clientTarget || clientTarget === lowerDevId) {
           client.send(payload);
         }
       } else if (client.readyState === 2 || client.readyState === 3) {

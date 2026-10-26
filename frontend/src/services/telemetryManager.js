@@ -32,15 +32,14 @@ class TelemetryManager {
       this.requestLatest(targetDeviceId);
     }
 
-    // Instantly provide cached telemetry if available for this device
-    if (targetDeviceId && this.latestByDevice.has(targetDeviceId)) {
-      try {
-        callback(this.latestByDevice.get(targetDeviceId));
-      } catch (e) {}
-    } else if (!targetDeviceId && this.lastPacket) {
-      try {
-        callback(this.lastPacket);
-      } catch (e) {}
+    // Instantly provide cached telemetry if available for this specific device
+    if (targetDeviceId) {
+      const lower = targetDeviceId.toString().trim().toLowerCase();
+      if (this.latestByDevice.has(lower)) {
+        try {
+          callback(this.latestByDevice.get(lower));
+        } catch (e) {}
+      }
     }
 
     // Return clean unsubscribe function
@@ -74,16 +73,17 @@ class TelemetryManager {
   notifyData(data) {
     if (!data) return;
     const parsed = parseTelemetry(data);
-    const devId = parsed.deviceId || parsed.id;
+    const devId = (parsed.deviceId || parsed.id || '').toString().trim();
+    if (!devId) return;
+    const lowerDevId = devId.toLowerCase();
 
-    if (devId) {
-      this.latestByDevice.set(devId, parsed);
-    }
+    this.latestByDevice.set(devId, parsed);
+    this.latestByDevice.set(lowerDevId, parsed);
     this.lastPacket = parsed;
 
-    // Dispatch to subscribers matching deviceId or listening to ALL devices
+    // Dispatch ONLY to subscribers matching this exact deviceId (case-insensitive) or subscribers with no filter
     this.subscribers.forEach(({ callback, targetDeviceId }) => {
-      if (!targetDeviceId || targetDeviceId === devId) {
+      if (!targetDeviceId || targetDeviceId.toString().trim().toLowerCase() === lowerDevId) {
         try {
           callback(parsed);
         } catch (e) {}

@@ -191,7 +191,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
           }
           if (lastPoint) {
-            setLiveData(prev => prev || parseTelemetry(lastPoint));
+            setLiveData(parseTelemetry(lastPoint));
           }
         } else {
           setTelemetryHistory([]);
@@ -221,7 +221,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             status: dev.status || 'ONLINE',
             gaugeLength_mm: dev.gaugeLength_mm !== undefined ? dev.gaugeLength_mm : 1000,
           });
-          setLiveData(parseTelemetry(dev));
+          setLiveData(prev => prev || parseTelemetry(dev));
         }
       })
       .catch(() => {});
@@ -235,8 +235,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
     const unsubscribe = telemetryService.subscribe((packet) => {
       if (!packet) return;
-      const pktId = packet.deviceId || packet.id || packet.device_id;
-      if (!pktId || pktId.toLowerCase() === selectedId.toLowerCase()) {
+      const pktId = (packet.deviceId || packet.id || packet.device_id || '').toString().trim().toLowerCase();
+      const curId = (selectedId || '').toString().trim().toLowerCase();
+      // STRICT FILTER: Only accept packets that strictly belong to this selected device!
+      if (pktId && curId && pktId === curId) {
         const parsed = parseTelemetry(packet);
         setLiveData(parsed);
         const newPoint = mapPointData(parsed);
@@ -258,6 +260,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const handleDeviceSelect = (newId) => {
     setSelectedId(newId);
     setLiveData(null);
+    setTelemetryHistory([]);
     const found = deviceList.find(d => d.id === newId);
     if (found && onSelectDevice) {
       onSelectDevice(found);

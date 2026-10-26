@@ -1,7 +1,7 @@
 import { saveTelemetryPoint } from '../../config/influx.js';
 import { broadcastTelemetry } from '../../websocket/websocket.service.js';
 import { evaluateTelemetryAlerts } from '../../services/alertEngineService.js';
-import { Device } from '../../models/index.js';
+import { Device } from '../../models/Device.js';
 
 export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const deviceId = rawPayload.deviceId || rawPayload.device_id || params.deviceId || 'TM-001';
@@ -43,7 +43,9 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   // 3. ClinoX Conversion & Database Reference Zero Lookup
   let deviceRecord = null;
   try {
-    deviceRecord = await Device.findByPk(deviceId);
+    if (Device && typeof Device.findByPk === 'function') {
+      deviceRecord = await Device.findByPk(deviceId);
+    }
   } catch (e) {}
 
   const hasRefZero = Boolean(deviceRecord?.hasReferenceZero);
@@ -150,13 +152,15 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   broadcastTelemetry(telemetryData);
 
   // 3. Asynchronously evaluate alerts against safety thresholds
-  Device.findByPk(deviceId).then(device => {
-    if (device) {
-      evaluateTelemetryAlerts(device, telemetryData).catch(err => {
-        console.warn(`[Alert Engine] Evaluation error on ${deviceId}:`, err.message);
-      });
-    }
-  }).catch(() => {});
+  if (Device && typeof Device.findByPk === 'function') {
+    Device.findByPk(deviceId).then(device => {
+      if (device) {
+        evaluateTelemetryAlerts(device, telemetryData).catch(err => {
+          console.warn(`[Alert Engine] Evaluation error on ${deviceId}:`, err.message);
+        });
+      }
+    }).catch(() => {});
+  }
 
   return { deviceId, timestamp: telemetryData.timestamp, data: telemetryData };
 }

@@ -1,5 +1,5 @@
 import { processAndSaveTelemetry } from './ingestion.service.js';
-import { Device } from '../../models/index.js';
+import { Device } from '../../models/Device.js';
 
 export async function receiveTelemetryHandler(req, reply) {
   try {
@@ -13,17 +13,19 @@ export async function receiveTelemetryHandler(req, reply) {
     // Retrieve active device settings from database
     let devObj = null;
     try {
-      devObj = await Device.findByPk(deviceId);
+      if (Device && typeof Device.findByPk === 'function') {
+        devObj = await Device.findByPk(deviceId);
+      }
     } catch (e) {}
 
-    // Exact response format requested by user
+    // Exact response format returned to hardware device
     return reply.status(200).send({
       success: true,
       device_id: deviceId,
       settings: {
-        sleep_count: devObj?.sleep_count ?? 10, // Minutes
+        sleep_count: devObj?.sleep_count ?? 15, // Minutes
         wake_count: devObj?.wake_count ?? 30,   // Seconds
-        calibrate: devObj?.calibrate ?? false   // true / false
+        calibrate: Boolean(devObj?.calibrate ?? false)   // true / false
       }
     });
   } catch (err) {

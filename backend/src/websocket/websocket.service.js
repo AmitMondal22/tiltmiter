@@ -67,40 +67,8 @@ async function sendInitialData(socket, targetDeviceId) {
       return;
     }
 
-    // 3. Fallback: check device row itself
-    const dev = await Device.findOne({
-      where: {
-        [Op.or]: [
-          { id: cleanTargetId },
-          { id: cleanTargetId.toUpperCase() },
-          { id: cleanTargetId.toLowerCase() }
-        ]
-      }
-    });
-
-    if (dev && socket.readyState === 1) {
-      const d = dev.toJSON();
-      const payload = {
-        deviceId: d.id,
-        xTilt: d.xTilt ?? 0,
-        yTilt: d.yTilt ?? 0,
-        resultantTilt: d.resultantTilt ?? 0,
-        xDisplacement: d.xDisplacement ?? 0,
-        yDisplacement: d.yDisplacement ?? 0,
-        totalDisplacement: d.totalDisplacement ?? 0,
-        temp: d.temperature ?? null,
-        temperature: d.temperature ? `${d.temperature} °C` : '--',
-        battery: d.battery || null,
-        signalStrength: d.signalStrength || null,
-        timestamp: d.lastSeen || new Date().toISOString(),
-        status: d.status || 'ONLINE',
-      };
-      socket.send(JSON.stringify({
-        type: 'TELEMETRY_UPDATE',
-        data: payload,
-        timestamp: new Date().toISOString()
-      }));
-    }
+    // 3. If device has no telemetry records in database yet, do NOT send fake telemetry
+    return;
   } catch (err) {
     console.warn(`[WebSocket] sendInitialData error for ${cleanTargetId}:`, err.message);
   }

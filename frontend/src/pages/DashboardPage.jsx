@@ -192,13 +192,17 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           }
           if (lastPoint) {
             setLiveData(parseTelemetry(lastPoint));
+          } else {
+            setLiveData(null);
           }
         } else {
           setTelemetryHistory([]);
+          setLiveData(null);
         }
       })
       .catch(() => {
         setTelemetryHistory([]);
+        setLiveData(null);
       })
       .finally(() => {
         setLoading(false);
@@ -221,7 +225,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             status: dev.status || 'ONLINE',
             gaugeLength_mm: dev.gaugeLength_mm !== undefined ? dev.gaugeLength_mm : 1000,
           });
-          setLiveData(prev => prev || parseTelemetry(dev));
         }
       })
       .catch(() => {});
@@ -424,6 +427,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     document.body.removeChild(link);
   };
 
+  const hasData = Boolean(liveData);
   const d = liveData || parseTelemetry(activeDevice || { id: selectedId });
   const rawRoll = typeof d.xTilt === 'number' ? d.xTilt : 0;
   const rawPitch = typeof d.yTilt === 'number' ? d.yTilt : 0;
@@ -668,25 +672,25 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             <div className="grid grid-cols-3 gap-2 text-center font-mono">
               <div className="p-2 rounded-xl bg-blue-50/60 border border-blue-100">
                 <div className="text-[9px] text-blue-700 uppercase font-bold">ΔθX</div>
-                <div className="text-base font-bold text-blue-700 mt-0.5">{roll >= 0 ? '+' : ''}{roll.toFixed(3)}°</div>
+                <div className="text-base font-bold text-blue-700 mt-0.5">{hasData ? `${roll >= 0 ? '+' : ''}${roll.toFixed(3)}°` : '--'}</div>
                 <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
-                  {xSlope >= 0 ? '+' : ''}{xSlope.toFixed(2)} mm/m
+                  {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
                 </div>
               </div>
 
               <div className="p-2 rounded-xl bg-purple-50/60 border border-purple-100">
                 <div className="text-[9px] text-purple-700 uppercase font-bold">ΔθY</div>
-                <div className="text-base font-bold text-purple-700 mt-0.5">{pitch >= 0 ? '+' : ''}{pitch.toFixed(3)}°</div>
+                <div className="text-base font-bold text-purple-700 mt-0.5">{hasData ? `${pitch >= 0 ? '+' : ''}${pitch.toFixed(3)}°` : '--'}</div>
                 <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
-                  {ySlope >= 0 ? '+' : ''}{ySlope.toFixed(2)} mm/m
+                  {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
                 </div>
               </div>
 
               <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
                 <div className="text-[9px] text-emerald-700 uppercase font-bold">ΔθZ</div>
-                <div className="text-base font-bold text-emerald-700 mt-0.5">{zTilt >= 0 ? '+' : ''}{zTilt.toFixed(3)}°</div>
+                <div className="text-base font-bold text-emerald-700 mt-0.5">{hasData ? `${zTilt >= 0 ? '+' : ''}${zTilt.toFixed(3)}°` : '--'}</div>
                 <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
-                  {zSlope >= 0 ? '+' : ''}{zSlope.toFixed(2)} mm/m
+                  {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
                 </div>
               </div>
             </div>
@@ -701,25 +705,25 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="text-[9px] text-cyan-700 uppercase font-bold">DX</div>
-                <div className="text-xs font-bold text-cyan-700 mt-0.5">{xDisp >= 0 ? '+' : ''}{xDisp.toFixed(3)}</div>
+                <div className="text-xs font-bold text-cyan-700 mt-0.5">{hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(3)}` : '--'}</div>
                 <div className="text-[8px] text-slate-400">mm</div>
               </div>
 
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="text-[9px] text-amber-700 uppercase font-bold">DY</div>
-                <div className="text-xs font-bold text-amber-700 mt-0.5">{yDisp >= 0 ? '+' : ''}{yDisp.toFixed(3)}</div>
+                <div className="text-xs font-bold text-amber-700 mt-0.5">{hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(3)}` : '--'}</div>
                 <div className="text-[8px] text-slate-400">mm</div>
               </div>
 
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="text-[9px] text-slate-500 uppercase font-bold">DZ</div>
-                <div className="text-xs font-bold text-slate-400 mt-0.5">N/A</div>
+                <div className="text-xs font-bold text-slate-400 mt-0.5">{hasData ? (d.zDisp !== undefined ? `${zDisp.toFixed(3)}` : 'N/A') : '--'}</div>
                 <div className="text-[8px] text-slate-400">mm</div>
               </div>
 
               <div className="p-2 rounded-xl bg-pink-50/70 border border-pink-200/80">
                 <div className="text-[9px] text-pink-700 uppercase font-bold">Total D</div>
-                <div className="text-xs font-bold text-pink-700 mt-0.5">{totalDisp.toFixed(3)}</div>
+                <div className="text-xs font-bold text-pink-700 mt-0.5">{hasData ? totalDisp.toFixed(3) : '--'}</div>
                 <div className="text-[8px] text-pink-500 font-semibold">mm</div>
               </div>
             </div>
@@ -728,11 +732,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-50 text-[10px] font-mono text-slate-600">
               <span>
                 <span className="text-slate-400 font-sans">Displace Angle:</span>{' '}
-                <span className="font-bold text-slate-800">{dispAngleDeg.toFixed(1)}° ({dispCardinal})</span>
+                <span className="font-bold text-slate-800">{hasData ? `${dispAngleDeg.toFixed(1)}° (${dispCardinal})` : '--'}</span>
               </span>
               <span>
                 <span className="text-slate-400 font-sans">Tilt Bearing:</span>{' '}
-                <span className="font-bold text-blue-600">{(d.tiltDirectionAngle ?? 0).toFixed(1)}° ({d.tiltDirectionCardinal || 'N'})</span>
+                <span className="font-bold text-blue-600">{hasData ? `${(d.tiltDirectionAngle ?? 0).toFixed(1)}° (${d.tiltDirectionCardinal || 'N'})` : '--'}</span>
               </span>
             </div>
           </div>

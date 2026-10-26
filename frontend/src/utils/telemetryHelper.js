@@ -97,7 +97,7 @@ export function parseTelemetry(data) {
   const refThetaX = parseFloat(data.refThetaX ?? data.baselineRoll ?? 0.0);
   const refThetaY = parseFloat(data.refThetaY ?? data.baselinePitch ?? 0.0);
   const refThetaZ = parseFloat(data.refThetaZ ?? data.baselineTilt ?? 0.0);
-  const hasReferenceZero = Boolean(data.hasReferenceZero || data.calibrate);
+  const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)));
 
   // ClinoX D = L * tan(Δθ * π / 180)
   const clinoX = calculateTiltToDisplacement({
@@ -145,20 +145,23 @@ export function parseTelemetry(data) {
     ? rawTotalDisp
     : (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : Math.sqrt(xDisp * xDisp + yDisp * yDisp));
 
-  // Environment & Calibration
-  const temp = data.environment?.temperature ?? (typeof data.temperature === 'number' ? data.temperature : parseFloat(data.temperature) || 25.0);
-  const calibrated = data.calibration?.calibrated ?? false;
+  // Environment & Calibration - no dummy values
+  const rawTemp = data.environment?.temperature ?? data.temperature ?? data.temp;
+  const temp = rawTemp !== undefined && rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
+  const calibrated = Boolean(data.calibration?.calibrated ?? data.calibrate ?? data.hasReferenceZero ?? false);
 
   // Power & Battery Percentage calculation: 13V is 100%, 0V is 0%, min 0%, max 100%
-  const batteryVoltage = data.power?.batteryVoltage ?? (typeof data.batteryVoltage === 'number' ? data.batteryVoltage : parseFloat(data.batteryVoltage) || (typeof data.battery === 'number' ? data.battery : parseFloat(data.battery)) || 13.03);
-  const batteryPercent = Math.min(100, Math.max(0, Math.round((batteryVoltage / 13) * 100)));
-  const batteryStr = `${batteryPercent}%`;
+  const rawBat = data.power?.batteryVoltage ?? data.batteryVoltage ?? data.battery;
+  const batteryVoltage = rawBat !== undefined && rawBat !== null && !isNaN(parseFloat(rawBat)) ? parseFloat(rawBat) : null;
+  const batteryPercent = batteryVoltage !== null ? Math.min(100, Math.max(0, Math.round((batteryVoltage / 13) * 100))) : null;
+  const batteryStr = batteryPercent !== null ? `${batteryPercent}%` : null;
 
   // Network & CSQ Percentage calculation: 31 CSQ is 100%, 0 CSQ is 0%, min 0%, max 100%
-  const csq = data.network?.csq ?? (typeof data.csq === 'number' ? data.csq : parseInt(data.csq) || (typeof data.signal === 'number' ? data.signal : parseInt(data.signal)) || 19);
-  const csqPercent = Math.min(100, Math.max(0, Math.round((csq / 31) * 100)));
-  const csqStr = `${csqPercent}%`;
-  const signalStr = `${csqPercent}%`;
+  const rawCsq = data.network?.csq ?? data.csq ?? data.signal;
+  const csq = rawCsq !== undefined && rawCsq !== null && !isNaN(parseInt(rawCsq)) ? parseInt(rawCsq) : null;
+  const csqPercent = csq !== null ? Math.min(100, Math.max(0, Math.round((csq / 31) * 100))) : null;
+  const csqStr = csqPercent !== null ? `${csqPercent}%` : null;
+  const signalStr = csqStr;
 
   // Calculate cardinal tilt direction angle
   const angleRad = Math.atan2(pitch, roll);
@@ -171,7 +174,7 @@ export function parseTelemetry(data) {
 
   return {
     ...data,
-    deviceId: data.deviceId || 'TM-001',
+    deviceId: data.deviceId || data.id || null,
     // Mapped flat fields
     roll,
     pitch,
@@ -238,13 +241,13 @@ export function parseTelemetry(data) {
 
     // Environment & Power & Network & Calibration
     temp,
-    temperature: typeof temp === 'number' ? `${temp} °C` : temp,
+    temperature: temp !== null && temp !== undefined ? `${temp} °C` : '--',
 
     // Power
     battery: batteryStr,
     batteryPercent,
     batteryVoltage,
-    batteryVoltageFormatted: `${batteryVoltage.toFixed(2)} V`,
+    batteryVoltageFormatted: batteryVoltage !== null ? `${batteryVoltage.toFixed(2)} V` : '--',
     power: { batteryVoltage, batteryPercent },
 
     // Network

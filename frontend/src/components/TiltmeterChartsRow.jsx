@@ -127,16 +127,21 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : (pt.xDisplacement !== undefined && pt.xDisplacement !== null ? parseFloat(pt.xDisplacement) : clinoDx);
       const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : (pt.yDisplacement !== undefined && pt.yDisplacement !== null ? parseFloat(pt.yDisplacement) : clinoDy);
 
-      // Acceleration: convert to g if > 3
-      const rawAx = parseFloat(pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? 0.012) || 0.012;
-      const rawAy = parseFloat(pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? -0.006) || -0.006;
-      const rawAz = parseFloat(pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? 0.998) || 0.998;
+      // Acceleration: convert to g if > 3 (no dummy fallbacks)
+      const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
+      const rawAyRaw = pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? null;
+      const rawAzRaw = pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? null;
 
-      const axG = Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx;
-      const ayG = Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy;
-      const azG = Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz;
+      const rawAx = rawAxRaw !== null && !isNaN(parseFloat(rawAxRaw)) ? parseFloat(rawAxRaw) : null;
+      const rawAy = rawAyRaw !== null && !isNaN(parseFloat(rawAyRaw)) ? parseFloat(rawAyRaw) : null;
+      const rawAz = rawAzRaw !== null && !isNaN(parseFloat(rawAzRaw)) ? parseFloat(rawAzRaw) : null;
 
-      const tempVal = parseFloat(pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? 26.4) || 26.4;
+      const axG = rawAx !== null ? (Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx) : null;
+      const ayG = rawAy !== null ? (Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy) : null;
+      const azG = rawAz !== null ? (Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz) : null;
+
+      const rawTemp = pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? null;
+      const tempVal = rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
 
       return {
         ...pt,
@@ -147,16 +152,24 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
         zTilt: Number(zT.toFixed(4)),
         xDisp: Number(xD.toFixed(3)),
         yDisp: Number(yD.toFixed(3)),
-        axG: Number(axG.toFixed(3)),
-        ayG: Number(ayG.toFixed(3)),
-        azG: Number(azG.toFixed(3)),
-        temp: Number(tempVal.toFixed(1)),
+        axG: axG !== null ? Number(axG.toFixed(3)) : null,
+        ayG: ayG !== null ? Number(ayG.toFixed(3)) : null,
+        azG: azG !== null ? Number(azG.toFixed(3)) : null,
+        temp: tempVal !== null ? Number(tempVal.toFixed(1)) : null,
       };
     });
   }, [telemetryHistory, L, refX, refY, refZ, hasRef]);
 
   const totalPoints = chartData.length;
   const lastPt = totalPoints > 0 ? chartData[totalPoints - 1] : null;
+
+  const hasAccelData = useMemo(() => {
+    return chartData.some(p => p.axG !== null || p.ayG !== null || p.azG !== null);
+  }, [chartData]);
+
+  const hasTempData = useMemo(() => {
+    return chartData.some(p => p.temp !== null);
+  }, [chartData]);
 
   // Chart 1: Dynamic smart vertical offsets for Tilt (X, Y, Z) to prevent text collision
   const tiltOffsets = useMemo(() => {
@@ -192,7 +205,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
 
   // Chart 3: Dynamic smart vertical offsets for Acceleration (X, Y, Z)
   const accelOffsets = useMemo(() => {
-    if (!lastPt) return { z: 0, x: -5, y: 7 };
+    if (!lastPt || lastPt.axG === null || lastPt.ayG === null) return { z: 0, x: -5, y: 7 };
     const diffXY = lastPt.axG - lastPt.ayG;
     const offsets = { z: 0, x: -5, y: 7 };
     if (Math.abs(diffXY) < 0.2) {
@@ -421,9 +434,9 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
 
         {/* Chart Body */}
         <div className="h-56 w-full relative">
-          {totalPoints === 0 ? (
+          {totalPoints === 0 || !hasAccelData ? (
             <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs font-mono">
-              {loading ? 'Loading acceleration records...' : 'No telemetry data available'}
+              {loading ? 'Loading acceleration records...' : (totalPoints === 0 ? 'No telemetry data available' : 'No acceleration data recorded')}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
@@ -503,9 +516,9 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
 
         {/* Chart Body */}
         <div className="h-56 w-full relative">
-          {totalPoints === 0 ? (
+          {totalPoints === 0 || !hasTempData ? (
             <div className="h-full w-full flex items-center justify-center text-slate-400 text-xs font-mono">
-              {loading ? 'Loading temperature records...' : 'No telemetry data available'}
+              {loading ? 'Loading temperature records...' : (totalPoints === 0 ? 'No telemetry data available' : 'No temperature data recorded')}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">

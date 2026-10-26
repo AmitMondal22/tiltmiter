@@ -1,21 +1,26 @@
-import { InfluxDB, Point } from '@influxdata/influxdb-client';
+// InfluxDB OSS Config - DISABLED on server; PostgreSQL is primary time-series store.
+// Uncomment InfluxDB sections below only when InfluxDB OSS is running and configured.
+// import { InfluxDB, Point } from '@influxdata/influxdb-client';
 import dotenv from 'dotenv';
 import { Device, TelemetryRecord } from '../models/index.js';
 
 dotenv.config();
 
-const url = process.env.INFLUX_URL || 'http://localhost:8086';
-const token = process.env.INFLUX_TOKEN || 'my-super-secret-auth-token';
-const org = process.env.INFLUX_ORG || 'tiltmeter_org';
-const bucket = process.env.INFLUX_BUCKET || 'telemetry_bucket';
+// InfluxDB connection parameters (kept for reference / future use)
+// const url = process.env.INFLUX_URL || 'http://localhost:8086';
+// const token = process.env.INFLUX_TOKEN || 'my-super-secret-auth-token';
+// const org = process.env.INFLUX_ORG || 'tiltmeter_org';
+// const bucket = process.env.INFLUX_BUCKET || 'telemetry_bucket';
 
-export const influxDB = new InfluxDB({ url, token });
-export const writeApi = influxDB.getWriteApi(org, bucket, 'ns', {
-  maxRetries: 0,
-  maxRetryTime: 500,
-  writeFailed: () => {},
-});
-export const queryApi = influxDB.getQueryApi(org);
+// InfluxDB client instances - DISABLED (PostgreSQL primary)
+// export const influxDB = new InfluxDB({ url, token });
+// export const writeApi = influxDB.getWriteApi(org, bucket, 'ns', { maxRetries: 0, maxRetryTime: 500, writeFailed: () => {} });
+// export const queryApi = influxDB.getQueryApi(org);
+
+// Stub exports so existing imports do not break
+export const influxDB = null;
+export const writeApi = null;
+export const queryApi = null;
 
 // Fallback in-memory ring buffer for high-frequency telemetry stream
 export const inMemoryTelemetryStore = new Map();
@@ -46,30 +51,8 @@ export async function saveTelemetryPoint(data) {
   }
   const deviceHistory = inMemoryTelemetryStore.get(deviceId);
 
-  // 1. Write Telemetry Point to InfluxDB OSS Database
-  try {
-    const point = new Point('device_telemetry')
-      .tag('device_id', deviceId)
-      .floatField('x_tilt', xTilt)
-      .floatField('y_tilt', yTilt)
-      .floatField('z_tilt', zTilt)
-      .floatField('resultant_tilt', resultantTilt)
-      .floatField('x_displacement', xDisplacement)
-      .floatField('y_displacement', yDisplacement)
-      .floatField('z_displacement', zDisplacement)
-      .floatField('total_displacement', totalDisplacement)
-      .floatField('temperature', tempVal)
-      .floatField('battery_voltage', batteryVoltage)
-      .intField('csq', csq)
-      .floatField('acc_mag', data.acceleration?.accMag || 9.82)
-      .floatField('gyro_mag', data.gyroscope?.gyroMag || 0.008)
-      .floatField('vib_rms', data.vibration?.vibrationRMS || 0.045)
-      .timestamp(validTimestamp);
-
-    writeApi.writePoint(point);
-  } catch (err) {
-    // InfluxDB optional write fallback
-  }
+  // 1. InfluxDB write is DISABLED - PostgreSQL is primary time-series database
+  // If you enable InfluxDB in the future, restore the writeApi.writePoint(point) block here.
 
   // 2. Persist into PostgreSQL TelemetryRecord and update Device state
   try {
@@ -157,13 +140,18 @@ export async function saveTelemetryPoint(data) {
     time: validTimestamp.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
     timestamp: isoTimestamp,
     deviceId,
-    tiltX: xTilt,
-    tiltY: yTilt,
-    resultant: resultantTilt,
+    xTilt,
+    yTilt,
+    zTilt,
+    resultantTilt,
     xDisp: xDisplacement,
     yDisp: yDisplacement,
+    zDisp: zDisplacement,
     totalDisp: totalDisplacement,
-    temperature: `${tempVal} °C`,
+    temperature: tempVal,
+    acceleration: data.acceleration || null,
+    gyroscope: data.gyroscope || null,
+    vibration: data.vibration || null,
     ...data,
   });
 
@@ -172,35 +160,9 @@ export async function saveTelemetryPoint(data) {
   }
 }
 
-// Flux Query InfluxDB OSS Time-Series Data
+// Flux Query InfluxDB OSS Time-Series Data - DISABLED (PostgreSQL primary)
+// This function always returns empty array when InfluxDB is not configured.
 export async function queryInfluxTelemetry(deviceId, rangeStart = '-24h', rangeStop = 'now()') {
-  const fluxQuery = `
-    from(bucket: "${bucket}")
-      |> range(start: ${rangeStart}, stop: ${rangeStop})
-      |> filter(fn: (r) => r["_measurement"] == "device_telemetry")
-      |> filter(fn: (r) => r["device_id"] == "${deviceId}")
-      |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-      |> limit(n: 500)
-  `;
-
-  const results = [];
-  try {
-    for await (const { values, tableMeta } of queryApi.iterateRows(fluxQuery)) {
-      const o = tableMeta.toObject(values);
-      results.push({
-        time: new Date(o._time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-        timestamp: new Date(o._time).toISOString(),
-        deviceId: o.device_id,
-        tiltX: o.x_tilt ?? 0,
-        tiltY: o.y_tilt ?? 0,
-        resultant: o.resultant_tilt ?? 0,
-        xDisp: o.x_displacement ?? 0,
-        yDisp: o.y_displacement ?? 0,
-        totalDisp: o.total_displacement ?? 0,
-        temperature: `${o.temperature ?? 25.0} °C`,
-      });
-    }
-  } catch (err) {}
-
-  return results;
+  // InfluxDB query is disabled. Return empty to fall through to PostgreSQL.
+  return [];
 }

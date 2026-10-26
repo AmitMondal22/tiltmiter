@@ -1,11 +1,11 @@
 import pkg from 'sequelize';
 const { Op } = pkg;
 import { TelemetryRecord, Device } from '../../models/index.js';
-import { inMemoryTelemetryStore, queryInfluxTelemetry } from '../../config/influx.js';
+import { inMemoryTelemetryStore } from '../../config/influx.js';
 import { authenticate, authenticateOptional } from '../../middleware/authMiddleware.js';
 
 export async function telemetryRoutes(fastify) {
-  // Query historical time-series telemetry from InfluxDB OSS Database / PostgreSQL / In-Memory with full date-time support
+  // Query historical time-series telemetry from PostgreSQL / In-Memory with full date-time support
   fastify.get('/api/telemetry/:deviceId', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     const { deviceId } = req.params;
     const { fromDate, toDate, range } = req.query || {};
@@ -95,27 +95,45 @@ export async function telemetryRoutes(fastify) {
       }
     } catch (devLookupErr) {}
 
-    const isZeroCalibrated = Boolean(
-      (devRecord && (
-        (devRecord.xTilt === 0.0 || devRecord.xTilt === 0 || devRecord.xTilt === null || devRecord.xTilt === undefined) &&
-        (devRecord.yTilt === 0.0 || devRecord.yTilt === 0 || devRecord.yTilt === null || devRecord.yTilt === undefined)
-      )) ||
-      devRecord?.hasReferenceZero ||
-      devRecord?.calibrate
-    );
     const hasReferenceZero = Boolean(devRecord?.hasReferenceZero || devRecord?.calibrate);
     const refX = parseFloat(devRecord?.refThetaX ?? 0.0) || 0.0;
     const refY = parseFloat(devRecord?.refThetaY ?? 0.0) || 0.0;
     const refZ = parseFloat(devRecord?.refThetaZ ?? 0.0) || 0.0;
     const L = parseFloat(devRecord?.gaugeLength_mm ?? 1000.0) || 1000.0;
 
-    // Helper to format every point ensuring ALL data reflects zero when device is zeroed
-    const formatPoint = (pt) => {
+    // Helper to extract sensor values from rawPayload nested structure or flat fields
+    const extractFromRecord = (r) => {
+      const raw = r.rawPayload || {};
+      // Acceleration - prefer rawPayload nested first
+      const ax = parseFloat(raw.acceleration?.ax ?? raw.acceleration?.axG ?? r.acceleration?.ax ?? 0) || 0;
+      const ay = parseFloat(raw.acceleration?.ay ?? raw.acceleration?.ayG ?? r.acceleration?.ay ?? 0) || 0;
+      const az = parseFloat(raw.acceleration?.az ?? raw.acceleration?.azG ?? r.acceleration?.az ?? 0) || 0;
+      // Convert m/s² to g if values > 3 (hardware sends m/s²)
+      const axG = Math.abs(ax) > 3.0 ? ax / 9.80665 : ax;
+      const ayG = Math.abs(ay) > 3.0 ? ay / 9.80665 : ay;
+      const azG = Math.abs(az) > 3.0 ? az / 9.80665 : az;
+      const accMag = parseFloat(raw.acceleration?.accMag ?? r.acceleration?.accMag ?? Math.sqrt(axG*axG + ayG*ayG + azG*azG)) || null;
+
+      // Vibration
+      const vibRMS = parseFloat(raw.vibration?.vibrationRMS ?? raw.vibration?.vibration ?? r.vibration?.vibrationRMS ?? r.vibration?.vibration ?? null);
+      const vibPeak = parseFloat(raw.vibration?.vibrationPeak ?? r.vibration?.vibrationPeak ?? null);
+
+      // Temperature - stored as number in DB
+      const temperature = parseFloat(r.temperature ?? raw.environment?.temperature ?? null);
+
+      return { ax, ay, az, axG, ayG, azG, accMag, vibRMS, vibPeak, temperature };
+    };
+
+    // Helper to format every point ensuring calibration data is correctly applied
+    const formatPoint = (pt, extracted = null) => {
       const rawX = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0) || 0;
       const rawY = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
       const rawZ = parseFloat(pt.zTilt ?? pt.tiltZ ?? 0) || 0;
       const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt;
       const calcRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(rawX * rawX + rawY * rawY);
+
+      // Check if hardware already performed zero tare (calibration flag in rawPayload)
+      const isHwCalibrated = Boolean(pt.rawPayload?.calibration?.calibrated || pt.calibration?.calibrated);
 
       let finalXTilt = rawX;
       let finalYTilt = rawY;
@@ -126,17 +144,7 @@ export async function telemetryRoutes(fastify) {
       let finalZDisp = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
       let finalTotalDisp = parseFloat(pt.totalDisp ?? pt.totalDisplacement ?? 0) || 0;
 
-      if (isZeroCalibrated) {
-        // Device is zero calibrated: all historical data points MUST reflect 0.000
-        finalXTilt = 0.0;
-        finalYTilt = 0.0;
-        finalZTilt = 0.0;
-        finalResultant = 0.0;
-        finalXDisp = 0.0;
-        finalYDisp = 0.0;
-        finalZDisp = 0.0;
-        finalTotalDisp = 0.0;
-      } else if (hasReferenceZero) {
+      if (hasReferenceZero) {
         finalXTilt = rawX - refX;
         finalYTilt = rawY - refY;
         finalZTilt = rawZ - refZ;
@@ -146,51 +154,57 @@ export async function telemetryRoutes(fastify) {
         finalTotalDisp = Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp);
       }
 
+      // Use extracted sensor values (no dummy fallbacks - null means no data)
+      const sensors = extracted || {};
+      const axG = sensors.axG ?? parseFloat(pt.axG ?? pt.ax ?? null);
+      const ayG = sensors.ayG ?? parseFloat(pt.ayG ?? pt.ay ?? null);
+      const azG = sensors.azG ?? parseFloat(pt.azG ?? pt.az ?? null);
+      const accMag = sensors.accMag ?? parseFloat(pt.accMag ?? null);
+      const vibRMS = sensors.vibRMS ?? parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? null);
+      const vibPeak = sensors.vibPeak ?? parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? null);
+      const temperature = sensors.temperature ?? parseFloat(pt.temp ?? pt.temperature ?? null);
+
       return {
-        ...pt,
-        xTilt: finalXTilt,
-        tiltX: finalXTilt,
-        roll: finalXTilt,
-        yTilt: finalYTilt,
-        tiltY: finalYTilt,
-        pitch: finalYTilt,
-        zTilt: finalZTilt,
-        tiltZ: finalZTilt,
-        resultant: finalResultant,
-        resultantTilt: finalResultant,
-        tilt: finalResultant,
-        xDisp: finalXDisp,
-        xDisplacement: finalXDisp,
-        yDisp: finalYDisp,
-        yDisplacement: finalYDisp,
-        zDisp: finalZDisp,
-        zDisplacement: finalZDisp,
-        totalDisp: finalTotalDisp,
-        totalDisplacement: finalTotalDisp,
-        deltaThetaX: isZeroCalibrated ? 0.0 : (hasReferenceZero ? finalXTilt : (pt.deltaThetaX ?? 0.0)),
-        deltaThetaY: isZeroCalibrated ? 0.0 : (hasReferenceZero ? finalYTilt : (pt.deltaThetaY ?? 0.0)),
-        deltaThetaZ: isZeroCalibrated ? 0.0 : (hasReferenceZero ? finalZTilt : (pt.deltaThetaZ ?? 0.0)),
+        time: new Date(pt.timestamp || pt.time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+        timestamp: new Date(pt.timestamp || pt.time).toISOString(),
+        deviceId: pt.deviceId || deviceId,
+        xTilt: Number(finalXTilt.toFixed(4)),
+        tiltX: Number(finalXTilt.toFixed(4)),
+        roll: Number(finalXTilt.toFixed(4)),
+        yTilt: Number(finalYTilt.toFixed(4)),
+        tiltY: Number(finalYTilt.toFixed(4)),
+        pitch: Number(finalYTilt.toFixed(4)),
+        zTilt: Number(finalZTilt.toFixed(4)),
+        tiltZ: Number(finalZTilt.toFixed(4)),
+        resultant: Number(finalResultant.toFixed(4)),
+        resultantTilt: Number(finalResultant.toFixed(4)),
+        tilt: Number(finalResultant.toFixed(4)),
+        xDisp: Number(finalXDisp.toFixed(3)),
+        xDisplacement: Number(finalXDisp.toFixed(3)),
+        yDisp: Number(finalYDisp.toFixed(3)),
+        yDisplacement: Number(finalYDisp.toFixed(3)),
+        zDisp: Number(finalZDisp.toFixed(3)),
+        zDisplacement: Number(finalZDisp.toFixed(3)),
+        totalDisp: Number(finalTotalDisp.toFixed(3)),
+        totalDisplacement: Number(finalTotalDisp.toFixed(3)),
+        deltaThetaX: hasReferenceZero ? Number(finalXTilt.toFixed(4)) : (pt.deltaThetaX ?? 0.0),
+        deltaThetaY: hasReferenceZero ? Number(finalYTilt.toFixed(4)) : (pt.deltaThetaY ?? 0.0),
+        deltaThetaZ: hasReferenceZero ? Number(finalZTilt.toFixed(4)) : (pt.deltaThetaZ ?? 0.0),
+        // Sensor data - null if not available in DB record
+        axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(4)) : null,
+        ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(4)) : null,
+        azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(4)) : null,
+        accMag: accMag !== null && !isNaN(accMag) ? Number(accMag.toFixed(4)) : null,
+        vibRMS: vibRMS !== null && !isNaN(vibRMS) ? Number(vibRMS.toFixed(4)) : null,
+        vibrationRMS: vibRMS !== null && !isNaN(vibRMS) ? Number(vibRMS.toFixed(4)) : null,
+        vibPeak: vibPeak !== null && !isNaN(vibPeak) ? Number(vibPeak.toFixed(4)) : null,
+        vibrationPeak: vibPeak !== null && !isNaN(vibPeak) ? Number(vibPeak.toFixed(4)) : null,
+        temperature: temperature !== null && !isNaN(temperature) ? Number(temperature.toFixed(1)) : null,
+        temp: temperature !== null && !isNaN(temperature) ? Number(temperature.toFixed(1)) : null,
       };
     };
 
-    // 1. Try querying InfluxDB OSS time-series database
-    try {
-      const start = startDate ? startDate.toISOString() : '-24h';
-      const stop = stopDate ? stopDate.toISOString() : 'now()';
-
-      const influxHistory = await queryInfluxTelemetry(deviceId, start, stop);
-      if (influxHistory && influxHistory.length > 0) {
-        return reply.send({
-          statusCode: 200,
-          deviceId,
-          source: 'InfluxDB OSS',
-          totalPoints: influxHistory.length,
-          history: influxHistory.map(formatPoint),
-        });
-      }
-    } catch (err) {}
-
-    // 2. Query PostgreSQL TelemetryRecord table
+    // 1. Query PostgreSQL TelemetryRecord table (primary data store)
     try {
       const whereClause = {
         [Op.or]: [
@@ -212,40 +226,24 @@ export async function telemetryRoutes(fastify) {
       });
 
       if (dbRecords && dbRecords.length > 0) {
-        const history = dbRecords.map(r => formatPoint({
-          time: new Date(r.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-          timestamp: new Date(r.timestamp).toISOString(),
-          deviceId: r.deviceId,
-          xTilt: parseFloat(r.xTilt || 0),
-          tiltX: parseFloat(r.xTilt || 0),
-          yTilt: parseFloat(r.yTilt || 0),
-          tiltY: parseFloat(r.yTilt || 0),
-          zTilt: parseFloat(r.zTilt || r.resultantTilt || 0),
-          tiltZ: parseFloat(r.zTilt || r.resultantTilt || 0),
-          resultant: parseFloat(r.resultantTilt || 0),
-          resultantTilt: parseFloat(r.resultantTilt || 0),
-          xDisp: parseFloat(r.xDisplacement || 0),
-          xDisplacement: parseFloat(r.xDisplacement || 0),
-          yDisp: parseFloat(r.yDisplacement || 0),
-          yDisplacement: parseFloat(r.yDisplacement || 0),
-          zDisp: parseFloat(r.zDisplacement || 0),
-          zDisplacement: parseFloat(r.zDisplacement || 0),
-          totalDisp: parseFloat(r.totalDisplacement || 0),
-          totalDisplacement: parseFloat(r.totalDisplacement || 0),
-          ax: parseFloat(r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax ?? 0.012),
-          ay: parseFloat(r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay ?? -0.006),
-          az: parseFloat(r.rawPayload?.acceleration?.az ?? r.acceleration?.az ?? 0.998),
-          axG: parseFloat(r.rawPayload?.acceleration?.axG ?? (Math.abs(r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax ?? 0.012) > 3 ? (r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax) / 9.80665 : (r.rawPayload?.acceleration?.ax ?? r.acceleration?.ax ?? 0.012))),
-          ayG: parseFloat(r.rawPayload?.acceleration?.ayG ?? (Math.abs(r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay ?? -0.006) > 3 ? (r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay) / 9.80665 : (r.rawPayload?.acceleration?.ay ?? r.acceleration?.ay ?? -0.006))),
-          azG: parseFloat(r.rawPayload?.acceleration?.azG ?? (Math.abs(r.rawPayload?.acceleration?.az ?? r.acceleration?.az ?? 0.998) > 3 ? (r.rawPayload?.acceleration?.az ?? r.acceleration?.az) / 9.80665 : (r.rawPayload?.acceleration?.az ?? r.acceleration?.az ?? 0.998))),
-          accMag: parseFloat(r.acceleration?.accMag || r.accMag || 0.982),
-          vibRMS: parseFloat(r.vibration?.vibrationRMS || r.vibrationRMS || 0.045),
-          vibrationRMS: parseFloat(r.vibration?.vibrationRMS || r.vibrationRMS || 0.045),
-          vibPeak: parseFloat(r.vibration?.vibrationPeak || r.vibrationPeak || 0.104),
-          vibrationPeak: parseFloat(r.vibration?.vibrationPeak || r.vibrationPeak || 0.104),
-          temperature: parseFloat(r.temperature || 28.7),
-          temp: parseFloat(r.temperature || 28.7),
-        }));
+        const history = dbRecords.map(r => {
+          const extracted = extractFromRecord(r);
+          return formatPoint({
+            timestamp: new Date(r.timestamp).toISOString(),
+            deviceId: r.deviceId,
+            xTilt: parseFloat(r.xTilt || 0),
+            yTilt: parseFloat(r.yTilt || 0),
+            zTilt: parseFloat(r.zTilt || r.resultantTilt || 0),
+            resultantTilt: parseFloat(r.resultantTilt || 0),
+            xDisplacement: parseFloat(r.xDisplacement || 0),
+            yDisplacement: parseFloat(r.yDisplacement || 0),
+            zDisplacement: parseFloat(r.zDisplacement || 0),
+            totalDisplacement: parseFloat(r.totalDisplacement || 0),
+            rawPayload: r.rawPayload || null,
+            acceleration: r.acceleration || null,
+            vibration: r.vibration || null,
+          }, extracted);
+        });
 
         return reply.send({
           statusCode: 200,
@@ -255,9 +253,11 @@ export async function telemetryRoutes(fastify) {
           history,
         });
       }
-    } catch (err) {}
+    } catch (err) {
+      fastify.log.warn('[Telemetry] PostgreSQL query error:', err.message);
+    }
 
-    // 3. Query In-Memory Ring Buffer Map
+    // 2. Query In-Memory Ring Buffer Map (fallback for very recent data before DB write)
     let memList = [];
     if (inMemoryTelemetryStore instanceof Map) {
       memList = inMemoryTelemetryStore.get(deviceId) || [];
@@ -281,15 +281,15 @@ export async function telemetryRoutes(fastify) {
         deviceId,
         source: 'In-Memory Store',
         totalPoints: memList.length,
-        history: memList.map(formatPoint),
+        history: memList.map(pt => formatPoint(pt)),
       });
     }
 
-    // 4. If no history recorded yet for selected device & range, return empty dataset
+    // 3. If no history recorded yet for selected device & range, return empty dataset
     return reply.send({
       statusCode: 200,
       deviceId,
-      source: 'Database',
+      source: 'PostgreSQL DB',
       totalPoints: 0,
       history: [],
     });

@@ -102,31 +102,35 @@ export default function ReportsPage({ currentDevice }) {
     );
 
     const mapReportRow = (r) => {
-      const isPtZero = isZeroCalibrated || (parseFloat(r.xTilt || r.tiltX || 0) === 0 && parseFloat(r.yTilt || r.tiltY || 0) === 0);
       return {
         ...r,
-        resultant: isPtZero ? 0.0 : parseFloat(r.resultant ?? r.resultantTilt ?? 0),
-        resultantTilt: isPtZero ? 0.0 : parseFloat(r.resultantTilt ?? r.resultant ?? 0),
-        xTilt: isPtZero ? 0.0 : parseFloat(r.xTilt ?? r.tiltX ?? 0),
-        tiltX: isPtZero ? 0.0 : parseFloat(r.tiltX ?? r.xTilt ?? 0),
-        yTilt: isPtZero ? 0.0 : parseFloat(r.yTilt ?? r.tiltY ?? 0),
-        tiltY: isPtZero ? 0.0 : parseFloat(r.tiltY ?? r.yTilt ?? 0),
-        zTilt: isPtZero ? 0.0 : parseFloat(r.zTilt ?? r.tiltZ ?? 0),
-        tiltZ: isPtZero ? 0.0 : parseFloat(r.tiltZ ?? r.zTilt ?? 0),
-        totalDisp: isPtZero ? 0.0 : parseFloat(r.totalDisp ?? r.totalDisplacement ?? 0),
-        totalDisplacement: isPtZero ? 0.0 : parseFloat(r.totalDisplacement ?? r.totalDisp ?? 0),
-        xDisp: isPtZero ? 0.0 : parseFloat(r.xDisp ?? r.xDisplacement ?? 0),
-        xDisplacement: isPtZero ? 0.0 : parseFloat(r.xDisplacement ?? r.xDisp ?? 0),
-        yDisp: isPtZero ? 0.0 : parseFloat(r.yDisp ?? r.yDisplacement ?? 0),
-        yDisplacement: isPtZero ? 0.0 : parseFloat(r.yDisplacement ?? r.yDisp ?? 0),
-        zDisp: isPtZero ? 0.0 : parseFloat(r.zDisp ?? r.zDisplacement ?? 0),
-        zDisplacement: isPtZero ? 0.0 : parseFloat(r.zDisplacement ?? r.zDisp ?? 0),
-        accMag: parseFloat(r.accMag || 0.982),
-        vibrationRMS: parseFloat(r.vibrationRMS || r.vibRMS || 0.045),
-        vibrationPeak: parseFloat(r.vibrationPeak || r.vibPeak || 0.104),
-        temperature: parseFloat(r.temperature || r.temp || 28.5),
+        resultant: parseFloat(r.resultant ?? r.resultantTilt ?? 0),
+        resultantTilt: parseFloat(r.resultantTilt ?? r.resultant ?? 0),
+        xTilt: parseFloat(r.xTilt ?? r.tiltX ?? 0),
+        tiltX: parseFloat(r.tiltX ?? r.xTilt ?? 0),
+        yTilt: parseFloat(r.yTilt ?? r.tiltY ?? 0),
+        tiltY: parseFloat(r.tiltY ?? r.yTilt ?? 0),
+        zTilt: parseFloat(r.zTilt ?? r.tiltZ ?? 0),
+        tiltZ: parseFloat(r.tiltZ ?? r.zTilt ?? 0),
+        totalDisp: parseFloat(r.totalDisp ?? r.totalDisplacement ?? 0),
+        totalDisplacement: parseFloat(r.totalDisplacement ?? r.totalDisp ?? 0),
+        xDisp: parseFloat(r.xDisp ?? r.xDisplacement ?? 0),
+        xDisplacement: parseFloat(r.xDisplacement ?? r.xDisp ?? 0),
+        yDisp: parseFloat(r.yDisp ?? r.yDisplacement ?? 0),
+        yDisplacement: parseFloat(r.yDisplacement ?? r.yDisp ?? 0),
+        zDisp: parseFloat(r.zDisp ?? r.zDisplacement ?? 0),
+        zDisplacement: parseFloat(r.zDisplacement ?? r.zDisp ?? 0),
+        // Sensor fields: null if not available (backend returns null when no data)
+        accMag: r.accMag !== null && r.accMag !== undefined ? parseFloat(r.accMag) : null,
+        vibrationRMS: (r.vibrationRMS ?? r.vibRMS) !== null && (r.vibrationRMS ?? r.vibRMS) !== undefined ? parseFloat(r.vibrationRMS ?? r.vibRMS) : null,
+        vibRMS: (r.vibRMS ?? r.vibrationRMS) !== null && (r.vibRMS ?? r.vibrationRMS) !== undefined ? parseFloat(r.vibRMS ?? r.vibrationRMS) : null,
+        vibrationPeak: (r.vibrationPeak ?? r.vibPeak) !== null && (r.vibrationPeak ?? r.vibPeak) !== undefined ? parseFloat(r.vibrationPeak ?? r.vibPeak) : null,
+        vibPeak: (r.vibPeak ?? r.vibrationPeak) !== null && (r.vibPeak ?? r.vibrationPeak) !== undefined ? parseFloat(r.vibPeak ?? r.vibrationPeak) : null,
+        temperature: (r.temperature ?? r.temp) !== null && (r.temperature ?? r.temp) !== undefined ? parseFloat(r.temperature ?? r.temp) : null,
+        temp: (r.temp ?? r.temperature) !== null && (r.temp ?? r.temperature) !== undefined ? parseFloat(r.temp ?? r.temperature) : null,
       };
     };
+
 
     getReportsAnalytics(filters)
       .then(res => {
@@ -769,16 +773,16 @@ export default function ReportsPage({ currentDevice }) {
                           {/* Right-aligned Numerical Vibration Columns */}
                           {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
                             <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">{(r.accMag || 0.982).toFixed(3)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4)}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4)}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">{r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : '--'}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibRMS ?? r.vibrationRMS) !== null && (r.vibRMS ?? r.vibrationRMS) !== undefined ? Number(r.vibRMS ?? r.vibrationRMS).toFixed(4) : '--'}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibPeak ?? r.vibrationPeak) !== null && (r.vibPeak ?? r.vibrationPeak) !== undefined ? Number(r.vibPeak ?? r.vibrationPeak).toFixed(4) : '--'}</td>
                             </>
                           )}
 
                           {/* Right-aligned Numerical Environment Columns */}
                           {(paramCategory === 'ALL' || paramCategory === 'ENVIRONMENT') && (
                             <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-bold">{Number(r.temperature || r.temp || 28.5).toFixed(1)} °C</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-bold">{(r.temperature ?? r.temp) !== null && (r.temperature ?? r.temp) !== undefined ? `${Number(r.temperature ?? r.temp).toFixed(1)} °C` : '--'}</td>
                               <td className="py-2 px-3 text-center whitespace-nowrap font-sans">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${statusBadge}`}>
                                   {status}

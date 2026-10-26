@@ -73,8 +73,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       id: selectedId || 'ABCDEF0002',
       name: `Tiltmeter ${selectedId || 'ABCDEF0002'}`,
       status: 'ONLINE',
-      battery: '92%',
-      signalStrength: '-65 dBm'
+      battery: null,
+      signalStrength: null
     };
   }, [deviceList, selectedId, deviceMeta, currentDevice]);
 
@@ -91,49 +91,51 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     const refX = parseFloat(activeDevice?.refThetaX ?? 0.0);
     const refY = parseFloat(activeDevice?.refThetaY ?? 0.0);
     const refZ = parseFloat(activeDevice?.refThetaZ ?? 0.0);
-    const hasRef = Boolean(activeDevice?.hasReferenceZero || activeDevice?.calibrate);
-    const isZeroed = hasRef && Boolean(
-      ((activeDevice?.xTilt === 0 || activeDevice?.xTilt === 0.0) &&
-       (activeDevice?.yTilt === 0 || activeDevice?.yTilt === 0.0)) ||
-      (activeDevice?.resultantTilt === 0 || activeDevice?.resultantTilt === 0.0) ||
-      (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0) ||
-      (Math.abs(activeDevice?.xTilt || 0) < 0.015 && Math.abs(activeDevice?.yTilt || 0) < 0.015)
-    );
+    // hasRef is only true when hasReferenceZero was explicitly set (not just calibrate=false default)
+    const hasRef = Boolean(activeDevice?.hasReferenceZero === true || (activeDevice?.calibrate === true && (refX !== 0 || refY !== 0)));
 
-    const deltaX = isZeroed ? 0.0 : (hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT));
-    const deltaY = isZeroed ? 0.0 : (hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT));
-    const deltaZ = isZeroed ? 0.0 : (hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT));
+    const deltaX = hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT);
+    const deltaY = hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT);
+    const deltaZ = hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT);
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;
     const clinoDx = L * Math.tan(radX);
     const clinoDy = L * Math.tan(radY);
 
-    const xD = isZeroed ? 0.0 : (hasRef ? clinoDx : ((pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx));
-    const yD = isZeroed ? 0.0 : (hasRef ? clinoDy : ((pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy));
-    const zD = isZeroed ? 0.0 : (parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0);
-    const totD = isZeroed ? 0.0 : (hasRef ? Math.sqrt(clinoDx * clinoDx + clinoDy * clinoDy) : ((pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : Math.sqrt(xD * xD + yD * yD)));
-    const activeResT = isZeroed ? 0.0 : (hasRef ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : resT);
+    const xD = hasRef ? clinoDx : ((pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx);
+    const yD = hasRef ? clinoDy : ((pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy);
+    const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
+    const totD = hasRef ? Math.sqrt(clinoDx * clinoDx + clinoDy * clinoDy) : ((pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : Math.sqrt(xD * xD + yD * yD));
+    const activeResT = hasRef ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : resT;
 
-    const rawAx = parseFloat(pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? 0.012) || 0.012;
-    const rawAy = parseFloat(pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? -0.006) || -0.006;
-    const rawAz = parseFloat(pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? 0.998) || 0.998;
+    // Sensor data - use actual values from DB, no dummy fallbacks
+    const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
+    const rawAyRaw = pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? null;
+    const rawAzRaw = pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? null;
+    const rawAx = rawAxRaw !== null ? parseFloat(rawAxRaw) : null;
+    const rawAy = rawAyRaw !== null ? parseFloat(rawAyRaw) : null;
+    const rawAz = rawAzRaw !== null ? parseFloat(rawAzRaw) : null;
+    const axG = rawAx !== null && !isNaN(rawAx) ? (Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx) : null;
+    const ayG = rawAy !== null && !isNaN(rawAy) ? (Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy) : null;
+    const azG = rawAz !== null && !isNaN(rawAz) ? (Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz) : null;
 
-    const axG = Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx;
-    const ayG = Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy;
-    const azG = Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz;
+    const accMRaw = pt.accMag ?? pt.acceleration?.accMag ?? null;
+    const accM = accMRaw !== null ? parseFloat(accMRaw) : null;
+    const vibRRaw = pt.vibRMS ?? pt.vibrationRMS ?? pt.vibration?.vibrationRMS ?? null;
+    const vibR = vibRRaw !== null ? parseFloat(vibRRaw) : null;
+    const vibPRaw = pt.vibPeak ?? pt.vibrationPeak ?? pt.vibration?.vibrationPeak ?? null;
+    const vibP = vibPRaw !== null ? parseFloat(vibPRaw) : null;
+    const tempRaw = pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? null;
+    const tempC = tempRaw !== null ? parseFloat(tempRaw) : null;
 
-    const accM = parseFloat(pt.accMag ?? pt.acceleration?.accMag ?? 0.982) || 0.982;
-    const vibR = parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? pt.vibration?.vibrationRMS ?? 0.045) || 0.045;
-    const vibP = parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? pt.vibration?.vibrationPeak ?? 0.104) || 0.104;
-    const tempC = parseFloat(pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? 26.4) || 26.4;
-
+    const vibForStability = vibR ?? 0;
     let stability = 'Stable';
     let stabilityClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (Math.abs(activeResT) >= 2.0 || Math.abs(totD) >= 10.0 || vibR >= 0.5) {
+    if (Math.abs(activeResT) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
       stability = 'Critical';
       stabilityClass = 'bg-red-50 text-red-700 border-red-200';
-    } else if (Math.abs(activeResT) >= 1.0 || Math.abs(totD) >= 5.0 || vibR >= 0.2) {
+    } else if (Math.abs(activeResT) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
       stability = 'Warning';
       stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
     }
@@ -150,13 +152,13 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       xDisp: Number(xD.toFixed(3)),
       yDisp: Number(yD.toFixed(3)),
       zDisp: Number(zD.toFixed(3)),
-      axG: Number(axG.toFixed(3)),
-      ayG: Number(ayG.toFixed(3)),
-      azG: Number(azG.toFixed(3)),
-      accMag: Number(accM.toFixed(3)),
-      vibRMS: Number(vibR.toFixed(4)),
-      vibPeak: Number(vibP.toFixed(4)),
-      temp: Number(tempC.toFixed(1)),
+      axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(3)) : null,
+      ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(3)) : null,
+      azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(3)) : null,
+      accMag: accM !== null && !isNaN(accM) ? Number(accM.toFixed(3)) : null,
+      vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(4)) : null,
+      vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(4)) : null,
+      temp: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
       stability,
       stabilityClass,
     };
@@ -407,7 +409,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     }
     const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,XTilt_deg,YTilt_deg,ZTilt_deg,ResultantTilt_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
     const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedId},${r.xTilt.toFixed(4)},${r.yTilt.toFixed(4)},${r.zTilt.toFixed(4)},${r.resultant.toFixed(4)},${r.xDisp.toFixed(3)},${r.yDisp.toFixed(3)},${r.zDisp.toFixed(3)},${r.totalDisp.toFixed(3)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temp.toFixed(1)},${r.stability}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedId},${r.xTilt?.toFixed(4) ?? ''},${r.yTilt?.toFixed(4) ?? ''},${r.zTilt?.toFixed(4) ?? ''},${r.resultant?.toFixed(4) ?? ''},${r.xDisp?.toFixed(3) ?? ''},${r.yDisp?.toFixed(3) ?? ''},${r.zDisp?.toFixed(3) ?? ''},${r.totalDisp?.toFixed(3) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(4) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(4) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -429,25 +431,22 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const refX = parseFloat(activeDevice?.refThetaX ?? d.refThetaX ?? 0.0);
   const refY = parseFloat(activeDevice?.refThetaY ?? d.refThetaY ?? 0.0);
   const refZ = parseFloat(activeDevice?.refThetaZ ?? d.refThetaZ ?? 0.0);
-  const hasRef = Boolean(activeDevice?.hasReferenceZero || d.hasReferenceZero || activeDevice?.calibrate);
-
-  const isZeroed = Boolean(
-    ((activeDevice?.xTilt === 0 || activeDevice?.xTilt === 0.0 || activeDevice?.xTilt === null || activeDevice?.xTilt === undefined) &&
-    (activeDevice?.yTilt === 0 || activeDevice?.yTilt === 0.0 || activeDevice?.yTilt === null || activeDevice?.yTilt === undefined)) ||
-    (activeDevice?.resultantTilt === 0 || activeDevice?.resultantTilt === 0.0) ||
-    (d.xTilt === 0.0 && d.yTilt === 0.0 && d.totalDisplacement === 0.0) ||
-    (Math.abs(activeDevice?.xTilt || 0) < 0.015 && Math.abs(activeDevice?.yTilt || 0) < 0.015)
+  // hasRef is only true when reference zero was explicitly configured by operator
+  const hasRef = Boolean(
+    activeDevice?.hasReferenceZero === true ||
+    (activeDevice?.calibrate === true && (refX !== 0 || refY !== 0)) ||
+    d.hasReferenceZero === true
   );
 
   // ClinoX: ΔθX = θX,current − θX,reference; ΔθY = θY,current − θY,reference
-  const roll = isZeroed ? 0.0 : (hasRef ? rawRoll - refX : (d.deltaThetaX !== undefined ? d.deltaThetaX : rawRoll));
-  const pitch = isZeroed ? 0.0 : (hasRef ? rawPitch - refY : (d.deltaThetaY !== undefined ? d.deltaThetaY : rawPitch));
-  const zTilt = isZeroed ? 0.0 : (hasRef ? rawZTilt - refZ : rawZTilt);
-  const resultant = isZeroed ? 0.0 : Math.sqrt(roll * roll + pitch * pitch);
+  const roll = hasRef ? rawRoll - refX : (d.deltaThetaX !== undefined ? d.deltaThetaX : rawRoll);
+  const pitch = hasRef ? rawPitch - refY : (d.deltaThetaY !== undefined ? d.deltaThetaY : rawPitch);
+  const zTilt = hasRef ? rawZTilt - refZ : rawZTilt;
+  const resultant = Math.sqrt(roll * roll + pitch * pitch);
 
-  const xSlope = isZeroed ? 0.0 : (typeof d.xSlope === 'number' ? d.xSlope : Math.sin((roll * Math.PI) / 180) * 1000);
-  const ySlope = isZeroed ? 0.0 : (typeof d.ySlope === 'number' ? d.ySlope : Math.sin((pitch * Math.PI) / 180) * 1000);
-  const zSlope = isZeroed ? 0.0 : (typeof d.zSlope === 'number' ? d.zSlope : Math.sin((zTilt * Math.PI) / 180) * 1000);
+  const xSlope = typeof d.xSlope === 'number' ? d.xSlope : Math.sin((roll * Math.PI) / 180) * 1000;
+  const ySlope = typeof d.ySlope === 'number' ? d.ySlope : Math.sin((pitch * Math.PI) / 180) * 1000;
+  const zSlope = typeof d.zSlope === 'number' ? d.zSlope : Math.sin((zTilt * Math.PI) / 180) * 1000;
 
   // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
   const radX = (roll * Math.PI) / 180.0;
@@ -455,10 +454,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const clinoDx = L * Math.tan(radX);
   const clinoDy = L * Math.tan(radY);
 
-  const xDisp = isZeroed ? 0.0 : (hasRef ? clinoDx : (typeof d.xDisplacement === 'number' ? d.xDisplacement : clinoDx));
-  const yDisp = isZeroed ? 0.0 : (hasRef ? clinoDy : (typeof d.yDisplacement === 'number' ? d.yDisplacement : clinoDy));
-  const zDisp = isZeroed ? 0.0 : (typeof d.zDisplacement === 'number' ? d.zDisplacement : (d.displacement?.zDisplacement_mm ?? 0));
-  const totalDisp = isZeroed ? 0.0 : Math.sqrt(xDisp * xDisp + yDisp * yDisp);
+  const xDisp = hasRef ? clinoDx : (typeof d.xDisplacement === 'number' ? d.xDisplacement : clinoDx);
+  const yDisp = hasRef ? clinoDy : (typeof d.yDisplacement === 'number' ? d.yDisplacement : clinoDy);
+  const zDisp = typeof d.zDisplacement === 'number' ? d.zDisplacement : (d.displacement?.zDisplacement_mm ?? 0);
+  const totalDisp = Math.sqrt(xDisp * xDisp + yDisp * yDisp);
 
   let dispAngleRad = Math.atan2(yDisp, xDisp);
   let dispAngleDeg = (dispAngleRad * 180) / Math.PI;
@@ -535,12 +534,12 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[10px] inline-flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span>{activeDevice?.status || 'ONLINE (2.5 Hz)'}</span>
+                <span>{activeDevice?.status || 'ONLINE'}</span>
               </span>
 
               <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
                 <Clock className="w-3 h-3 text-slate-400" />
-                <span>Last Updated: {formatFullDateTime(d.timestamp)}</span>
+                <span>Last Updated: {d.timestamp ? formatFullDateTime(d.timestamp) : '--'}</span>
               </span>
 
               {activeDevice?.latitude && activeDevice?.longitude ? (
@@ -565,12 +564,12 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         <div className="flex items-center gap-2 text-xs flex-wrap">
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-4 h-4 text-emerald-600" />
-            <span>{d.battery || activeDevice?.battery || '100%'}</span>
+            <span>{d.battery || activeDevice?.battery || '--'}</span>
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Signal className="w-4 h-4 text-blue-600" />
-            <span>{d.signalStrength || d.signal || activeDevice?.signalStrength || '100%'}</span>
+            <span>{d.signalStrength || d.signal || activeDevice?.signalStrength || '--'}</span>
           </div>
 
           <button
@@ -758,11 +757,13 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             </div>
             <div className="flex justify-between py-1 border-b border-slate-50">
               <span className="text-slate-500 font-medium">Zero Calibration Offset:</span>
-              <span className="font-mono font-semibold text-emerald-600">PASSED ✓</span>
+              <span className={`font-mono font-semibold ${hasRef ? 'text-emerald-600' : 'text-slate-500'}`}>
+                {hasRef ? 'PASSED ✓' : 'Not Set'}
+              </span>
             </div>
             <div className="flex justify-between py-1 border-b border-slate-50">
               <span className="text-slate-500 font-medium">Ambient Temperature:</span>
-              <span className="font-mono font-semibold text-slate-800">{(d.temp ?? 25.0).toFixed(1)} °C</span>
+              <span className="font-mono font-semibold text-slate-800">{d.temp !== null && d.temp !== undefined ? `${(d.temp).toFixed(1)} °C` : '--'}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="text-slate-500 font-medium">Telemetry History Points:</span>
@@ -864,10 +865,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                       {r.totalDisp.toFixed(3)} mm
                     </td>
                     <td className="py-2 px-3 text-amber-800">
-                      {r.vibPeak.toFixed(4)} g
+                      {r.vibPeak !== null && r.vibPeak !== undefined ? `${Number(r.vibPeak).toFixed(4)} g` : '--'}
                     </td>
                     <td className="py-2 px-3 text-orange-700">
-                      {r.temp.toFixed(1)} °C
+                      {r.temp !== null && r.temp !== undefined ? `${Number(r.temp).toFixed(1)} °C` : '--'}
                     </td>
                     <td className="py-2 px-3 text-center font-sans">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${r.stabilityClass}`}>

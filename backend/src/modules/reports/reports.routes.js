@@ -5,7 +5,7 @@ import { inMemoryTelemetryStore } from '../../config/influx.js';
 import { authenticateOptional } from '../../middleware/authMiddleware.js';
 
 export async function reportsRoutes(fastify) {
-  // Project-wise, Site-wise, Device-wise Date-to-Date Analytics & Report Generation
+  // Project-wise, Site-wise, Device-wise Date-to-Date Analytics & Report Generation using PostgreSQL
   fastify.get('/api/reports/analytics', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     try {
       const { organizationId, projectId, siteId, deviceId, fromDate, toDate } = req.query || {};
@@ -42,7 +42,7 @@ export async function reportsRoutes(fastify) {
           where: projectId ? { projectId } : {},
           include: [projectId && organizationId ? { model: Project, where: { organizationId } } : Project],
         }],
-      });
+      }).catch(() => []);
 
       const deviceIds = matchingDevices.map(d => d.id);
 
@@ -70,15 +70,16 @@ export async function reportsRoutes(fastify) {
       // Fetch all unique devices from matching records for calibration status
       const allDevIds = [...new Set(records.map(r => r.deviceId).filter(Boolean))];
       if (deviceId) allDevIds.push(deviceId, String(deviceId).toUpperCase(), String(deviceId).toLowerCase());
-      
+
       const devicesFound = await Device.findAll({
         where: {
           [Op.or]: [
-            { id: { [Op.in]: allDevIds } },
+            { id: { [Op.in]: allDevIds.length > 0 ? allDevIds : ['__none__'] } },
             ...(deviceId ? [{ id: deviceId }, { id: String(deviceId).toUpperCase() }, { id: String(deviceId).toLowerCase() }] : [])
           ]
         }
-      });
+      }).catch(() => []);
+
       const deviceMap = new Map();
       for (const d of devicesFound) {
         deviceMap.set(d.id, d);
@@ -86,18 +87,41 @@ export async function reportsRoutes(fastify) {
         deviceMap.set(d.id.toLowerCase(), d);
       }
 
+      // Helper to extract sensor values from rawPayload or stored JSONB columns
+      const extractSensorData = (r) => {
+        const raw = r.rawPayload || {};
+        const ax = parseFloat(raw.acceleration?.ax ?? r.acceleration?.ax ?? null);
+        const ay = parseFloat(raw.acceleration?.ay ?? r.acceleration?.ay ?? null);
+        const az = parseFloat(raw.acceleration?.az ?? r.acceleration?.az ?? null);
+        const axG = !isNaN(ax) ? (Math.abs(ax) > 3.0 ? ax / 9.80665 : ax) : null;
+        const ayG = !isNaN(ay) ? (Math.abs(ay) > 3.0 ? ay / 9.80665 : ay) : null;
+        const azG = !isNaN(az) ? (Math.abs(az) > 3.0 ? az / 9.80665 : az) : null;
+        const accMag = parseFloat(raw.acceleration?.accMag ?? r.acceleration?.accMag ?? null);
+        const vibRMS = parseFloat(raw.vibration?.vibrationRMS ?? raw.vibration?.vibration ?? r.vibration?.vibrationRMS ?? r.vibration?.vibration ?? null);
+        const vibPeak = parseFloat(raw.vibration?.vibrationPeak ?? r.vibration?.vibrationPeak ?? null);
+        const temperature = parseFloat(r.temperature ?? raw.environment?.temperature ?? null);
+        return {
+          axG: !isNaN(axG) ? axG : null,
+          ayG: !isNaN(ayG) ? ayG : null,
+          azG: !isNaN(azG) ? azG : null,
+          accMag: !isNaN(accMag) ? accMag : null,
+          vibRMS: !isNaN(vibRMS) ? vibRMS : null,
+          vibPeak: !isNaN(vibPeak) ? vibPeak : null,
+          temperature: !isNaN(temperature) ? temperature : null,
+        };
+      };
+
       // Format records respecting zero calibration & hardware tare state
       const formattedRecords = (records || []).map(r => {
         const dev = deviceMap.get(r.deviceId) || deviceMap.get(String(r.deviceId).toUpperCase()) || deviceMap.get(String(r.deviceId).toLowerCase());
+
+        // Check hardware zero tare from rawPayload calibration flag
         const isHwCalibrated = Boolean(r.rawPayload?.calibration?.calibrated);
         const hasRefZero = Boolean(dev?.hasReferenceZero || dev?.calibrate);
-        const isZeroCalibrated = isHwCalibrated || Boolean(
-          (dev && (
-            (dev.xTilt === 0.0 || dev.xTilt === 0 || dev.xTilt === null || dev.xTilt === undefined) &&
-            (dev.yTilt === 0.0 || dev.yTilt === 0 || dev.yTilt === null || dev.yTilt === undefined)
-          )) ||
-          (dev?.resultantTilt === 0.0 || dev?.resultantTilt === 0)
-        );
+        const refX = parseFloat(dev?.refThetaX ?? 0.0) || 0.0;
+        const refY = parseFloat(dev?.refThetaY ?? 0.0) || 0.0;
+        const refZ = parseFloat(dev?.refThetaZ ?? 0.0) || 0.0;
+        const L = parseFloat(dev?.gaugeLength_mm ?? 1000.0) || 1000.0;
 
         let finalXTilt = parseFloat(r.xTilt || 0);
         let finalYTilt = parseFloat(r.yTilt || 0);
@@ -124,16 +148,18 @@ export async function reportsRoutes(fastify) {
             finalZDisp = 0.0;
             finalTotalDisp = 0.0;
           }
-        } else if (isZeroCalibrated) {
-          finalXTilt = 0.0;
-          finalYTilt = 0.0;
-          finalZTilt = 0.0;
-          finalResultant = 0.0;
-          finalXDisp = 0.0;
-          finalYDisp = 0.0;
-          finalZDisp = 0.0;
-          finalTotalDisp = 0.0;
+        } else if (hasRefZero) {
+          // Software reference-zero: compute delta relative to saved baseline
+          finalXTilt = finalXTilt - refX;
+          finalYTilt = finalYTilt - refY;
+          finalZTilt = finalZTilt - refZ;
+          finalResultant = Math.sqrt(finalXTilt * finalXTilt + finalYTilt * finalYTilt);
+          finalXDisp = L * Math.tan((finalXTilt * Math.PI) / 180.0);
+          finalYDisp = L * Math.tan((finalYTilt * Math.PI) / 180.0);
+          finalTotalDisp = Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp);
         }
+
+        const sensors = extractSensorData(r);
 
         return {
           timestamp: new Date(r.timestamp).toISOString(),
@@ -155,14 +181,17 @@ export async function reportsRoutes(fastify) {
           yDisp: Number(finalYDisp.toFixed(4)),
           zDisplacement: Number(finalZDisp.toFixed(4)),
           zDisp: Number(finalZDisp.toFixed(4)),
-          accMag: parseFloat(r.acceleration?.accMag || r.accMag || 0.982),
-          vibrationRMS: parseFloat(r.vibration?.vibrationRMS || r.vibrationRMS || 0.045),
-          vibrationPeak: parseFloat(r.vibration?.vibrationPeak || r.vibrationPeak || 0.104),
-          temperature: parseFloat(r.temperature || 28.5),
+          // Sensor data - null if not recorded
+          accMag: sensors.accMag !== null ? Number(sensors.accMag.toFixed(4)) : null,
+          vibrationRMS: sensors.vibRMS !== null ? Number(sensors.vibRMS.toFixed(4)) : null,
+          vibRMS: sensors.vibRMS !== null ? Number(sensors.vibRMS.toFixed(4)) : null,
+          vibrationPeak: sensors.vibPeak !== null ? Number(sensors.vibPeak.toFixed(4)) : null,
+          vibPeak: sensors.vibPeak !== null ? Number(sensors.vibPeak.toFixed(4)) : null,
+          temperature: sensors.temperature !== null ? Number(sensors.temperature.toFixed(1)) : null,
         };
       });
 
-      // Compute analytics statistics on formatted records
+      // Compute analytics statistics on formatted records (only non-null values)
       let sumTilt = 0;
       let maxTilt = 0;
       let maxX = 0;
@@ -173,6 +202,7 @@ export async function reportsRoutes(fastify) {
       let maxYDisp = 0;
       let maxVib = 0;
       let sumTemp = 0;
+      let tempCount = 0;
 
       formattedRecords.forEach(r => {
         const tilt = parseFloat(r.resultantTilt || 0);
@@ -182,8 +212,8 @@ export async function reportsRoutes(fastify) {
         const disp = parseFloat(r.totalDisplacement || 0);
         const xd = Math.abs(parseFloat(r.xDisplacement || 0));
         const yd = Math.abs(parseFloat(r.yDisplacement || 0));
-        const vib = parseFloat(r.vibrationPeak || 0);
-        const temp = parseFloat(r.temperature || 0);
+        const vib = r.vibrationPeak !== null ? parseFloat(r.vibrationPeak || 0) : 0;
+        const temp = r.temperature;
 
         sumTilt += tilt;
         if (tilt > maxTilt) maxTilt = tilt;
@@ -194,12 +224,15 @@ export async function reportsRoutes(fastify) {
         if (xd > maxXDisp) maxXDisp = xd;
         if (yd > maxYDisp) maxYDisp = yd;
         if (vib > maxVib) maxVib = vib;
-        sumTemp += temp;
+        if (temp !== null && !isNaN(temp)) {
+          sumTemp += temp;
+          tempCount++;
+        }
       });
 
       const totalCount = formattedRecords.length;
       const avgTilt = totalCount > 0 ? (sumTilt / totalCount).toFixed(4) : 0;
-      const avgTemp = totalCount > 0 ? (sumTemp / totalCount).toFixed(2) : 0;
+      const avgTemp = tempCount > 0 ? (sumTemp / tempCount).toFixed(2) : null;
 
       return reply.send({
         statusCode: 200,
@@ -215,7 +248,7 @@ export async function reportsRoutes(fastify) {
           maxXDisplacement_mm: parseFloat(maxXDisp.toFixed(4)),
           maxYDisplacement_mm: parseFloat(maxYDisp.toFixed(4)),
           maxVibrationPeak_g: parseFloat(maxVib.toFixed(4)),
-          averageTemperature_C: parseFloat(avgTemp),
+          averageTemperature_C: avgTemp !== null ? parseFloat(avgTemp) : null,
         },
         timeSeriesData: formattedRecords,
       });

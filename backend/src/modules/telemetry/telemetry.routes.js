@@ -257,35 +257,7 @@ export async function telemetryRoutes(fastify) {
       fastify.log.warn('[Telemetry] PostgreSQL query error:', err.message);
     }
 
-    // 2. Query In-Memory Ring Buffer Map (fallback for very recent data before DB write)
-    let memList = [];
-    if (inMemoryTelemetryStore instanceof Map) {
-      memList = inMemoryTelemetryStore.get(deviceId) || [];
-    } else if (Array.isArray(inMemoryTelemetryStore)) {
-      memList = inMemoryTelemetryStore.filter(m => m.deviceId === deviceId);
-    }
-
-    // Filter memory points by time range if requested
-    if (memList.length > 0 && (startDate || stopDate)) {
-      memList = memList.filter(m => {
-        const t = new Date(m.timestamp || m.time);
-        if (startDate && t < startDate) return false;
-        if (stopDate && t > stopDate) return false;
-        return true;
-      });
-    }
-
-    if (memList.length > 0) {
-      return reply.send({
-        statusCode: 200,
-        deviceId,
-        source: 'In-Memory Store',
-        totalPoints: memList.length,
-        history: memList.map(pt => formatPoint(pt)),
-      });
-    }
-
-    // 3. If no history recorded yet for selected device & range, return empty dataset
+    // 2. If no history recorded in PostgreSQL for selected device & range, return empty dataset
     return reply.send({
       statusCode: 200,
       deviceId,

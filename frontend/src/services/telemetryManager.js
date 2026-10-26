@@ -32,16 +32,6 @@ class TelemetryManager {
       this.requestLatest(targetDeviceId);
     }
 
-    // Instantly provide cached telemetry if available for this specific device
-    if (targetDeviceId) {
-      const lower = targetDeviceId.toString().trim().toLowerCase();
-      if (this.latestByDevice.has(lower)) {
-        try {
-          callback(this.latestByDevice.get(lower));
-        } catch (e) {}
-      }
-    }
-
     // Return clean unsubscribe function
     return () => {
       this.subscribers.delete(id);
@@ -160,12 +150,17 @@ class TelemetryManager {
             } catch (e) {}
             return;
           }
-          if (msg.type === 'PONG') {
+          if (msg.type === 'PONG' || msg.type === 'CONNECTED') {
             return;
           }
 
-          const liveData = msg.data || msg;
-          if (liveData && (liveData.deviceId || liveData.id || liveData.tilt || liveData.displacement || liveData.xTilt)) {
+          // Only process genuine telemetry update packets from hardware/database
+          if (msg.type !== 'TELEMETRY_UPDATE') {
+            return;
+          }
+
+          const liveData = msg.data;
+          if (liveData && (liveData.deviceId || liveData.id)) {
             console.log('📥 [WEBSOCKET LIVE TELEMETRY RECEIVED]:', liveData);
             this.notifyData(liveData);
           }

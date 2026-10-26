@@ -75,6 +75,7 @@ export default function DevicesPage() {
       longitude: '',
       macAddress: 'AA:BB:CC:DD:EE:FF',
       status: 'ONLINE',
+      gaugeLength_mm: 1000,
       sleep_count: 15,
       wake_count: 30,
       calibrate: false,
@@ -95,8 +96,9 @@ export default function DevicesPage() {
       longitude: dev.longitude !== undefined && dev.longitude !== null ? dev.longitude : '',
       macAddress: dev.macAddress || '',
       status: dev.status || 'ONLINE',
-      sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
-      wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
+      gaugeLength_mm: dev.gaugeLength_mm !== undefined && dev.gaugeLength_mm !== null ? dev.gaugeLength_mm : 1000,
+      sleep_count: dev.sleep_count !== undefined && dev.sleep_count !== null ? dev.sleep_count : 15,
+      wake_count: dev.wake_count !== undefined && dev.wake_count !== null ? dev.wake_count : 30,
       calibrate: Boolean(dev.calibrate),
     });
     setModalOpen(true);
@@ -116,23 +118,31 @@ export default function DevicesPage() {
 
   const handleSave = async (e) => {
     e.preventDefault();
-    const sleepVal = Number(formData.sleep_count);
-    if (!sleepVal || sleepVal < 15) {
-      setMsg({ type: 'error', text: 'Sleep count must be at least 15 minutes (15M minimum).' });
-      return;
-    }
+    const sleepVal = formData.sleep_count !== undefined && formData.sleep_count !== '' && Number(formData.sleep_count) >= 15
+      ? Number(formData.sleep_count)
+      : (editingDevice?.sleep_count || 15);
+    const wakeVal = formData.wake_count !== undefined && formData.wake_count !== '' && Number(formData.wake_count) > 0
+      ? Number(formData.wake_count)
+      : (editingDevice?.wake_count || 30);
+    const gaugeVal = parseFloat(formData.gaugeLength_mm) || 1000;
+
     const payload = {
       ...formData,
       sleep_count: sleepVal,
-      wake_count: Number(formData.wake_count) || 30,
-      latitude: formData.latitude !== '' && formData.latitude !== null && formData.latitude !== undefined ? parseFloat(formData.latitude) : null,
-      longitude: formData.longitude !== '' && formData.longitude !== null && formData.longitude !== undefined ? parseFloat(formData.longitude) : null,
+      wake_count: wakeVal,
+      gaugeLength_mm: gaugeVal,
+      status: formData.status || 'ONLINE',
+      structureId: formData.structureId ? String(formData.structureId).trim() : null,
+      siteId: formData.siteId ? String(formData.siteId).trim() : null,
+      latitude: formData.latitude !== '' && formData.latitude !== null && formData.latitude !== undefined && !isNaN(parseFloat(formData.latitude)) ? parseFloat(formData.latitude) : null,
+      longitude: formData.longitude !== '' && formData.longitude !== null && formData.longitude !== undefined && !isNaN(parseFloat(formData.longitude)) ? parseFloat(formData.longitude) : null,
     };
     try {
       if (editingDevice) {
-        await updateDevice(editingDevice.id, payload);
-        setDevicesList(prev => prev.map(d => d.id === editingDevice.id ? { ...d, ...payload } : d));
-        setMsg({ type: 'success', text: `Device ${payload.id} updated.` });
+        const res = await updateDevice(editingDevice.id, payload);
+        const updatedDev = res?.device || { ...editingDevice, ...payload };
+        setDevicesList(prev => prev.map(d => d.id === editingDevice.id ? { ...d, ...updatedDev } : d));
+        setMsg({ type: 'success', text: `Device ${editingDevice.id} updated successfully.` });
       } else {
         const res = await createDevice(payload);
         const newDev = res?.device || { ...payload, battery: '100%', signal: '14' };
@@ -403,6 +413,34 @@ export default function DevicesPage() {
                     <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name} ({s.id || s.siteId})</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Status & Gauge Length */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Device Status</label>
+                  <select
+                    value={formData.status || 'ONLINE'}
+                    onChange={e => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="ONLINE">ONLINE</option>
+                    <option value="OFFLINE">OFFLINE</option>
+                    <option value="MAINTENANCE">MAINTENANCE</option>
+                    <option value="WARNING">WARNING</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Gauge Length (mm)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    value={formData.gaugeLength_mm ?? 1000}
+                    onChange={e => setFormData({ ...formData, gaugeLength_mm: e.target.value })}
+                    placeholder="1000"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               {/* Geographic Coordinates (Latitude & Longitude) */}

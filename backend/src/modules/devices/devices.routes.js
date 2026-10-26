@@ -207,26 +207,78 @@ export async function devicesRoutes(fastify) {
         }
       }
 
-      if (req.body.sleep_count !== undefined) {
-        const parsedSleep = parseInt(req.body.sleep_count);
-        if (parsedSleep < 15) {
-          return reply.status(400).send({
-            statusCode: 400,
-            error: 'Validation Error',
-            message: 'Sleep count must be at least 15 minutes.'
-          });
+      const updateData = { ...req.body };
+      delete updateData.id; // Do not update primary key id
+
+      if (req.user?.role === 'ORG_ADMIN') {
+        updateData.organizationId = req.user.organizationId;
+      } else if (updateData.organizationId !== undefined) {
+        updateData.organizationId = updateData.organizationId !== '' && updateData.organizationId !== null ? parseInt(updateData.organizationId) : null;
+      }
+
+      if (updateData.projectId !== undefined) {
+        updateData.projectId = updateData.projectId !== '' && updateData.projectId !== null ? parseInt(updateData.projectId) : null;
+      }
+
+      if (updateData.structureId !== undefined) {
+        updateData.structureId = updateData.structureId !== '' && updateData.structureId !== null ? String(updateData.structureId).trim() : null;
+      }
+
+      if (updateData.siteId !== undefined) {
+        updateData.siteId = updateData.siteId !== '' && updateData.siteId !== null ? String(updateData.siteId).trim() : null;
+      }
+
+      if (updateData.latitude !== undefined) {
+        updateData.latitude = updateData.latitude !== '' && updateData.latitude !== null && !isNaN(parseFloat(updateData.latitude))
+          ? parseFloat(updateData.latitude)
+          : null;
+      }
+
+      if (updateData.longitude !== undefined) {
+        updateData.longitude = updateData.longitude !== '' && updateData.longitude !== null && !isNaN(parseFloat(updateData.longitude))
+          ? parseFloat(updateData.longitude)
+          : null;
+      }
+
+      if (updateData.elevation !== undefined) {
+        updateData.elevation = updateData.elevation !== '' && updateData.elevation !== null && !isNaN(parseFloat(updateData.elevation))
+          ? parseFloat(updateData.elevation)
+          : null;
+      }
+
+      if (updateData.gaugeLength_mm !== undefined) {
+        updateData.gaugeLength_mm = updateData.gaugeLength_mm !== '' && updateData.gaugeLength_mm !== null && !isNaN(parseFloat(updateData.gaugeLength_mm))
+          ? parseFloat(updateData.gaugeLength_mm)
+          : 1000.0;
+      }
+
+      if (updateData.sleep_count !== undefined) {
+        if (updateData.sleep_count === '' || updateData.sleep_count === null) {
+          delete updateData.sleep_count;
+        } else {
+          const parsedSleep = parseInt(updateData.sleep_count);
+          if (!isNaN(parsedSleep)) {
+            if (parsedSleep < 15) {
+              return reply.status(400).send({
+                statusCode: 400,
+                error: 'Validation Error',
+                message: 'Sleep count must be at least 15 minutes.'
+              });
+            }
+            updateData.sleep_count = parsedSleep;
+          } else {
+            delete updateData.sleep_count;
+          }
         }
       }
 
-      const updateData = { ...req.body };
-      if (req.user?.role === 'ORG_ADMIN') {
-        updateData.organizationId = req.user.organizationId;
-      }
-      if (updateData.latitude !== undefined) {
-        updateData.latitude = updateData.latitude !== '' && updateData.latitude !== null ? parseFloat(updateData.latitude) : null;
-      }
-      if (updateData.longitude !== undefined) {
-        updateData.longitude = updateData.longitude !== '' && updateData.longitude !== null ? parseFloat(updateData.longitude) : null;
+      if (updateData.wake_count !== undefined) {
+        if (updateData.wake_count === '' || updateData.wake_count === null) {
+          delete updateData.wake_count;
+        } else {
+          const parsedWake = parseInt(updateData.wake_count);
+          updateData.wake_count = !isNaN(parsedWake) && parsedWake > 0 ? parsedWake : 30;
+        }
       }
 
       if (updateData.calibrate !== undefined) {

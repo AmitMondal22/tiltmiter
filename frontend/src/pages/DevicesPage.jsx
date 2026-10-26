@@ -108,7 +108,8 @@ export default function DevicesPage() {
     setConfigForm({
       sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
       wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
-      calibrate: Boolean(dev.calibrate),
+      calibrate: Boolean(dev.calibrate ?? dev.hasReferenceZero),
+      status: dev.status || 'ONLINE',
     });
     setConfigModalOpen(true);
   };
@@ -158,11 +159,14 @@ export default function DevicesPage() {
       ...configForm,
       sleep_count: sleepVal,
       wake_count: wakeVal > 0 ? wakeVal : 30,
+      calibrate: Boolean(configForm.calibrate),
+      status: configForm.status || 'ONLINE',
     };
     try {
-      await configureDeviceTelemetry(selectedDevice.id, payload);
-      setDevicesList(prev => prev.map(d => d.id === selectedDevice.id ? { ...d, ...payload } : d));
-      setMsg({ type: 'success', text: `Configuration deployed to ${selectedDevice.id}.` });
+      const res = await configureDeviceTelemetry(selectedDevice.id, payload);
+      const updatedDev = res?.device || { ...selectedDevice, ...payload };
+      setDevicesList(prev => prev.map(d => d.id === selectedDevice.id ? { ...d, ...updatedDev, calibrate: payload.calibrate, hasReferenceZero: payload.calibrate } : d));
+      setMsg({ type: 'success', text: `Configuration deployed to ${selectedDevice.id}. Calibrate: ${payload.calibrate ? 'ENABLED' : 'DISABLED'}.` });
       setConfigModalOpen(false);
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Error configuring device' });
@@ -532,6 +536,28 @@ export default function DevicesPage() {
                   <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   <span className="ml-2 text-xs font-bold text-slate-700">
                     {configForm.calibrate ? 'Enabled' : 'Disabled'}
+                  </span>
+                </label>
+              </div>
+
+              {/* Enable / Disable Device Operational State */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-slate-900">Device Operational State</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Enable or disable sensor device telemetry tracking.
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={configForm.status !== 'DISABLED' && configForm.status !== 'OFFLINE'}
+                    onChange={e => setConfigForm({ ...configForm, status: e.target.checked ? 'ONLINE' : 'DISABLED' })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  <span className="ml-2 text-xs font-bold text-slate-700">
+                    {configForm.status !== 'DISABLED' && configForm.status !== 'OFFLINE' ? 'Enabled' : 'Disabled'}
                   </span>
                 </label>
               </div>

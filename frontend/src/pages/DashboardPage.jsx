@@ -92,9 +92,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     const refY = parseFloat(activeDevice?.refThetaY ?? 0.0);
     const refZ = parseFloat(activeDevice?.refThetaZ ?? 0.0);
     const hasRef = Boolean(activeDevice?.hasReferenceZero || activeDevice?.calibrate);
-    const isZeroed = Boolean(
-      ((activeDevice?.xTilt === 0 || activeDevice?.xTilt === 0.0 || activeDevice?.xTilt === null || activeDevice?.xTilt === undefined) &&
-      (activeDevice?.yTilt === 0 || activeDevice?.yTilt === 0.0 || activeDevice?.yTilt === null || activeDevice?.yTilt === undefined)) ||
+    const isZeroed = hasRef && Boolean(
+      ((activeDevice?.xTilt === 0 || activeDevice?.xTilt === 0.0) &&
+       (activeDevice?.yTilt === 0 || activeDevice?.yTilt === 0.0)) ||
       (activeDevice?.resultantTilt === 0 || activeDevice?.resultantTilt === 0.0) ||
       (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0)
     );
@@ -214,7 +214,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           setConfigForm({
             sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
             wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
-            calibrate: Boolean(dev.calibrate),
+            calibrate: Boolean(dev.calibrate ?? dev.hasReferenceZero),
+            status: dev.status || 'ONLINE',
+            gaugeLength_mm: dev.gaugeLength_mm !== undefined ? dev.gaugeLength_mm : 1000,
           });
           setLiveData(parseTelemetry(dev));
         }
@@ -276,7 +278,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       setConfigForm({
         sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
         wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
-        calibrate: Boolean(dev.calibrate),
+        calibrate: Boolean(dev.calibrate ?? dev.hasReferenceZero),
         status: dev.status || 'ONLINE',
         gaugeLength_mm: dev.gaugeLength_mm !== undefined ? dev.gaugeLength_mm : 1000,
       });
@@ -380,12 +382,15 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       sleep_count: sleepVal,
       wake_count: wakeVal > 0 ? wakeVal : 30,
       gaugeLength_mm: gaugeVal,
+      calibrate: Boolean(configForm.calibrate),
+      status: configForm.status || 'ONLINE',
     };
     try {
-      await configureDeviceTelemetry(selectedId, payload);
-      setMsg({ type: 'success', text: `Configuration deployed to ${selectedId} successfully.` });
+      const res = await configureDeviceTelemetry(selectedId, payload);
+      const updatedDev = res?.device || { ...activeDevice, ...payload };
+      setMsg({ type: 'success', text: `Configuration deployed to ${selectedId} successfully. Calibrate: ${payload.calibrate ? 'ENABLED' : 'DISABLED'}.` });
       setConfigModalOpen(false);
-      setDeviceMeta(prev => ({ ...prev, ...payload }));
+      setDeviceMeta(prev => ({ ...prev, ...updatedDev, calibrate: payload.calibrate, hasReferenceZero: payload.calibrate }));
       loadHistory(selectedId, null, null, activeFilter);
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Error deploying config' });

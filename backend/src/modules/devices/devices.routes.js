@@ -181,7 +181,18 @@ export async function devicesRoutes(fastify) {
   fastify.put('/api/devices/:id', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
-      const device = await Device.findByPk(id);
+      let device = await Device.findByPk(id);
+      if (!device && Op) {
+        device = await Device.findOne({
+          where: {
+            [Op.or]: [
+              { id },
+              { id: String(id).toUpperCase() },
+              { id: String(id).toLowerCase() }
+            ]
+          }
+        });
+      }
       if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
 
       if (req.user?.role && req.user.role !== 'SUPER_ADMIN') {
@@ -208,7 +219,7 @@ export async function devicesRoutes(fastify) {
       }
 
       const updateData = { ...req.body };
-      if (req.user.role === 'ORG_ADMIN') {
+      if (req.user?.role === 'ORG_ADMIN') {
         updateData.organizationId = req.user.organizationId;
       }
       if (updateData.latitude !== undefined) {
@@ -218,8 +229,22 @@ export async function devicesRoutes(fastify) {
         updateData.longitude = updateData.longitude !== '' && updateData.longitude !== null ? parseFloat(updateData.longitude) : null;
       }
 
+      if (updateData.calibrate !== undefined) {
+        const isCalibrate = updateData.calibrate === true || updateData.calibrate === 'true' || updateData.calibrate === 1 || updateData.calibrate === '1';
+        updateData.calibrate = isCalibrate;
+        updateData.hasReferenceZero = isCalibrate;
+        if (isCalibrate) {
+          if (!device.refThetaX && !device.refThetaY) {
+            updateData.refThetaX = parseFloat(device.xTilt || 0.0);
+            updateData.refThetaY = parseFloat(device.yTilt || 0.0);
+            updateData.refThetaZ = parseFloat(device.zTilt || 0.0);
+            updateData.refTimestamp = new Date();
+          }
+        }
+      }
+
       await device.update(updateData);
-      const updated = await Device.findByPk(id, {
+      const updated = await Device.findByPk(device.id, {
         include: [{ model: Site, include: [Project, Organization] }, Structure]
       });
       return reply.send({ statusCode: 200, message: 'Device updated successfully', device: updated || device });

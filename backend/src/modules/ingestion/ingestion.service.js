@@ -2,6 +2,8 @@ import { saveTelemetryPoint } from '../../config/influx.js';
 import { broadcastTelemetry } from '../../websocket/websocket.service.js';
 import { evaluateTelemetryAlerts } from '../../services/alertEngineService.js';
 import { Device } from '../../models/Device.js';
+import pkg from 'sequelize';
+const { Op } = pkg;
 
 export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const deviceId = rawPayload.deviceId || rawPayload.device_id || params.deviceId || 'TM-001';
@@ -45,10 +47,21 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   try {
     if (Device && typeof Device.findByPk === 'function') {
       deviceRecord = await Device.findByPk(deviceId);
+      if (!deviceRecord && Op) {
+        deviceRecord = await Device.findOne({
+          where: {
+            [Op.or]: [
+              { id: deviceId },
+              { id: String(deviceId).toUpperCase() },
+              { id: String(deviceId).toLowerCase() }
+            ]
+          }
+        });
+      }
     }
   } catch (e) {}
 
-  const hasRefZero = Boolean(deviceRecord?.hasReferenceZero);
+  const hasRefZero = Boolean(deviceRecord?.calibrate ?? deviceRecord?.hasReferenceZero ?? false);
   const dbRefX = deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null ? parseFloat(deviceRecord.refThetaX) : 0.0;
   const dbRefY = deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null ? parseFloat(deviceRecord.refThetaY) : 0.0;
   const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;

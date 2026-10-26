@@ -80,9 +80,9 @@ export default function DeviceDetailPage() {
     const refY = parseFloat(device?.refThetaY ?? 0.0);
     const refZ = parseFloat(device?.refThetaZ ?? 0.0);
     const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate);
-    const isZeroed = Boolean(
-      ((device?.xTilt === 0 || device?.xTilt === 0.0 || device?.xTilt === null || device?.xTilt === undefined) &&
-      (device?.yTilt === 0 || device?.yTilt === 0.0 || device?.yTilt === null || device?.yTilt === undefined)) ||
+    const isZeroed = hasRef && Boolean(
+      ((device?.xTilt === 0 || device?.xTilt === 0.0) &&
+       (device?.yTilt === 0 || device?.yTilt === 0.0)) ||
       (device?.resultantTilt === 0 || device?.resultantTilt === 0.0) ||
       (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0)
     );
@@ -233,7 +233,7 @@ export default function DeviceDetailPage() {
       setConfigForm({
         sleep_count: device.sleep_count !== undefined ? device.sleep_count : '',
         wake_count: device.wake_count !== undefined ? device.wake_count : '',
-        calibrate: Boolean(device.calibrate),
+        calibrate: Boolean(device.calibrate ?? device.hasReferenceZero),
         status: device.status || 'ONLINE',
         gaugeLength_mm: device.gaugeLength_mm !== undefined ? device.gaugeLength_mm : 1000,
       });
@@ -338,12 +338,15 @@ export default function DeviceDetailPage() {
       sleep_count: sleepVal,
       wake_count: wakeVal > 0 ? wakeVal : 30,
       gaugeLength_mm: gaugeVal,
+      calibrate: Boolean(configForm.calibrate),
+      status: configForm.status || 'ONLINE',
     };
     try {
-      await configureDeviceTelemetry(deviceId, payload);
-      setMsg({ type: 'success', text: `Configuration deployed to ${deviceId} successfully.` });
+      const res = await configureDeviceTelemetry(deviceId, payload);
+      const updatedDev = res?.device || { ...device, ...payload };
+      setMsg({ type: 'success', text: `Configuration deployed to ${deviceId} successfully. Calibrate: ${payload.calibrate ? 'ENABLED' : 'DISABLED'}.` });
       setConfigModalOpen(false);
-      setDevice(prev => ({ ...prev, ...payload }));
+      setDevice(prev => ({ ...prev, ...updatedDev, calibrate: payload.calibrate, hasReferenceZero: payload.calibrate }));
       loadHistory(deviceId, null, null, activeFilter);
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Error deploying config' });

@@ -382,6 +382,7 @@ export default function DeviceDetailPage() {
     document.body.removeChild(link);
   };
 
+  const hasData = Boolean(liveData);
   const d = liveData || parseTelemetry({ id: deviceId });
   const rawRoll = typeof d.xTilt === 'number' ? d.xTilt : 0;
   const rawPitch = typeof d.yTilt === 'number' ? d.yTilt : 0;

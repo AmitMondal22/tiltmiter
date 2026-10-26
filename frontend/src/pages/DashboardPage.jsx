@@ -96,7 +96,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       ((activeDevice?.xTilt === 0 || activeDevice?.xTilt === 0.0) &&
        (activeDevice?.yTilt === 0 || activeDevice?.yTilt === 0.0)) ||
       (activeDevice?.resultantTilt === 0 || activeDevice?.resultantTilt === 0.0) ||
-      (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0)
+      (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0) ||
+      (Math.abs(activeDevice?.xTilt || 0) < 0.015 && Math.abs(activeDevice?.yTilt || 0) < 0.015)
     );
 
     const deltaX = isZeroed ? 0.0 : (hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT));
@@ -433,7 +434,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const isZeroed = Boolean(
     ((activeDevice?.xTilt === 0 || activeDevice?.xTilt === 0.0 || activeDevice?.xTilt === null || activeDevice?.xTilt === undefined) &&
     (activeDevice?.yTilt === 0 || activeDevice?.yTilt === 0.0 || activeDevice?.yTilt === null || activeDevice?.yTilt === undefined)) ||
-    (activeDevice?.resultantTilt === 0 || activeDevice?.resultantTilt === 0.0)
+    (activeDevice?.resultantTilt === 0 || activeDevice?.resultantTilt === 0.0) ||
+    (d.xTilt === 0.0 && d.yTilt === 0.0 && d.totalDisplacement === 0.0) ||
+    (Math.abs(activeDevice?.xTilt || 0) < 0.015 && Math.abs(activeDevice?.yTilt || 0) < 0.015)
   );
 
   // ClinoX: ΔθX = θX,current − θX,reference; ΔθY = θY,current − θY,reference

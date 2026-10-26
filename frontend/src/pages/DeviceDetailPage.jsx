@@ -84,7 +84,8 @@ export default function DeviceDetailPage() {
       ((device?.xTilt === 0 || device?.xTilt === 0.0) &&
        (device?.yTilt === 0 || device?.yTilt === 0.0)) ||
       (device?.resultantTilt === 0 || device?.resultantTilt === 0.0) ||
-      (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0)
+      (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0) ||
+      (Math.abs(device?.xTilt || 0) < 0.015 && Math.abs(device?.yTilt || 0) < 0.015)
     );
 
     const deltaX = isZeroed ? 0.0 : (hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT));
@@ -391,7 +392,8 @@ export default function DeviceDetailPage() {
     ((device?.xTilt === 0 || device?.xTilt === 0.0 || device?.xTilt === null || device?.xTilt === undefined) &&
     (device?.yTilt === 0 || device?.yTilt === 0.0 || device?.yTilt === null || device?.yTilt === undefined)) ||
     (device?.resultantTilt === 0 || device?.resultantTilt === 0.0) ||
-    (d.xTilt === 0.0 && d.yTilt === 0.0 && d.totalDisplacement === 0.0)
+    (d.xTilt === 0.0 && d.yTilt === 0.0 && d.totalDisplacement === 0.0) ||
+    (Math.abs(device?.xTilt || 0) < 0.015 && Math.abs(device?.yTilt || 0) < 0.015)
   );
 
   // ClinoX: ΔθX = θX,current − θX,reference; ΔθY = θY,current − θY,reference

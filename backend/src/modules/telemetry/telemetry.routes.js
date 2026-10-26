@@ -2,11 +2,11 @@ import pkg from 'sequelize';
 const { Op } = pkg;
 import { TelemetryRecord, Device } from '../../models/index.js';
 import { inMemoryTelemetryStore, queryInfluxTelemetry } from '../../config/influx.js';
-import { authenticate } from '../../middleware/authMiddleware.js';
+import { authenticate, authenticateOptional } from '../../middleware/authMiddleware.js';
 
 export async function telemetryRoutes(fastify) {
   // Query historical time-series telemetry from InfluxDB OSS Database / PostgreSQL / In-Memory with full date-time support
-  fastify.get('/api/telemetry/:deviceId', { preHandler: [authenticate(fastify)] }, async (req, reply) => {
+  fastify.get('/api/telemetry/:deviceId', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     const { deviceId } = req.params;
     const { fromDate, toDate, range } = req.query || {};
 
@@ -78,6 +78,101 @@ export async function telemetryRoutes(fastify) {
       else startDate = new Date(refDate.getTime() - 24 * 60 * 60 * 1000);
     }
 
+    // Check device zero calibration status from database
+    let devRecord = null;
+    try {
+      devRecord = await Device.findByPk(deviceId);
+      if (!devRecord) {
+        devRecord = await Device.findOne({
+          where: {
+            [Op.or]: [
+              { id: deviceId },
+              { id: deviceId.toUpperCase() },
+              { id: deviceId.toLowerCase() }
+            ]
+          }
+        });
+      }
+    } catch (devLookupErr) {}
+
+    const isZeroCalibrated = Boolean(
+      (devRecord && (
+        (devRecord.xTilt === 0.0 || devRecord.xTilt === 0 || devRecord.xTilt === null || devRecord.xTilt === undefined) &&
+        (devRecord.yTilt === 0.0 || devRecord.yTilt === 0 || devRecord.yTilt === null || devRecord.yTilt === undefined)
+      )) ||
+      devRecord?.hasReferenceZero ||
+      devRecord?.calibrate
+    );
+    const hasReferenceZero = Boolean(devRecord?.hasReferenceZero || devRecord?.calibrate);
+    const refX = parseFloat(devRecord?.refThetaX ?? 0.0) || 0.0;
+    const refY = parseFloat(devRecord?.refThetaY ?? 0.0) || 0.0;
+    const refZ = parseFloat(devRecord?.refThetaZ ?? 0.0) || 0.0;
+    const L = parseFloat(devRecord?.gaugeLength_mm ?? 1000.0) || 1000.0;
+
+    // Helper to format every point ensuring ALL data reflects zero when device is zeroed
+    const formatPoint = (pt) => {
+      const rawX = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0) || 0;
+      const rawY = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
+      const rawZ = parseFloat(pt.zTilt ?? pt.tiltZ ?? 0) || 0;
+      const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt;
+      const calcRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(rawX * rawX + rawY * rawY);
+
+      let finalXTilt = rawX;
+      let finalYTilt = rawY;
+      let finalZTilt = rawZ;
+      let finalResultant = calcRes;
+      let finalXDisp = parseFloat(pt.xDisp ?? pt.xDisplacement ?? 0) || 0;
+      let finalYDisp = parseFloat(pt.yDisp ?? pt.yDisplacement ?? 0) || 0;
+      let finalZDisp = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
+      let finalTotalDisp = parseFloat(pt.totalDisp ?? pt.totalDisplacement ?? 0) || 0;
+
+      if (isZeroCalibrated) {
+        // Device is zero calibrated: all historical data points MUST reflect 0.000
+        finalXTilt = 0.0;
+        finalYTilt = 0.0;
+        finalZTilt = 0.0;
+        finalResultant = 0.0;
+        finalXDisp = 0.0;
+        finalYDisp = 0.0;
+        finalZDisp = 0.0;
+        finalTotalDisp = 0.0;
+      } else if (hasReferenceZero) {
+        finalXTilt = rawX - refX;
+        finalYTilt = rawY - refY;
+        finalZTilt = rawZ - refZ;
+        finalResultant = Math.sqrt(finalXTilt * finalXTilt + finalYTilt * finalYTilt);
+        finalXDisp = L * Math.tan((finalXTilt * Math.PI) / 180.0);
+        finalYDisp = L * Math.tan((finalYTilt * Math.PI) / 180.0);
+        finalTotalDisp = Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp);
+      }
+
+      return {
+        ...pt,
+        xTilt: finalXTilt,
+        tiltX: finalXTilt,
+        roll: finalXTilt,
+        yTilt: finalYTilt,
+        tiltY: finalYTilt,
+        pitch: finalYTilt,
+        zTilt: finalZTilt,
+        tiltZ: finalZTilt,
+        resultant: finalResultant,
+        resultantTilt: finalResultant,
+        tilt: finalResultant,
+        xDisp: finalXDisp,
+        xDisplacement: finalXDisp,
+        yDisp: finalYDisp,
+        yDisplacement: finalYDisp,
+        zDisp: finalZDisp,
+        zDisplacement: finalZDisp,
+        totalDisp: finalTotalDisp,
+        totalDisplacement: finalTotalDisp,
+        deltaThetaX: isZeroCalibrated ? 0.0 : (hasReferenceZero ? finalXTilt : (pt.deltaThetaX ?? 0.0)),
+        deltaThetaY: isZeroCalibrated ? 0.0 : (hasReferenceZero ? finalYTilt : (pt.deltaThetaY ?? 0.0)),
+        deltaThetaZ: isZeroCalibrated ? 0.0 : (hasReferenceZero ? finalZTilt : (pt.deltaThetaZ ?? 0.0)),
+      };
+    };
+
     // 1. Try querying InfluxDB OSS time-series database
     try {
       const start = startDate ? startDate.toISOString() : '-24h';
@@ -90,7 +185,7 @@ export async function telemetryRoutes(fastify) {
           deviceId,
           source: 'InfluxDB OSS',
           totalPoints: influxHistory.length,
-          history: influxHistory,
+          history: influxHistory.map(formatPoint),
         });
       }
     } catch (err) {}
@@ -117,7 +212,7 @@ export async function telemetryRoutes(fastify) {
       });
 
       if (dbRecords && dbRecords.length > 0) {
-        const history = dbRecords.map(r => ({
+        const history = dbRecords.map(r => formatPoint({
           time: new Date(r.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
           timestamp: new Date(r.timestamp).toISOString(),
           deviceId: r.deviceId,
@@ -186,11 +281,11 @@ export async function telemetryRoutes(fastify) {
         deviceId,
         source: 'In-Memory Store',
         totalPoints: memList.length,
-        history: memList,
+        history: memList.map(formatPoint),
       });
     }
 
-    // 4. If no history recorded yet for selected device & range, return empty dataset (no fake/simulated data)
+    // 4. If no history recorded yet for selected device & range, return empty dataset
     return reply.send({
       statusCode: 200,
       deviceId,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Target,
   RotateCcw,
@@ -21,7 +21,10 @@ import {
   BatteryCharging,
   Radio,
   Thermometer,
-  Compass
+  Compass,
+  Copy,
+  ExternalLink,
+  LayoutDashboard
 } from 'lucide-react';
 import {
   getDevices,
@@ -30,11 +33,31 @@ import {
   zeroAllDevicesReadings
 } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
+import appLogo from '../assets/logo/logo250x150.png';
 
-export default function ZeroCalibrationPage({ isDark = false }) {
+export default function ZeroCalibrationPage({ isDark = false, isStandalone = false }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  // Standalone / Direct URL mode detection (without menu)
+  const isDirectNoMenu =
+    isStandalone ||
+    searchParams.get('noMenu') === 'true' ||
+    searchParams.get('standalone') === 'true' ||
+    location.pathname === '/zero-readings' ||
+    location.pathname === '/zero';
+
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const copyDirectUrl = () => {
+    const directUrl = `${window.location.origin}${window.location.pathname}#/zero-readings`;
+    navigator.clipboard.writeText(directUrl).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    });
+  };
 
   // Selected device & device lists
   const [devices, setDevices] = useState([]);
@@ -146,23 +169,32 @@ export default function ZeroCalibrationPage({ isDark = false }) {
         setFeedback({
           type: 'success',
           message: `Tilt & Displacement successfully zeroed for ${selectedDeviceId}!`,
-          details: `Updated xTilt, yTilt, resultantTilt to 0.000° and displacements to 0.000mm. All other data (battery, signal, temperature, status) remained unchanged.`,
+          details: `Updated xTilt, yTilt, resultantTilt to 0.000° and displacements to 0.000mm across all data points. All non-tilt data (battery, signal, temperature, status) remained unchanged.`,
         });
+
+        const zeroedFields = {
+          xTilt: 0.0,
+          yTilt: 0.0,
+          zTilt: 0.0,
+          resultantTilt: 0.0,
+          xDisplacement: 0.0,
+          yDisplacement: 0.0,
+          zDisplacement: 0.0,
+          totalDisplacement: 0.0,
+          baselineTilt: 0.0,
+          baselineRoll: 0.0,
+          baselinePitch: 0.0,
+          hasReferenceZero: true,
+          calibrate: true,
+        };
 
         // Update local state immediately
         if (res.device) {
-          setSelectedDevice(res.device);
-          setDevices(prev => prev.map(d => d.id === selectedDeviceId ? res.device : d));
+          setSelectedDevice({ ...res.device, ...zeroedFields });
+          setDevices(prev => prev.map(d => d.id === selectedDeviceId ? { ...d, ...res.device, ...zeroedFields } : d));
         } else {
-          setSelectedDevice(prev => prev ? {
-            ...prev,
-            xTilt: 0.0,
-            yTilt: 0.0,
-            resultantTilt: 0.0,
-            xDisplacement: 0.0,
-            yDisplacement: 0.0,
-            totalDisplacement: 0.0,
-          } : null);
+          setSelectedDevice(prev => prev ? { ...prev, ...zeroedFields } : null);
+          setDevices(prev => prev.map(d => d.id === selectedDeviceId ? { ...d, ...zeroedFields } : d));
         }
 
         logActivity({
@@ -171,7 +203,7 @@ export default function ZeroCalibrationPage({ isDark = false }) {
           date: new Date().toLocaleDateString('en-IN'),
           deviceId: selectedDeviceId,
           operator: user?.fullName || user?.username || 'Operator',
-          scope: 'Single Device',
+          scope: 'Single Device (All Data)',
           previous: prevSnapshot,
           status: 'SUCCESS',
         });
@@ -196,9 +228,10 @@ export default function ZeroCalibrationPage({ isDark = false }) {
     setFeedback(null);
 
     try {
-      const targetIds = filteredDevices.map(d => d.id);
+      // Target ALL devices in system
+      const targetIds = devices.map(d => d.id);
       const res = await zeroAllDevicesReadings({
-        scope: updateScope,
+        scope: 'all',
         setReference: setReferenceBaseline,
         deviceIds: targetIds,
       });
@@ -206,12 +239,31 @@ export default function ZeroCalibrationPage({ isDark = false }) {
       if (res?.statusCode === 200 || res?.message) {
         setFeedback({
           type: 'success',
-          message: `Tilt & Displacement zeroed across all ${res?.updatedDeviceCount || targetIds.length} devices!`,
-          details: `All selected devices have had their Tilt and Displacement set to 0.000. All non-tilt metadata was protected and unchanged.`,
+          message: `Tilt & Displacement zeroed across all ${targetIds.length} devices!`,
+          details: `All devices have had their Tilt and Displacement set to 0.000 across all historical data points. All non-tilt metadata was protected and unchanged.`,
         });
 
-        // Refresh devices
-        await loadDeviceList();
+        const zeroedFields = {
+          xTilt: 0.0,
+          yTilt: 0.0,
+          zTilt: 0.0,
+          resultantTilt: 0.0,
+          xDisplacement: 0.0,
+          yDisplacement: 0.0,
+          zDisplacement: 0.0,
+          totalDisplacement: 0.0,
+          baselineTilt: 0.0,
+          baselineRoll: 0.0,
+          baselinePitch: 0.0,
+          hasReferenceZero: true,
+          calibrate: true,
+        };
+
+        // Instantly update all devices in UI
+        setDevices(prev => prev.map(d => ({ ...d, ...zeroedFields })));
+        if (selectedDevice) {
+          setSelectedDevice(prev => prev ? ({ ...prev, ...zeroedFields }) : null);
+        }
 
         logActivity({
           id: Date.now(),
@@ -253,6 +305,45 @@ export default function ZeroCalibrationPage({ isDark = false }) {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Standalone Direct URL Header (when opened without menu) */}
+      {isDirectNoMenu && (
+        <header className="rounded-3xl bg-white border border-slate-200/90 p-4 md:px-6 shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <img src={appLogo} alt="Logo" className="h-9 w-auto object-contain" />
+            <div className="h-8 w-px bg-slate-200" />
+            <div>
+              <div className="text-xs font-bold text-slate-900 tracking-wide flex items-center gap-2">
+                <span>TILTMETER MONITORING SYSTEM</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  ● Standalone Mode
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-medium">Direct Zero Readings / Tare Calibration (Without Menu)</div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={copyDirectUrl}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition cursor-pointer"
+              title="Copy direct standalone URL to clipboard"
+            >
+              <Copy className="w-3.5 h-3.5 text-slate-500" />
+              <span>{copiedLink ? 'Copied Link!' : 'Copy Direct URL'}</span>
+            </button>
+
+            <button
+              onClick={() => navigate('/zero-calibration')}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold transition cursor-pointer"
+              title="Switch to full platform view with sidebar menu"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-blue-600" />
+              <span>Open with Full Menu</span>
+            </button>
+          </div>
+        </header>
+      )}
+
       {/* Top Banner / Header */}
       <div className="rounded-3xl border border-slate-200 bg-white p-6 md:p-8 shadow-xs relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-50 to-indigo-50/50 rounded-full blur-3xl -z-10 pointer-events-none" />
@@ -273,28 +364,42 @@ export default function ZeroCalibrationPage({ isDark = false }) {
             </p>
           </div>
 
-          {/* Quick mode switch */}
-          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 self-start md:self-auto">
-            <button
-              onClick={() => setIsBulkMode(false)}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                !isBulkMode
-                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200/80 font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Single Device
-            </button>
-            <button
-              onClick={() => setIsBulkMode(true)}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                isBulkMode
-                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200/80 font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Devices (Bulk)
-            </button>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Quick mode switch */}
+            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 self-start md:self-auto">
+              <button
+                onClick={() => setIsBulkMode(false)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  !isBulkMode
+                    ? 'bg-white text-blue-600 shadow-xs border border-slate-200/80 font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Single Device
+              </button>
+              <button
+                onClick={() => setIsBulkMode(true)}
+                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  isBulkMode
+                    ? 'bg-white text-blue-600 shadow-xs border border-slate-200/80 font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All Devices (Bulk)
+              </button>
+            </div>
+
+            {/* Standalone View Trigger (when viewing with menu) */}
+            {!isDirectNoMenu && (
+              <button
+                onClick={() => window.open(`${window.location.origin}${window.location.pathname}#/zero-readings`, '_blank')}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition cursor-pointer"
+                title="Open this page in direct standalone mode without sidebar menu"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+                <span>Open Without Menu</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -794,15 +899,32 @@ export default function ZeroCalibrationPage({ isDark = false }) {
             <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
               <button
                 type="button"
-                onClick={() => setConfirmModalOpen(true)}
-                disabled={submitting || (!isBulkMode && !selectedDeviceId)}
+                onClick={() => {
+                  setIsBulkMode(false);
+                  setConfirmModalOpen(true);
+                }}
+                disabled={submitting || !selectedDeviceId}
                 className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 cursor-pointer"
               >
                 <Target className="w-4 h-4" />
                 <span>
-                  {isBulkMode
-                    ? `Set Tilt & Displacement to 0 for ALL (${filteredDevices.length}) Devices`
-                    : `Set Tilt & Displacement to 0 for ${selectedDeviceId || 'Device'}`}
+                  Set All Data to 0 for {selectedDeviceId || 'Selected Device'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBulkMode(true);
+                  setConfirmModalOpen(true);
+                }}
+                disabled={submitting || devices.length === 0}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md hover:shadow-lg transition-all disabled:opacity-50 cursor-pointer"
+                title="Zero all data across all registered devices in system"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>
+                  Zero ALL ({devices.length}) Devices
                 </span>
               </button>
 

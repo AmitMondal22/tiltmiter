@@ -44,6 +44,15 @@ export default function TrendsPage() {
     const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
     const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
 
+    const activeDev = devices.find(d => d.id?.toLowerCase() === devId?.toLowerCase());
+    const isZeroed = Boolean(
+      (activeDev && (
+        (activeDev.xTilt === 0 || activeDev.xTilt === 0.0 || activeDev.xTilt === null || activeDev.xTilt === undefined) &&
+        (activeDev.yTilt === 0 || activeDev.yTilt === 0.0 || activeDev.yTilt === null || activeDev.yTilt === undefined)
+      )) ||
+      (activeDev?.resultantTilt === 0 || activeDev?.resultantTilt === 0.0)
+    );
+
     getTelemetryHistory(devId, utcFrom, utcTo, rangeKey)
       .then(res => {
         if (res?.history?.length) {
@@ -53,17 +62,20 @@ export default function TrendsPage() {
             const ts = pt.timestamp || pt.time;
             if (ts && seen.has(ts)) continue;
             if (ts) seen.add(ts);
+
+            const ptZeroed = isZeroed || (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0);
+
             mapped.push({
               time: pt.time || formatTimeString(pt.timestamp),
               timestamp: pt.timestamp || pt.time,
-              resultant: parseFloat(pt.resultant || pt.resultantTilt || 0),
-              xTilt: parseFloat(pt.xTilt || pt.tiltX || 0),
-              yTilt: parseFloat(pt.yTilt || pt.tiltY || 0),
-              zTilt: parseFloat(pt.zTilt || pt.tiltZ || pt.resultant || 0),
-              totalDisp: parseFloat(pt.totalDisp || pt.totalDisplacement || 0),
-              xDisp: parseFloat(pt.xDisp || pt.xDisplacement || 0),
-              yDisp: parseFloat(pt.yDisp || pt.yDisplacement || 0),
-              zDisp: parseFloat(pt.zDisp || pt.zDisplacement || 0),
+              resultant: ptZeroed ? 0.0 : parseFloat(pt.resultant || pt.resultantTilt || 0),
+              xTilt: ptZeroed ? 0.0 : parseFloat(pt.xTilt || pt.tiltX || 0),
+              yTilt: ptZeroed ? 0.0 : parseFloat(pt.yTilt || pt.tiltY || 0),
+              zTilt: ptZeroed ? 0.0 : parseFloat(pt.zTilt || pt.tiltZ || pt.resultant || 0),
+              totalDisp: ptZeroed ? 0.0 : parseFloat(pt.totalDisp || pt.totalDisplacement || 0),
+              xDisp: ptZeroed ? 0.0 : parseFloat(pt.xDisp || pt.xDisplacement || 0),
+              yDisp: ptZeroed ? 0.0 : parseFloat(pt.yDisp || pt.yDisplacement || 0),
+              zDisp: ptZeroed ? 0.0 : parseFloat(pt.zDisp || pt.zDisplacement || 0),
               accMag: parseFloat(pt.accMag || 0.98),
               vibRMS: parseFloat(pt.vibRMS || pt.vibrationRMS || 0.045),
               vibPeak: parseFloat(pt.vibPeak || pt.vibrationPeak || 0.104),

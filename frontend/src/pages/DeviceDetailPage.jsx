@@ -80,20 +80,27 @@ export default function DeviceDetailPage() {
     const refY = parseFloat(device?.refThetaY ?? 0.0);
     const refZ = parseFloat(device?.refThetaZ ?? 0.0);
     const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate);
+    const isZeroed = Boolean(
+      ((device?.xTilt === 0 || device?.xTilt === 0.0 || device?.xTilt === null || device?.xTilt === undefined) &&
+      (device?.yTilt === 0 || device?.yTilt === 0.0 || device?.yTilt === null || device?.yTilt === undefined)) ||
+      (device?.resultantTilt === 0 || device?.resultantTilt === 0.0) ||
+      (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0)
+    );
 
-    const deltaX = (pt.deltaThetaX !== undefined) ? pt.deltaThetaX : (pt.xTilt !== undefined ? xT : (hasRef ? xT - refX : xT));
-    const deltaY = (pt.deltaThetaY !== undefined) ? pt.deltaThetaY : (pt.yTilt !== undefined ? yT : (hasRef ? yT - refY : yT));
-    const deltaZ = (pt.zTilt !== undefined) ? (parseFloat(pt.zTilt) || resT) : (hasRef ? ((parseFloat(pt.tiltZ) || resT) - refZ) : (parseFloat(pt.tiltZ) || resT));
+    const deltaX = isZeroed ? 0.0 : (hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT));
+    const deltaY = isZeroed ? 0.0 : (hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT));
+    const deltaZ = isZeroed ? 0.0 : (hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT));
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;
     const clinoDx = L * Math.tan(radX);
     const clinoDy = L * Math.tan(radY);
 
-    const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : (pt.xDisplacement !== undefined && pt.xDisplacement !== null ? parseFloat(pt.xDisplacement) : clinoDx);
-    const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : (pt.yDisplacement !== undefined && pt.yDisplacement !== null ? parseFloat(pt.yDisplacement) : clinoDy);
-    const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? pt.displacement?.zDisplacement_mm ?? 0) || 0;
-    const totD = (pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : (pt.totalDisplacement !== undefined && pt.totalDisplacement !== null ? parseFloat(pt.totalDisplacement) : Math.sqrt(xD * xD + yD * yD));
+    const xD = isZeroed ? 0.0 : (hasRef ? clinoDx : ((pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx));
+    const yD = isZeroed ? 0.0 : (hasRef ? clinoDy : ((pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy));
+    const zD = isZeroed ? 0.0 : (parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0);
+    const totD = isZeroed ? 0.0 : (hasRef ? Math.sqrt(clinoDx * clinoDx + clinoDy * clinoDy) : ((pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : Math.sqrt(xD * xD + yD * yD)));
+    const activeResT = isZeroed ? 0.0 : (hasRef ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : resT);
 
     const rawAx = parseFloat(pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? 0.012) || 0.012;
     const rawAy = parseFloat(pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? -0.006) || -0.006;
@@ -111,10 +118,10 @@ export default function DeviceDetailPage() {
     // Stability classification
     let stability = 'Stable';
     let stabilityClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (Math.abs(resT) >= 2.0 || Math.abs(totD) >= 10.0 || vibR >= 0.5) {
+    if (Math.abs(activeResT) >= 2.0 || Math.abs(totD) >= 10.0 || vibR >= 0.5) {
       stability = 'Critical';
       stabilityClass = 'bg-red-50 text-red-700 border-red-200';
-    } else if (Math.abs(resT) >= 1.0 || Math.abs(totD) >= 5.0 || vibR >= 0.2) {
+    } else if (Math.abs(activeResT) >= 1.0 || Math.abs(totD) >= 5.0 || vibR >= 0.2) {
       stability = 'Warning';
       stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
     }
@@ -123,7 +130,7 @@ export default function DeviceDetailPage() {
       time: formatHHMM(ts),
       fullTime: formatFullDateTime(ts),
       timestamp: ts,
-      resultant: Number(resT.toFixed(4)),
+      resultant: Number(activeResT.toFixed(4)),
       xTilt: Number(deltaX.toFixed(4)),
       yTilt: Number(deltaY.toFixed(4)),
       zTilt: Number(deltaZ.toFixed(4)),

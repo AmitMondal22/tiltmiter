@@ -167,11 +167,13 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     timestamp: utcTimestamp,
   };
 
-  // 1. Save to Time-Series InfluxDB & PostgreSQL
+  // 1. Save to Time-Series PostgreSQL
   saveTelemetryPoint(telemetryData);
+  console.log(`💾 [POSTGRESQL SAVED] Device: ${deviceId} | Time: ${utcTimestamp} | θX: ${activeXTilt.toFixed(3)}° | θY: ${activeYTilt.toFixed(3)}° | TotDisp: ${totalDisp.toFixed(3)}mm`);
 
   // 2. Broadcast raw & mapped telemetry to WebSockets
   broadcastTelemetry(telemetryData);
+  console.log(`📡 [WEBSOCKET BROADCAST SENT] Live packet broadcasted to connected web clients for device ${deviceId}`);
 
   // 3. Asynchronously evaluate alerts against safety thresholds
   if (Device && typeof Device.findByPk === 'function') {

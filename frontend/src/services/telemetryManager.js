@@ -166,6 +166,7 @@ class TelemetryManager {
 
           const liveData = msg.data || msg;
           if (liveData && (liveData.deviceId || liveData.id || liveData.tilt || liveData.displacement || liveData.xTilt)) {
+            console.log('📥 [WEBSOCKET LIVE TELEMETRY RECEIVED]:', liveData);
             this.notifyData(liveData);
           }
         } catch (e) {}

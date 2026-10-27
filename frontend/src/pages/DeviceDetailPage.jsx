@@ -672,7 +672,7 @@ export default function DeviceDetailPage() {
             <div>
               <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide mb-2.5">
                 <Move className="w-4 h-4 text-slate-800" />
-                <span>ESTIMATED LATERAL DISPLACEMENT (MM)</span>
+                <span>DISPLACEMENT (MM)</span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

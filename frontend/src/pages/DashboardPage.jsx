@@ -461,9 +461,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const yaw = zTilt;
   const resultant = Math.sqrt(roll * roll + pitch * pitch);
 
-  const xSlope = typeof d.xSlope === 'number' ? d.xSlope : Math.sin((roll * Math.PI) / 180) * 1000;
-  const ySlope = typeof d.ySlope === 'number' ? d.ySlope : Math.sin((pitch * Math.PI) / 180) * 1000;
-  const zSlope = typeof d.zSlope === 'number' ? d.zSlope : Math.sin((zTilt * Math.PI) / 180) * 1000;
+  const xSlope = Math.sin((roll * Math.PI) / 180) * 1000;
+  const ySlope = Math.sin((pitch * Math.PI) / 180) * 1000;
+  const zSlope = Math.sin((zTilt * Math.PI) / 180) * 1000;
 
   // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
   const radX = (roll * Math.PI) / 180.0;

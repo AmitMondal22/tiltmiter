@@ -30,10 +30,10 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const dirC = d.tiltDirectionCardinal || 'N';
   const totD = n(d.totalDisplacement, Math.sqrt(n(d.xDisplacement, 0) ** 2 + n(d.yDisplacement, 0) ** 2 + n(d.zDisplacement, 0) ** 2));
 
-  const xSlope = typeof d.xSlope === 'number' ? d.xSlope : Math.sin((xT * Math.PI) / 180) * 1000;
-  const ySlope = typeof d.ySlope === 'number' ? d.ySlope : Math.sin((yT * Math.PI) / 180) * 1000;
-  const zSlope = typeof d.zSlope === 'number' ? d.zSlope : Math.sin((zT * Math.PI) / 180) * 1000;
-  const resSlope = typeof d.resultantSlope === 'number' ? d.resultantSlope : Math.sin((resT * Math.PI) / 180) * 1000;
+  const xSlope = Math.sin((xT * Math.PI) / 180) * 1000;
+  const ySlope = Math.sin((yT * Math.PI) / 180) * 1000;
+  const zSlope = Math.sin((zT * Math.PI) / 180) * 1000;
+  const resSlope = Math.sin((resT * Math.PI) / 180) * 1000;
 
   const lastFullDateTime = formatFullDateTime(d.timestamp);
 

@@ -41,12 +41,6 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   // yaw is the Z-value
   const zTilt = yaw;
 
-  // 2. Calculate Slopes in mm/m (1000 * sin(angle))
-  const xSlope = Math.sin((roll * Math.PI) / 180) * 1000;
-  const ySlope = Math.sin((pitch * Math.PI) / 180) * 1000;
-  const zSlope = Math.sin((zTilt * Math.PI) / 180) * 1000;
-  const resultantSlope = Math.sin((tiltVal * Math.PI) / 180) * 1000;
-
   // 3. ClinoX Conversion & Database Reference Zero Lookup
   let deviceRecord = null;
   try {
@@ -89,12 +83,18 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   let activeResultant = (hasRefZero || isHardwareCalibrated) ? Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) : tiltVal;
 
   // Clean zero rounding for noise near zero
-  if ((isHardwareCalibrated || hasRefZero) && Math.abs(activeXTilt) < 0.015 && Math.abs(activeYTilt) < 0.015 && Math.abs(activeZTilt) < 0.015) {
+  if ((isHardwareCalibrated || hasRefZero) && Math.abs(activeXTilt) < 0.0001 && Math.abs(activeYTilt) < 0.0001 && Math.abs(activeZTilt) < 0.0001) {
     activeXTilt = 0.0;
     activeYTilt = 0.0;
     activeZTilt = 0.0;
     activeResultant = 0.0;
   }
+
+  // Calculate Slopes in mm/m (1000 * sin(angle)) based on the active reported delta angles
+  const xSlope = Math.sin((activeXTilt * Math.PI) / 180) * 1000;
+  const ySlope = Math.sin((activeYTilt * Math.PI) / 180) * 1000;
+  const zSlope = Math.sin((activeZTilt * Math.PI) / 180) * 1000;
+  const resultantSlope = Math.sin((activeResultant * Math.PI) / 180) * 1000;
 
   // Calculate estimated lateral displacement using ClinoX formula
   let xDisp = (activeXTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (rawPayload.displacement?.xDisplacement_mm !== undefined

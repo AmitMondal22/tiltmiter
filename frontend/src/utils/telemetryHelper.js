@@ -177,18 +177,23 @@ export function parseTelemetry(data) {
   const zTilt = yaw;
   const tiltStatus = data.tilt?.tiltStatus || data.tiltStatus || 'NORMAL';
 
-  // Slope in mm/m (1000 * sin(angle * π / 180))
-  const xSlope = typeof data.xSlope === 'number' ? data.xSlope : Math.sin((roll * Math.PI) / 180) * 1000;
-  const ySlope = typeof data.ySlope === 'number' ? data.ySlope : Math.sin((pitch * Math.PI) / 180) * 1000;
-  const zSlope = typeof data.zSlope === 'number' ? data.zSlope : Math.sin((zTilt * Math.PI) / 180) * 1000;
-  const resultantSlope = typeof data.resultantSlope === 'number' ? data.resultantSlope : Math.sin((tiltVal * Math.PI) / 180) * 1000;
-
   // ClinoX Reference Zero and Gauge Length (L)
   const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0);
   const refThetaX = parseFloat(data.refThetaX ?? data.baselineRoll ?? 0.0);
   const refThetaY = parseFloat(data.refThetaY ?? data.baselinePitch ?? 0.0);
   const refThetaZ = parseFloat(data.refThetaZ ?? data.baselineTilt ?? 0.0);
   const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)));
+
+  const activeRoll = hasReferenceZero ? (roll - refThetaX) : roll;
+  const activePitch = hasReferenceZero ? (pitch - refThetaY) : pitch;
+  const activeZTilt = hasReferenceZero ? (zTilt - refThetaZ) : zTilt;
+  const activeTilt = hasReferenceZero ? Math.sqrt(activeRoll * activeRoll + activePitch * activePitch) : tiltVal;
+
+  // Slope in mm/m (1000 * sin(angle * π / 180))
+  const xSlope = Math.sin((activeRoll * Math.PI) / 180) * 1000;
+  const ySlope = Math.sin((activePitch * Math.PI) / 180) * 1000;
+  const zSlope = Math.sin((activeZTilt * Math.PI) / 180) * 1000;
+  const resultantSlope = Math.sin((activeTilt * Math.PI) / 180) * 1000;
 
   // ClinoX D = L * tan(Δθ * π / 180)
   const clinoX = calculateTiltToDisplacement({

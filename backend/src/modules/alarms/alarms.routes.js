@@ -1,5 +1,6 @@
 import { Alarm, AlertRule, Device, Site, Project, Structure } from '../../models/index.js';
 import { authenticate, authenticateOptional } from '../../middleware/authMiddleware.js';
+import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
 import { triggerManualAlert } from '../../services/alertEngineService.js';
 import { getActiveRecipientEmails } from '../../services/emailService.js';
 
@@ -473,12 +474,38 @@ export async function alarmsRoutes(fastify) {
     }
   });
 
-  // 3.2 Fetch Devices List for Multi-Device Selection (Real DB devices)
-  fastify.get('/api/alarms/devices', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
+  // 3.2 Fetch Devices List for Multi-Device Selection (Real DB devices scoped by login user)
+  fastify.get('/api/alarms/devices', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       let realDevices = [];
       try {
-        const dbDevices = await Device.findAll({ order: [['id', 'ASC']] });
+        const where = {};
+        if (req.user && req.user.role !== 'SUPER_ADMIN') {
+          if (req.user.organizationId) {
+            where.organizationId = req.user.organizationId;
+          }
+          if (req.user.projectId) {
+            where.projectId = req.user.projectId;
+          }
+          if (req.user.siteId) {
+            where.siteId = req.user.siteId;
+          }
+          if (req.user.scopeType === 'SELECTED_DEVICES' && Array.isArray(req.user.allowedDeviceIds) && req.user.allowedDeviceIds.length > 0) {
+            where.id = req.user.allowedDeviceIds;
+          } else if (req.user.scopeType === 'SELECTED_SITES' && Array.isArray(req.user.allowedSiteIds) && req.user.allowedSiteIds.length > 0) {
+            where.siteId = req.user.allowedSiteIds;
+          }
+        }
+        const dbDevices = await Device.findAll({
+          where,
+          include: [
+            {
+              model: Site,
+              include: [Project]
+            }
+          ],
+          order: [['id', 'ASC']]
+        });
         if (dbDevices && dbDevices.length > 0) {
           realDevices = dbDevices.map(d => {
             const dev = d.toJSON ? d.toJSON() : d;
@@ -487,7 +514,10 @@ export async function alarmsRoutes(fastify) {
               name: dev.name || dev.id,
               type: dev.structureType || dev.communicationType || 'TILTMETER',
               status: dev.status || 'ONLINE',
-              siteName: dev.siteId || null,
+              siteId: dev.siteId || null,
+              siteName: dev.Site?.name || dev.siteId || null,
+              projectId: dev.projectId || dev.Site?.projectId || null,
+              organizationId: dev.organizationId || null,
               resultantTilt: parseFloat(dev.resultantTilt || 0),
               totalDisplacement: parseFloat(dev.totalDisplacement || 0),
             };

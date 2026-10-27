@@ -23,7 +23,6 @@ const TrendsPage = lazy(() => import('./pages/TrendsPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const AlarmsPage = lazy(() => import('./pages/AlarmsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const ZeroCalibrationPage = lazy(() => import('./pages/ZeroCalibrationPage'));
 
 // Sleek fallback component for lazy-loaded route transitions
 function PageLoader() {
@@ -44,20 +43,6 @@ function MainLayout() {
   const [currentDevice, setCurrentDevice] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Check if current page is direct zero-readings / calibration route
-  const isDirectZeroRoute =
-    location.pathname === '/zero-readings' ||
-    location.pathname === '/zero' ||
-    location.pathname === '/zero-calibration' ||
-    location.pathname === '/calibration';
-
-  // Check if opened without menu (standalone direct view)
-  const isNoMenu =
-    location.pathname === '/zero-readings' ||
-    location.pathname === '/zero' ||
-    location.search.includes('noMenu=true') ||
-    location.search.includes('standalone=true');
-
   // Set pure Light Mode on document
   useEffect(() => {
     document.documentElement.classList.remove('dark');
@@ -65,7 +50,7 @@ function MainLayout() {
     document.body.style.color = '#0f172a';
   }, []);
 
-  // Fetch real database devices from API (unconditional so direct URL can display devices)
+  // Fetch real database devices from API
   useEffect(() => {
     getDevices()
       .then(data => {
@@ -84,7 +69,7 @@ function MainLayout() {
     }
   }, [user]);
 
-  if (authLoading && !isDirectZeroRoute) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center font-sans bg-slate-50 text-slate-900">
         <div className="flex items-center gap-3 font-semibold text-sm">
@@ -95,21 +80,8 @@ function MainLayout() {
     );
   }
 
-  // Direct Standalone View WITHOUT MENU
-  if (isNoMenu) {
-    return (
-      <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans">
-        <main className="w-full min-h-screen p-3 sm:p-6 md:p-8">
-          <Suspense fallback={<PageLoader />}>
-            <ZeroCalibrationPage isDark={false} isStandalone={true} />
-          </Suspense>
-        </main>
-      </div>
-    );
-  }
-
   // Authentication Guard for standard dashboard routes -> Render Login Page
-  if (!user && !isDirectZeroRoute) {
+  if (!user) {
     return <LoginPage />;
   }
 
@@ -157,10 +129,10 @@ function MainLayout() {
               <Route path="/reports" element={<ReportsPage currentDevice={currentDevice} isDark={false} />} />
               <Route path="/alarms" element={<AlarmsPage isDark={false} />} />
               <Route path="/alerts" element={<AlarmsPage isDark={false} />} />
-              <Route path="/zero-readings" element={<ZeroCalibrationPage isDark={false} isStandalone={true} />} />
-              <Route path="/zero" element={<ZeroCalibrationPage isDark={false} isStandalone={true} />} />
-              <Route path="/zero-calibration" element={<ZeroCalibrationPage isDark={false} isStandalone={false} />} />
-              <Route path="/calibration" element={<ZeroCalibrationPage isDark={false} isStandalone={false} />} />
+              <Route path="/zero-readings" element={<Navigate to="/devices" replace />} />
+              <Route path="/zero" element={<Navigate to="/devices" replace />} />
+              <Route path="/zero-calibration" element={<Navigate to="/devices" replace />} />
+              <Route path="/calibration" element={<Navigate to="/devices" replace />} />
               <Route path="/settings" element={<SettingsPage isDark={false} />} />
               <Route path="/login" element={<Navigate to="/" replace />} />
             </Routes>

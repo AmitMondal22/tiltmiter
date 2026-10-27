@@ -702,29 +702,17 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               <span>ESTIMATED LATERAL DISPLACEMENT (MM)</span>
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5 text-center font-mono">
+            <div className="grid grid-cols-2 gap-2 text-center font-mono">
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="text-[9px] text-cyan-700 uppercase font-bold">DX</div>
-                <div className="text-xs font-bold text-cyan-700 mt-0.5">{hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(3)}` : '--'}</div>
+                <div className="text-sm font-bold text-cyan-700 mt-0.5">{hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(3)}` : '--'}</div>
                 <div className="text-[8px] text-slate-400">mm</div>
               </div>
 
               <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
                 <div className="text-[9px] text-amber-700 uppercase font-bold">DY</div>
-                <div className="text-xs font-bold text-amber-700 mt-0.5">{hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(3)}` : '--'}</div>
+                <div className="text-sm font-bold text-amber-700 mt-0.5">{hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(3)}` : '--'}</div>
                 <div className="text-[8px] text-slate-400">mm</div>
-              </div>
-
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="text-[9px] text-slate-500 uppercase font-bold">DZ</div>
-                <div className="text-xs font-bold text-slate-400 mt-0.5">{hasData ? (d.zDisp !== undefined ? `${zDisp.toFixed(3)}` : 'N/A') : '--'}</div>
-                <div className="text-[8px] text-slate-400">mm</div>
-              </div>
-
-              <div className="p-2 rounded-xl bg-pink-50/70 border border-pink-200/80">
-                <div className="text-[9px] text-pink-700 uppercase font-bold">Total D</div>
-                <div className="text-xs font-bold text-pink-700 mt-0.5">{hasData ? totalDisp.toFixed(3) : '--'}</div>
-                <div className="text-[8px] text-pink-500 font-semibold">mm</div>
               </div>
             </div>
 
@@ -738,6 +726,19 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <span className="text-slate-400 font-sans">Tilt Bearing:</span>{' '}
                 <span className="font-bold text-blue-600">{hasData ? `${(d.tiltDirectionAngle ?? 0).toFixed(1)}° (${d.tiltDirectionCardinal || 'N'})` : '--'}</span>
               </span>
+            </div>
+
+            {/* 3. Ambient Temperature */}
+            <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 font-sans">
+                <Thermometer className="w-3.5 h-3.5 text-amber-500" />
+                <span>Ambient Temperature:</span>
+              </div>
+              <div className="font-mono text-xs font-bold bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg text-amber-800">
+                {hasData && d.temp !== null && d.temp !== undefined
+                  ? `${Number(d.temp).toFixed(1)} °C`
+                  : (device?.temperature ? `${device.temperature} °C` : '--')}
+              </div>
             </div>
           </div>
         </div>

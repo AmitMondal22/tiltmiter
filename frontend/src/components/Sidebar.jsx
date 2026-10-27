@@ -14,8 +14,7 @@ import {
   Settings,
   CheckCircle,
   ChevronsUpDown,
-  LogOut,
-  Target
+  LogOut
 } from 'lucide-react';
 import appLogo from '../assets/logo/logo250x150.png';
 import { formatAssetUrl } from '../api/apiClient';
@@ -27,7 +26,6 @@ const ALL_NAV_ITEMS = [
   { id: 'locations', path: '/sites', label: 'Locations / Sites', icon: MapPin },
   { id: 'assets', path: '/structures', label: 'Assets', icon: Layers },
   { id: 'devices', path: '/devices', label: 'Devices', icon: Cpu },
-  { id: 'zero-calibration', path: '/zero-calibration', label: 'Zero Readings (Tare)', icon: Target },
   { id: 'users', path: '/users', label: 'Manage Users', icon: Users, minRole: 'ORG_ADMIN' },
   { id: 'trends', path: '/trends', label: 'Historical Data', icon: BarChart2 },
   { id: 'reports', path: '/reports', label: 'Reports', icon: FileText },
@@ -131,7 +129,6 @@ export default function Sidebar({
               (item.path === '/sites' && (location.pathname === '/sites' || location.pathname === '/locations')) ||
               (item.path === '/structures' && (location.pathname === '/structures' || location.pathname === '/assets')) ||
               (item.path === '/trends' && (location.pathname === '/trends' || location.pathname === '/history')) ||
-              (item.path === '/zero-calibration' && (location.pathname === '/zero-calibration' || location.pathname === '/calibration' || location.pathname === '/zero-readings' || location.pathname === '/zero')) ||
               (item.path === '/alarms' && (location.pathname === '/alarms' || location.pathname === '/alerts'));
 
             return (

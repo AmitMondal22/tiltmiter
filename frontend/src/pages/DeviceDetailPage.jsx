@@ -4,7 +4,7 @@ import {
   ArrowLeft, Battery, Signal, Sliders, Calendar,
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
-  Compass, Zap, Thermometer, Search
+  Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
@@ -669,40 +669,100 @@ export default function DeviceDetailPage() {
           </div>
         </div>
 
-        {/* 2. Sensor Health & Hardware Configuration */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-              DEVICE SAMPLING & CONFIG
-            </span>
-            <span className="text-[9px] font-mono text-emerald-600 font-semibold px-1.5 py-0.2 rounded-md bg-emerald-50 border border-emerald-200">
-              Active
-            </span>
+        {/* 2. Sensor Health & Hardware Configuration matching user design */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-1 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <Settings className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                Device Sampling &amp; Configuration
+              </h3>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              <span>Active</span>
+            </div>
           </div>
 
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between py-1 border-b border-slate-50">
-              <span className="text-slate-500 font-medium">Sleep Interval (Min 15M):</span>
-              <span className="font-mono font-semibold text-slate-900">{device?.sleep_count || 15} Minutes</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-slate-50">
-              <span className="text-slate-500 font-medium">Wake Sampling Duration:</span>
-              <span className="font-mono font-semibold text-slate-900">{device?.wake_count || 30} Seconds</span>
-            </div>
-            <div className="flex justify-between py-1 border-b border-slate-50">
-              <span className="text-slate-500 font-medium">Zero Calibration Offset:</span>
-              <span className={`font-mono font-semibold ${hasRef ? 'text-emerald-600' : 'text-slate-500'}`}>
-                {hasRef ? 'PASSED ✓' : 'Not Set'}
+          {/* 5 Configuration Metric Rows */}
+          <div className="divide-y divide-slate-100/80 relative z-10 flex-1 flex flex-col justify-around py-1">
+            {/* 1. Sleep Interval */}
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-3">
+                <Bed className="w-5 h-5 text-slate-700 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold text-slate-700">Sleep Interval (Min 15M)</span>
+              </div>
+              <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-bold text-slate-900 text-xs sm:text-sm">
+                {device?.sleep_count || 15} Minutes
               </span>
             </div>
-            <div className="flex justify-between py-1 border-b border-slate-50">
-              <span className="text-slate-500 font-medium">Ambient Temperature:</span>
-              <span className="font-mono font-semibold text-slate-800">{d.temp !== null && d.temp !== undefined ? `${(d.temp).toFixed(1)} °C` : '--'}</span>
+
+            {/* 2. Wake Sampling Duration */}
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-3">
+                <Layers className="w-5 h-5 text-slate-700 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold text-slate-700">Wake Sampling Duration</span>
+              </div>
+              <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-bold text-slate-900 text-xs sm:text-sm">
+                {device?.wake_count || 30} Seconds
+              </span>
             </div>
-            <div className="flex justify-between py-1">
-              <span className="text-slate-500 font-medium">Telemetry History Points:</span>
-              <span className="font-mono font-semibold text-blue-600">{telemetryHistory.length} Points</span>
+
+            {/* 3. Zero Calibration Offset */}
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-3">
+                <Crosshair className="w-5 h-5 text-slate-700 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold text-slate-700">Zero Calibration Offset</span>
+              </div>
+              {hasRef ? (
+                <span className="px-3.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs sm:text-sm">
+                  PASSED ✓
+                </span>
+              ) : (
+                <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-medium text-slate-500 text-xs sm:text-sm">
+                  Not Set
+                </span>
+              )}
             </div>
+
+            {/* 4. Ambient Temperature */}
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-3">
+                <Thermometer className="w-5 h-5 text-slate-700 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold text-slate-700">Ambient Temperature</span>
+              </div>
+              <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-bold text-slate-900 text-xs sm:text-sm">
+                {d.temp !== null && d.temp !== undefined ? `${Number(d.temp).toFixed(1)} °C` : (device?.temperature ? `${device.temperature} °C` : '--')}
+              </span>
+            </div>
+
+            {/* 5. Telemetry History Points */}
+            <div className="flex items-center justify-between py-2.5">
+              <div className="flex items-center gap-3">
+                <Database className="w-5 h-5 text-slate-700 flex-shrink-0" />
+                <span className="text-xs sm:text-sm font-semibold text-slate-700">Telemetry History Points</span>
+              </div>
+              <span className="px-3.5 py-1 rounded-xl bg-blue-50 border border-blue-100 font-bold text-blue-600 text-xs sm:text-sm">
+                {telemetryHistory.length} Points
+              </span>
+            </div>
+          </div>
+
+          {/* Mountain / Wave Silhouette Graphic at Bottom matching uploaded image */}
+          <div className="absolute bottom-0 left-0 right-0 pointer-events-none overflow-hidden rounded-b-2xl h-24 z-0">
+            <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
+              <path
+                d="M0,100 L0,80 Q90,35 180,70 T360,45 Q380,40 400,55 L400,100 Z"
+                fill="#e0e7ff"
+                opacity="0.45"
+              />
+              <path
+                d="M0,100 L0,90 Q120,55 240,80 T400,60 L400,100 Z"
+                fill="#dbeafe"
+                opacity="0.6"
+              />
+            </svg>
           </div>
         </div>
       </div>

@@ -297,28 +297,50 @@ export async function triggerManualAlert({
         broadcastAlarm(alarm);
       }
 
-      // Dispatch real email via SMTP
-      const emailResult = await sendAlertEmail({
-        alert: alt,
-        device: deviceObj,
+        results.push({
+          deviceId: devId,
+          parameter: alt.parameter,
+          severity: alt.severity,
+          alarmId: alarm.id || alarmId,
+        });
+      }
+    }
+
+    // Dispatch real email via SMTP for the alert trigger
+    let emailResult = { success: false };
+    try {
+      const summaryDeviceLabel = targetDeviceIds.length === 1
+        ? targetDeviceIds[0]
+        : `${targetDeviceIds.length} Devices (${targetDeviceIds.slice(0, 4).join(', ')}${targetDeviceIds.length > 4 ? '...' : ''})`;
+
+      const primaryAlert = {
+        deviceId: summaryDeviceLabel,
+        parameter,
+        severity: severity.toUpperCase(),
+        value: parameter === 'tilt' ? `${(parseFloat(tiltValue) || 2.45).toFixed(3)}°` : `${(parseFloat(displacementValue) || 12.8).toFixed(2)} mm`,
+        threshold: severity === 'CRITICAL' ? (parameter === 'tilt' ? '2.000°' : '10.00 mm') : (parameter === 'tilt' ? '1.000°' : '5.00 mm'),
+        title: targetDeviceIds.length === 1
+          ? `Geotechnical Alert: ${targetDeviceIds[0]} - ${severity.toUpperCase()}`
+          : `Geotechnical Multi-Device Alert: ${targetDeviceIds.length} Units - ${severity.toUpperCase()}`,
+        message: customMessage || `Geotechnical threshold limit exceeded for ${parameter.toUpperCase()} on ${targetDeviceIds.length} monitored device(s): ${targetDeviceIds.join(', ')}.`,
+      };
+
+      emailResult = await sendAlertEmail({
+        alert: primaryAlert,
+        device: { id: summaryDeviceLabel, name: `Inclinometer Array (${targetDeviceIds.length} devices)` },
         recipients: targetEmails,
       });
-
-      results.push({
-        deviceId: devId,
-        parameter: alt.parameter,
-        severity: alt.severity,
-        alarmId: alarm.id || alarmId,
-        emailResult,
-      });
+    } catch (mailErr) {
+      console.error('[AlertEngine] SMTP send error:', mailErr);
+      emailResult = { success: false, error: mailErr.message };
     }
-  }
 
-  return {
-    success: true,
-    totalDispatches: results.length,
-    deviceCount: targetDeviceIds.length,
-    recipients: targetEmails,
-    dispatches: results,
-  };
+    return {
+      success: true,
+      totalDispatches: results.length,
+      deviceCount: targetDeviceIds.length,
+      recipients: targetEmails,
+      emailResult,
+      dispatches: results,
+    };
 }

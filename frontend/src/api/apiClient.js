@@ -532,10 +532,6 @@ export async function getAlarmDevices() {
   return await request('/alarms/devices');
 }
 
-export async function getAlarms() {
-  return await request('/alarms');
-}
-
 export async function clearAlarms() {
   return await request('/alarms/clear', {
     method: 'DELETE',

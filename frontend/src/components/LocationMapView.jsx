@@ -7,6 +7,7 @@ import {
   BarChart3, Zap, TrendingUp, AlertTriangle, CheckCircle2, Box, Map as MapIcon
 } from 'lucide-react';
 import Landslide3DMapView from './Landslide3DMapView';
+import { formatBatteryPercentage } from '../utils/telemetryHelper';
 
 export default function LocationMapView({
   sites = [],
@@ -557,7 +558,7 @@ export default function LocationMapView({
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 font-mono text-[11px]">
                   <div className="flex items-center gap-1.5 font-bold text-emerald-600">
                     <Battery className="w-4 h-4" />
-                    <span>{selectedDevice.battery || '100%'}</span>
+                    <span>{formatBatteryPercentage(selectedDevice.battery ?? selectedDevice.batteryVoltage)}</span>
                   </div>
                   <div className="flex items-center gap-1.5 font-bold text-blue-600">
                     <Signal className="w-4 h-4" />

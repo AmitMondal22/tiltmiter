@@ -34,6 +34,7 @@ import {
 } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 import appLogo from '../assets/logo/logo250x150.png';
+import { formatBatteryPercentage } from '../utils/telemetryHelper';
 
 export default function ZeroCalibrationPage({ isDark = false, isStandalone = false }) {
   const [searchParams] = useSearchParams();
@@ -738,7 +739,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                   <div className="min-w-0">
                     <div className="text-[10px] text-slate-400 uppercase font-semibold">Battery</div>
                     <div className="font-bold text-slate-800 truncate">
-                      {isBulkMode ? 'Retained per device' : (selectedDevice?.battery || '100%')}
+                      {isBulkMode ? 'Retained per device' : formatBatteryPercentage(selectedDevice?.battery ?? selectedDevice?.batteryVoltage)}
                     </div>
                   </div>
                 </div>

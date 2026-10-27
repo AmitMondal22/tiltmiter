@@ -6,6 +6,7 @@ import {
   CheckCircle2, Compass, Radio, ExternalLink, ChevronRight,
   Eye, EyeOff, Zap, MapPin, Sliders
 } from 'lucide-react';
+import { formatBatteryPercentage } from '../utils/telemetryHelper';
 
 // Curated Asset Type Palettes
 export const ASSET_TYPES = {
@@ -624,7 +625,7 @@ export default function AssetsMapView({
                   <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between font-mono text-xs">
                     <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
                       <Zap className="w-3.5 h-3.5" />
-                      <span>{selectedDevice.battery || '100%'}</span>
+                      <span>{formatBatteryPercentage(selectedDevice.battery ?? selectedDevice.batteryVoltage)}</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-blue-600 font-bold">
                       <Radio className="w-3.5 h-3.5" />

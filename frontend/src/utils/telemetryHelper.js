@@ -71,6 +71,30 @@ export function calculateTiltToDisplacement({
   };
 }
 
+/**
+ * Converts battery voltage in 0 to 13 range (0V = 0%, 13V = 100%) to a clean 0% to 100% string.
+ */
+export function formatBatteryPercentage(val) {
+  if (val === null || val === undefined || val === '') return '--';
+  if (typeof val === 'string' && val.includes('%')) {
+    const p = parseFloat(val);
+    return !isNaN(p) ? `${Math.min(100, Math.max(0, Math.round(p)))}%` : val;
+  }
+  const isVoltageStr = typeof val === 'string' && /v/i.test(val);
+  const num = parseFloat(val);
+  if (isNaN(num)) return '--';
+  let pct = 0;
+  // If explicitly designated with 'V' or value is in voltage operating range (<= 20V):
+  // Scale 0 to 13V -> 0% to 100% (e.g. 13V+ or 13.98V float/charging is clamped to 100%)
+  if (isVoltageStr || num <= 20) {
+    pct = Math.min(100, Math.max(0, Math.round((num / 13.0) * 100)));
+  } else {
+    // Already in 0 to 100 percentage scale
+    pct = Math.min(100, Math.max(0, Math.round(num)));
+  }
+  return `${pct}%`;
+}
+
 export function parseTelemetry(data) {
   if (!data) return {};
 
@@ -149,23 +173,6 @@ export function parseTelemetry(data) {
   const rawTemp = data.environment?.temperature ?? data.temperature ?? data.temp;
   const temp = rawTemp !== undefined && rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
   const calibrated = Boolean(data.calibration?.calibrated ?? data.calibrate ?? data.hasReferenceZero ?? false);
-
-/**
- * Converts battery voltage in 0 to 13 range (0V = 0%, 13V = 100%) to a clean 0% to 100% string.
- */
-export function formatBatteryPercentage(val) {
-  if (val === null || val === undefined || val === '') return '--';
-  if (typeof val === 'string' && val.includes('%')) return val;
-  const num = parseFloat(val);
-  if (isNaN(num)) return '--';
-  let pct = 0;
-  if (num <= 13) {
-    pct = Math.min(100, Math.max(0, Math.round((num / 13.0) * 100)));
-  } else {
-    pct = Math.min(100, Math.max(0, Math.round(num)));
-  }
-  return `${pct}%`;
-}
 
   // Power & Battery Percentage calculation: 0 to 13 is 0 to 100%
   const rawBat = data.power?.batteryVoltage ?? data.batteryVoltage ?? data.battery;

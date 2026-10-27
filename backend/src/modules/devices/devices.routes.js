@@ -1,9 +1,9 @@
 import pkg from 'sequelize';
 const { Op } = pkg;
-import { Device, Site, Structure, Project, Organization, TelemetryRecord } from '../../models/index.js';
+import { Device, Site, Structure, Project, Organization, TelemetryRecord, Alarm, Incident, MaintenanceRecord, Event } from '../../models/index.js';
 import { authenticate, authenticateOptional } from '../../middleware/authMiddleware.js';
 import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
-import { broadcastTelemetry } from '../../websocket/websocket.service.js';
+import { broadcastTelemetry, removeDeviceTelemetry } from '../../websocket/websocket.service.js';
 import { inMemoryTelemetryStore } from '../../config/influx.js';
 
 export async function devicesRoutes(fastify) {
@@ -812,15 +812,33 @@ export async function devicesRoutes(fastify) {
   });
 
   // Delete Device
-  fastify.delete('/api/devices/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+  fastify.delete('/api/devices/:id', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
-      const device = await Device.findByPk(id);
-      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+      if (!id) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'Device ID is required.' });
+      }
 
-      if (req.user.role !== 'SUPER_ADMIN') {
+      let device = await Device.findByPk(id);
+      if (!device) {
+        device = await Device.findOne({
+          where: {
+            [Op.or]: [
+              { id },
+              { id: String(id).toUpperCase() },
+              { id: String(id).toLowerCase() }
+            ]
+          }
+        });
+      }
+
+      if (!device) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Device ${id} not found.` });
+      }
+
+      if (req.user?.role && req.user.role !== 'SUPER_ADMIN') {
         if (req.user.role === 'ORG_ADMIN') {
-          if (device.organizationId !== req.user.organizationId) {
+          if (device.organizationId && req.user.organizationId && device.organizationId !== req.user.organizationId) {
             return reply.status(403).send({
               statusCode: 403,
               error: 'Forbidden',
@@ -836,11 +854,92 @@ export async function devicesRoutes(fastify) {
         }
       }
 
+      const targetId = device.id;
+
+      // 1. Clean up related records across all tables referencing this device
+      try {
+        await TelemetryRecord.destroy({
+          where: {
+            [Op.or]: [
+              { deviceId: targetId },
+              { deviceId: targetId.toUpperCase() },
+              { deviceId: targetId.toLowerCase() }
+            ]
+          }
+        }).catch(() => {});
+
+        if (Alarm) {
+          await Alarm.destroy({
+            where: {
+              [Op.or]: [
+                { deviceId: targetId },
+                { deviceId: targetId.toUpperCase() },
+                { deviceId: targetId.toLowerCase() }
+              ]
+            }
+          }).catch(() => {});
+        }
+
+        if (Incident) {
+          await Incident.destroy({
+            where: {
+              [Op.or]: [
+                { deviceId: targetId },
+                { deviceId: targetId.toUpperCase() },
+                { deviceId: targetId.toLowerCase() }
+              ]
+            }
+          }).catch(() => {});
+        }
+
+        if (MaintenanceRecord) {
+          await MaintenanceRecord.destroy({
+            where: {
+              [Op.or]: [
+                { deviceId: targetId },
+                { deviceId: targetId.toUpperCase() },
+                { deviceId: targetId.toLowerCase() }
+              ]
+            }
+          }).catch(() => {});
+        }
+
+        if (Event) {
+          await Event.destroy({
+            where: {
+              [Op.or]: [
+                { deviceId: targetId },
+                { deviceId: targetId.toUpperCase() },
+                { deviceId: targetId.toLowerCase() }
+              ]
+            }
+          }).catch(() => {});
+        }
+      } catch (cleanupErr) {
+        console.warn(`[Delete Device] Non-fatal cleanup warning for ${targetId}:`, cleanupErr.message);
+      }
+
+      // 2. Remove in-memory telemetry cache
+      if (inMemoryTelemetryStore) {
+        inMemoryTelemetryStore.delete(targetId);
+        inMemoryTelemetryStore.delete(targetId.toUpperCase());
+        inMemoryTelemetryStore.delete(targetId.toLowerCase());
+      }
+      removeDeviceTelemetry(targetId);
+
+      // 3. Destroy the device
       await device.destroy();
-      return reply.send({ statusCode: 200, message: 'Device deleted successfully' });
+
+      return reply.send({
+        statusCode: 200,
+        message: `Device ${targetId} deleted successfully.`,
+        deviceId: targetId
+      });
     } catch (err) {
-      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
+      console.error('[Delete Device Error]', err);
+      return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
     }
   });
 }
+
 

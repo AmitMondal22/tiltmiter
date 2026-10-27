@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Target
+  Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Target, Loader2
 } from 'lucide-react';
 import { getDevices, getSites, getStructures, createDevice, updateDevice, deleteDevice, configureDeviceTelemetry } from '../api/apiClient';
 
@@ -185,15 +185,27 @@ export default function DevicesPage() {
     }
   };
 
+  const [deletingId, setDeletingId] = useState(null);
+
   const handleDelete = async (id, e) => {
     e?.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this device node?')) {
-      await deleteDevice(id).catch(() => {});
-      setDevicesList(prev => prev.filter(d => d.id !== id));
-      setMsg({ type: 'success', text: `Device ${id} deleted.` });
-      setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+    if (!window.confirm(`Are you sure you want to permanently delete device node "${id}" and all its telemetry records?`)) {
+      return;
+    }
+    setDeletingId(id);
+    try {
+      const res = await deleteDevice(id);
+      setDevicesList(prev => prev.filter(d => String(d.id).toLowerCase() !== String(id).toLowerCase()));
+      setMsg({ type: 'success', text: res?.message || `Device ${id} deleted successfully.` });
+    } catch (err) {
+      console.error('Delete device error:', err);
+      setMsg({ type: 'error', text: err.message || `Failed to delete device ${id}.` });
+    } finally {
+      setDeletingId(null);
+      setTimeout(() => setMsg({ type: '', text: '' }), 4000);
     }
   };
+
 
   return (
     <div className="space-y-4 font-sans text-black">
@@ -329,9 +341,15 @@ export default function DevicesPage() {
                           </button>
                           <button
                             onClick={(e) => handleDelete(dev.id, e)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            disabled={deletingId === dev.id}
+                            title="Delete Device Node"
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              deletingId === dev.id
+                                ? 'text-slate-400 bg-slate-100 cursor-not-allowed'
+                                : 'text-red-500 hover:bg-red-50'
+                            }`}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingId === dev.id ? <Loader2 className="w-4 h-4 animate-spin text-red-500" /> : <Trash2 className="w-4 h-4" />}
                           </button>
                         </div>
                       </td>

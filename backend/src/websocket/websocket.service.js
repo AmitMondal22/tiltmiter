@@ -204,3 +204,13 @@ export function broadcastAlarm(alarm) {
   }
 }
 
+export function removeDeviceTelemetry(deviceId) {
+  if (!deviceId) return;
+  const idStr = String(deviceId).trim();
+  latestTelemetryByDevice.delete(idStr);
+  latestTelemetryByDevice.delete(idStr.toUpperCase());
+  latestTelemetryByDevice.delete(idStr.toLowerCase());
+}
+
+
+

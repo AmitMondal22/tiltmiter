@@ -56,7 +56,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             if (!selectedId) setSelectedId(res.devices[0].id);
           }
         })
-        .catch(() => { });
+        .catch(() => {});
     }
   }, [devices]);
 
@@ -228,7 +228,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           });
         }
       })
-      .catch(() => { });
+      .catch(() => {});
 
     loadHistory(selectedId, null, null, activeFilter);
   }, [selectedId]);
@@ -494,8 +494,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     <div className="space-y-4 font-sans text-slate-800">
       {/* Toast Notification */}
       {msg.text && (
-        <div className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-semibold shadow-2xs ${msg.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-          }`}>
+        <div className={`p-3 rounded-xl border flex items-center gap-2 text-xs font-semibold shadow-2xs ${
+          msg.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+        }`}>
           {msg.type === 'error' ? <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" /> : <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
           <span>{msg.text}</span>
         </div>
@@ -605,10 +606,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               <button
                 key={b.id}
                 onClick={() => handleRangeSelect(b.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${activeFilter === b.id
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                  activeFilter === b.id
                     ? 'bg-blue-600 text-white shadow-2xs'
                     : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                }`}
               >
                 {b.label}
               </button>

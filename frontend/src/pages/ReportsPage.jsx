@@ -37,14 +37,14 @@ export default function ReportsPage({ currentDevice }) {
   const rowsPerPage = 25;
 
   useEffect(() => {
-    getProjects().then(res => setProjects(res.projects || [])).catch(() => { });
-    getSites().then(res => setSites(res.sites || [])).catch(() => { });
+    getProjects().then(res => setProjects(res.projects || [])).catch(() => {});
+    getSites().then(res => setSites(res.sites || [])).catch(() => {});
     getDevices().then(res => {
       if (res?.devices?.length) {
         setDevices(res.devices);
         if (!selectedDevice) setSelectedDevice(res.devices[0].id);
       }
-    }).catch(() => { });
+    }).catch(() => {});
   }, []);
 
   // Handle Preset Switching
@@ -411,10 +411,11 @@ export default function ReportsPage({ currentDevice }) {
                       key={p.id}
                       type="button"
                       onClick={() => handlePresetSelect(p.id)}
-                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer text-center ${timePreset === p.id
+                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer text-center ${
+                        timePreset === p.id
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
+                      }`}
                     >
                       {p.label}
                     </button>
@@ -574,10 +575,11 @@ export default function ReportsPage({ currentDevice }) {
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Structural Stability</td>
                     <td className="py-2 px-3 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold ${stats.maxDisp >= 15
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        stats.maxDisp >= 15
                           ? 'bg-rose-100 text-rose-800'
                           : (stats.maxDisp >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
-                        }`}>
+                      }`}>
                         {stats.maxDisp >= 15 ? 'CRITICAL RISK' : (stats.maxDisp >= 5 ? 'WARNING CREEP' : 'NORMAL / STABLE')}
                       </span>
                     </td>
@@ -638,10 +640,11 @@ export default function ReportsPage({ currentDevice }) {
                     key={tab.id}
                     type="button"
                     onClick={() => setParamCategory(tab.id)}
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${paramCategory === tab.id
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-colors cursor-pointer ${
+                      paramCategory === tab.id
                         ? 'bg-blue-600 text-white shadow-2xs'
                         : 'border border-slate-200 text-slate-600 hover:bg-slate-100 bg-white'
-                      }`}
+                    }`}
                   >
                     {tab.label}
                   </button>

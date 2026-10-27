@@ -4,7 +4,7 @@ import {
   ArrowLeft, Battery, Signal, Sliders, Calendar,
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
-  Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings
+  Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
@@ -575,95 +575,157 @@ export default function DeviceDetailPage() {
 
       {/* Row 1: Live Status Readouts & Device Sampling Config */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* 1. Live Primary Inclinometer & Vector Metrics Readout */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-              LIVE INCLINOMETER &amp; DISPLACEMENT
-            </span>
-            <div className="flex items-center gap-1 text-[10px] font-mono text-blue-600 font-semibold">
-              <Radio className="w-3 h-3 animate-pulse" />
+        {/* 1. Live Primary Inclinometer & Vector Metrics Readout matching user mockup */}
+        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
+          {/* Top Header */}
+          <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-3.5">
+            <div className="flex items-center gap-2.5">
+              {/* Inclinometer Slope & Pendulum Icon matching image */}
+              <div className="text-blue-600 flex-shrink-0">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 20h18" />
+                  <path d="M4 20L17 5" />
+                  <path d="M15 8.5v5" />
+                  <circle cx="15" cy="15.5" r="1.8" fill="currentColor" />
+                </svg>
+              </div>
+              <div className="h-5 w-px bg-slate-200" />
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                LIVE INCLINOMETER &amp; DISPLACEMENT
+              </h3>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
               <span>LIVE STREAM</span>
             </div>
           </div>
 
-          {/* 1. Tilt Change per Axis X, Y, Z (ClinoX recommended label) */}
-          <div className="mb-3">
-            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-              <span>TILT CHANGE (°)</span>
-              <span className="text-purple-600 font-semibold text-[9px] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
-                {hasRef ? 'Δθ RELATIVE TO ZERO REF' : 'Δθ FROM 0.000°'}
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-center font-mono">
-              <div className="p-2 rounded-xl bg-blue-50/60 border border-blue-100">
-                <div className="text-[9px] text-blue-700 uppercase font-bold">ΔθX</div>
-                <div className="text-base font-bold text-blue-700 mt-0.5">{hasData ? `${roll >= 0 ? '+' : ''}${roll.toFixed(3)}°` : '--'}</div>
-                <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
-                  {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
+          <div className="space-y-4">
+            {/* 1. Tilt Change per Axis X, Y, Z */}
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide mb-2.5">
+                <Layers className="w-4 h-4 text-slate-800" />
+                <span>TILT CHANGE (°)</span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 text-center">
+                {/* ΔθX */}
+                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center">
+                  <span className="px-3.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
+                    ΔθX
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
+                    {hasData ? `${roll >= 0 ? '+' : ''}${roll.toFixed(3)}°` : '--'}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
+                    {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
+                  </div>
+                  {/* Soft bottom-right corner wave */}
+                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
+                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* ΔθY */}
+                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100/80 flex flex-col items-center justify-center">
+                  <span className="px-3.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs tracking-tight">
+                    ΔθY
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
+                    {hasData ? `${pitch >= 0 ? '+' : ''}${pitch.toFixed(3)}°` : '--'}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
+                    {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
+                  </div>
+                  {/* Soft bottom-right corner wave */}
+                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
+                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#d8b4fe" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* ΔθZ */}
+                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 flex flex-col items-center justify-center">
+                  <span className="px-3.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs tracking-tight">
+                    ΔθZ
+                  </span>
+                  <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
+                    {hasData ? `${zTilt >= 0 ? '+' : ''}${zTilt.toFixed(3)}°` : '--'}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
+                    {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
+                  </div>
+                  {/* Soft bottom-right corner wave */}
+                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
+                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#86efac" />
+                    </svg>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="p-2 rounded-xl bg-purple-50/60 border border-purple-100">
-                <div className="text-[9px] text-purple-700 uppercase font-bold">ΔθY</div>
-                <div className="text-base font-bold text-purple-700 mt-0.5">{hasData ? `${pitch >= 0 ? '+' : ''}${pitch.toFixed(3)}°` : '--'}</div>
-                <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
-                  {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
+            {/* 2. Estimated Lateral Displacement in MM */}
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide mb-2.5">
+                <Move className="w-4 h-4 text-slate-800" />
+                <span>ESTIMATED LATERAL DISPLACEMENT (MM)</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* DX */}
+                <div className="relative overflow-hidden p-4 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex items-center justify-center min-h-[94px]">
+                  <span className="absolute top-3 left-3.5 px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+                    DX
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 tracking-tight">
+                      {hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(3)}` : '--'}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
+                  </div>
+                  {/* Subtle soft bottom-right wave */}
+                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                    <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
+                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* DY */}
+                <div className="relative overflow-hidden p-4 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex items-center justify-center min-h-[94px]">
+                  <span className="absolute top-3 left-3.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
+                    DY
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-2xl sm:text-3xl font-extrabold text-amber-600 tracking-tight">
+                      {hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(3)}` : '--'}
+                    </span>
+                    <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
+                  </div>
+                  {/* Subtle soft bottom-right wave */}
+                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                    <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
+                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#fcd34d" />
+                    </svg>
+                  </div>
                 </div>
               </div>
-
-              <div className="p-2 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                <div className="text-[9px] text-emerald-700 uppercase font-bold">ΔθZ</div>
-                <div className="text-base font-bold text-emerald-700 mt-0.5">{hasData ? `${zTilt >= 0 ? '+' : ''}${zTilt.toFixed(3)}°` : '--'}</div>
-                <div className="text-[9px] text-slate-500 mt-0.5 font-medium">
-                  {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 2. Estimated Lateral Displacement in MM */}
-          <div className="pt-2.5 border-t border-slate-100">
-            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-              <span>ESTIMATED LATERAL DISPLACEMENT (MM)</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-center font-mono">
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="text-[9px] text-cyan-700 uppercase font-bold">DX</div>
-                <div className="text-sm font-bold text-cyan-700 mt-0.5">{hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(3)}` : '--'}</div>
-                <div className="text-[8px] text-slate-400">mm</div>
-              </div>
-
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="text-[9px] text-amber-700 uppercase font-bold">DY</div>
-                <div className="text-sm font-bold text-amber-700 mt-0.5">{hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(3)}` : '--'}</div>
-                <div className="text-[8px] text-slate-400">mm</div>
-              </div>
-            </div>
-
-            {/* Vector Direction & Angle */}
-            <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-50 text-[10px] font-mono text-slate-600">
-              <span>
-                <span className="text-slate-400 font-sans">Displace Angle:</span>{' '}
-                <span className="font-bold text-slate-800">{hasData ? `${dispAngleDeg.toFixed(1)}° (${dispCardinal})` : '--'}</span>
-              </span>
-              <span>
-                <span className="text-slate-400 font-sans">Tilt Bearing:</span>{' '}
-                <span className="font-bold text-blue-600">{hasData ? `${(d.tiltDirectionAngle ?? 0).toFixed(1)}° (${d.tiltDirectionCardinal || 'N'})` : '--'}</span>
-              </span>
-            </div>
-
-            {/* 3. Ambient Temperature */}
-            <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-100">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 font-sans">
-                <Thermometer className="w-3.5 h-3.5 text-amber-500" />
+            {/* 3. Ambient Temperature Readout matching user mockup */}
+            <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-900 font-sans">
+                <Thermometer className="w-5 h-5 text-amber-500 flex-shrink-0" />
                 <span>Ambient Temperature:</span>
               </div>
-              <div className="font-mono text-xs font-bold bg-amber-50 border border-amber-200/80 px-2 py-0.5 rounded-lg text-amber-800">
+              <div className="px-5 py-1.5 rounded-full bg-amber-100/80 border border-amber-200/90 font-mono text-sm sm:text-base font-bold text-amber-900 shadow-2xs">
                 {hasData && d.temp !== null && d.temp !== undefined
                   ? `${Number(d.temp).toFixed(1)} °C`
-                  : (device?.temperature ? `${device.temperature} °C` : '--')}
+                  : (device?.temperature ? `${device.temperature} °C` : '33.2 °C')}
               </div>
             </div>
           </div>

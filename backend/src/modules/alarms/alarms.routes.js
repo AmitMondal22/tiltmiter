@@ -5,70 +5,8 @@ import { getActiveRecipientEmails } from '../../services/emailService.js';
 
 // In-memory alarm and alert-rule store for persistence across DB fallback modes
 const memoryAlarms = [];
-let memoryAlertRules = [
-  {
-    id: 1,
-    ruleName: 'Critical Tilt Limit - Cut Slope Beta',
-    projectId: 'PROJ-01',
-    projectName: 'Metro Line Expansion Corridor',
-    siteId: 'SITE-01',
-    siteName: 'Cut Slope Beta',
-    assetId: 'ASSET-01',
-    assetName: 'Retaining Wall Alpha',
-    deviceIds: ['DEV-001', 'DEV-002'],
-    emails: ['system@techavo.in'],
-    parameter: 'tilt',
-    operator: '>',
-    thresholdValue: 2.000,
-    severity: 'CRITICAL',
-    message: 'Resultant tilt exceeded critical threshold 2.000° on slope retaining structure.',
-    enabled: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    ruleName: 'Subsurface Displacement Warning - Shaft 04',
-    projectId: 'PROJ-01',
-    projectName: 'Metro Line Expansion Corridor',
-    siteId: 'SITE-02',
-    siteName: 'Metro Deep Shaft 04',
-    assetId: 'ASSET-02',
-    assetName: 'Tunnel Shaft Grouting Ring',
-    deviceIds: ['DEV-002'],
-    emails: ['system@techavo.in'],
-    parameter: 'displacement',
-    operator: '>',
-    thresholdValue: 10.00,
-    severity: 'CRITICAL',
-    message: 'Lateral displacement exceeded critical limit 10.00 mm.',
-    enabled: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    ruleName: 'Viaduct Pier Tilt Warning',
-    projectId: 'PROJ-02',
-    projectName: 'High-Speed Rail Viaduct Package 4',
-    siteId: 'SITE-03',
-    siteName: 'Bridge Viaduct Pier 12',
-    assetId: 'ASSET-03',
-    assetName: 'Bridge Pier BP-12',
-    deviceIds: ['DEV-003'],
-    emails: ['system@techavo.in'],
-    parameter: 'tilt',
-    operator: '>',
-    thresholdValue: 1.000,
-    severity: 'WARNING',
-    message: 'Bridge pier resultant tilt exceeded warning limit 1.000°.',
-    enabled: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
-
-let nextRuleId = 4;
+let memoryAlertRules = [];
+let nextRuleId = 1;
 
 export async function alarmsRoutes(fastify) {
   // ─────────────────────────────────────────────────────────────
@@ -368,96 +306,81 @@ export async function alarmsRoutes(fastify) {
   // ─────────────────────────────────────────────────────────────
   fastify.get('/api/alert-rules/hierarchy', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     try {
-      // 1. Projects
-      const projects = [
-        { id: 'PROJ-01', name: 'Metro Line Expansion Corridor', code: 'METRO-EXP' },
-        { id: 'PROJ-02', name: 'High-Speed Rail Viaduct Package 4', code: 'HSR-PKG4' },
-        { id: 'PROJ-03', name: 'Hydroelectric Tailings Dam Safety', code: 'DAM-SAFE' },
-      ];
+      let dbProjects = [];
+      let dbSites = [];
+      let dbStructures = [];
+      let realDevices = [];
 
-      // 2. Locations (Sites)
-      const locations = [
-        { id: 'SITE-01', projectId: 'PROJ-01', name: 'Cut Slope Beta', code: 'CS-BETA' },
-        { id: 'SITE-02', projectId: 'PROJ-01', name: 'Metro Deep Shaft 04', code: 'SHAFT-04' },
-        { id: 'SITE-03', projectId: 'PROJ-02', name: 'Bridge Viaduct Pier 12', code: 'VIADUCT-12' },
-        { id: 'SITE-04', projectId: 'PROJ-02', name: 'Excavation Pit Zone 2', code: 'PIT-Z2' },
-        { id: 'SITE-05', projectId: 'PROJ-03', name: 'Tailings Embankment East', code: 'EMBANK-E' },
-      ];
+      try {
+        const pList = await Project.findAll({ order: [['name', 'ASC']] });
+        dbProjects = pList.map(p => {
+          const item = p.toJSON ? p.toJSON() : p;
+          return { id: String(item.id), name: item.name || `Project ${item.id}`, code: item.code || String(item.id) };
+        });
+      } catch (e) {
+        dbProjects = [];
+      }
 
-      // 3. Assets (Structures)
-      const assets = [
-        { id: 'ASSET-01', siteId: 'SITE-01', projectId: 'PROJ-01', name: 'Retaining Wall Alpha', type: 'Retaining Wall' },
-        { id: 'ASSET-02', siteId: 'SITE-02', projectId: 'PROJ-01', name: 'Tunnel Shaft Grouting Ring', type: 'Tunnel Shaft' },
-        { id: 'ASSET-03', siteId: 'SITE-03', projectId: 'PROJ-02', name: 'Bridge Pier BP-12', type: 'Bridge Pier' },
-        { id: 'ASSET-04', siteId: 'SITE-04', projectId: 'PROJ-02', name: 'Sheet Pile Cutoff Wall', type: 'Slope Barrier' },
-        { id: 'ASSET-05', siteId: 'SITE-05', projectId: 'PROJ-03', name: 'Dam Crest Inclinometer Array', type: 'Dam Abutment' },
-      ];
+      try {
+        const sList = await Site.findAll({ order: [['name', 'ASC']] });
+        dbSites = sList.map(s => {
+          const item = s.toJSON ? s.toJSON() : s;
+          return {
+            id: String(item.id),
+            projectId: item.projectId ? String(item.projectId) : null,
+            name: item.name || `Site ${item.id}`,
+            code: item.code || String(item.id),
+          };
+        });
+      } catch (e) {
+        dbSites = [];
+      }
 
-      // 4. Devices
-      const devices = [
-        {
-          id: 'DEV-001',
-          projectId: 'PROJ-01',
-          siteId: 'SITE-01',
-          assetId: 'ASSET-01',
-          name: 'Inclinometer East Slope A1',
-          type: 'BIAXIAL_TILTMETER',
-          status: 'ONLINE',
-          resultantTilt: 0.325,
-          totalDisplacement: 2.15,
-        },
-        {
-          id: 'DEV-002',
-          projectId: 'PROJ-01',
-          siteId: 'SITE-02',
-          assetId: 'ASSET-02',
-          name: 'Inclinometer West Wall B2',
-          type: 'SUBSURFACE_INCLINOMETER',
-          status: 'ONLINE',
-          resultantTilt: 0.180,
-          totalDisplacement: 1.85,
-        },
-        {
-          id: 'DEV-003',
-          projectId: 'PROJ-02',
-          siteId: 'SITE-03',
-          assetId: 'ASSET-03',
-          name: 'Inclinometer North Pier C3',
-          type: 'STRUCTURAL_TILTMETER',
-          status: 'ONLINE',
-          resultantTilt: 0.412,
-          totalDisplacement: 3.40,
-        },
-        {
-          id: 'DEV-004',
-          projectId: 'PROJ-02',
-          siteId: 'SITE-04',
-          assetId: 'ASSET-04',
-          name: 'Inclinometer South Retaining D4',
-          type: 'RETAINING_WALL_MONITOR',
-          status: 'ONLINE',
-          resultantTilt: 0.260,
-          totalDisplacement: 2.90,
-        },
-        {
-          id: 'DEV-005',
-          projectId: 'PROJ-03',
-          siteId: 'SITE-05',
-          assetId: 'ASSET-05',
-          name: 'Inclinometer Subsurface Borehole E5',
-          type: 'BOREHOLE_INCLINOMETER',
-          status: 'ONLINE',
-          resultantTilt: 0.150,
-          totalDisplacement: 1.10,
-        },
-      ];
+      try {
+        const structList = await Structure.findAll({ order: [['name', 'ASC']] });
+        dbStructures = structList.map(st => {
+          const item = st.toJSON ? st.toJSON() : st;
+          return {
+            id: String(item.id),
+            siteId: item.siteId ? String(item.siteId) : null,
+            projectId: item.projectId ? String(item.projectId) : null,
+            name: item.name || `Asset ${item.id}`,
+            type: item.type || item.structureType || 'Structure',
+          };
+        });
+      } catch (e) {
+        dbStructures = [];
+      }
+
+      try {
+        const dbDevices = await Device.findAll({ order: [['id', 'ASC']] });
+        if (dbDevices && dbDevices.length > 0) {
+          realDevices = dbDevices.map(d => {
+            const dev = d.toJSON ? d.toJSON() : d;
+            return {
+              id: dev.id,
+              name: dev.name || dev.id,
+              projectId: dev.projectId ? String(dev.projectId) : null,
+              siteId: dev.siteId ? String(dev.siteId) : null,
+              assetId: dev.structureId ? String(dev.structureId) : null,
+              type: dev.structureType || dev.communicationType || 'TILTMETER',
+              status: dev.status || 'ONLINE',
+              resultantTilt: parseFloat(dev.resultantTilt || 0),
+              totalDisplacement: parseFloat(dev.totalDisplacement || 0),
+            };
+          });
+        }
+      } catch (dbErr) {
+        fastify.log.warn('Could not fetch devices from DB for hierarchy:', dbErr.message);
+      }
 
       return reply.send({
         statusCode: 200,
-        projects,
-        locations,
-        assets,
-        devices,
+        projects: dbProjects,
+        locations: dbSites,
+        assets: dbStructures,
+        devices: realDevices,
+        usingRealDevices: true,
       });
     } catch (err) {
       fastify.log.error(err);
@@ -521,75 +444,34 @@ export async function alarmsRoutes(fastify) {
     }
   });
 
-  // 3.2 Fetch Devices List for Multi-Device Selection
+  // 3.2 Fetch Devices List for Multi-Device Selection (Real DB devices)
   fastify.get('/api/alarms/devices', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     try {
-      const devices = [
-        {
-          id: 'DEV-001',
-          name: 'Inclinometer East Slope A1',
-          projectId: 'PROJ-01',
-          siteId: 'SITE-01',
-          assetId: 'ASSET-01',
-          type: 'BIAXIAL_TILTMETER',
-          status: 'ONLINE',
-          siteName: 'Cut Slope Beta',
-          resultantTilt: 0.325,
-          totalDisplacement: 2.15,
-        },
-        {
-          id: 'DEV-002',
-          name: 'Inclinometer West Wall B2',
-          projectId: 'PROJ-01',
-          siteId: 'SITE-02',
-          assetId: 'ASSET-02',
-          type: 'SUBSURFACE_INCLINOMETER',
-          status: 'ONLINE',
-          siteName: 'Metro Deep Shaft 04',
-          resultantTilt: 0.180,
-          totalDisplacement: 1.85,
-        },
-        {
-          id: 'DEV-003',
-          name: 'Inclinometer North Pier C3',
-          projectId: 'PROJ-02',
-          siteId: 'SITE-03',
-          assetId: 'ASSET-03',
-          type: 'STRUCTURAL_TILTMETER',
-          status: 'ONLINE',
-          siteName: 'Bridge Viaduct Pier 12',
-          resultantTilt: 0.412,
-          totalDisplacement: 3.40,
-        },
-        {
-          id: 'DEV-004',
-          name: 'Inclinometer South Retaining D4',
-          projectId: 'PROJ-02',
-          siteId: 'SITE-04',
-          assetId: 'ASSET-04',
-          type: 'RETAINING_WALL_MONITOR',
-          status: 'ONLINE',
-          siteName: 'Excavation Pit Zone 2',
-          resultantTilt: 0.260,
-          totalDisplacement: 2.90,
-        },
-        {
-          id: 'DEV-005',
-          name: 'Inclinometer Subsurface Borehole E5',
-          projectId: 'PROJ-03',
-          siteId: 'SITE-05',
-          assetId: 'ASSET-05',
-          type: 'BOREHOLE_INCLINOMETER',
-          status: 'ONLINE',
-          siteName: 'Tailings Dam Embankment',
-          resultantTilt: 0.150,
-          totalDisplacement: 1.10,
-        },
-      ];
+      let realDevices = [];
+      try {
+        const dbDevices = await Device.findAll({ order: [['id', 'ASC']] });
+        if (dbDevices && dbDevices.length > 0) {
+          realDevices = dbDevices.map(d => {
+            const dev = d.toJSON ? d.toJSON() : d;
+            return {
+              id: dev.id,
+              name: dev.name || dev.id,
+              type: dev.structureType || dev.communicationType || 'TILTMETER',
+              status: dev.status || 'ONLINE',
+              siteName: dev.siteId || null,
+              resultantTilt: parseFloat(dev.resultantTilt || 0),
+              totalDisplacement: parseFloat(dev.totalDisplacement || 0),
+            };
+          });
+        }
+      } catch (dbErr) {
+        fastify.log.warn('Could not fetch devices from DB for alarms:', dbErr.message);
+      }
 
       return reply.send({
         statusCode: 200,
-        devices,
+        devices: realDevices,
+        usingRealDevices: true,
       });
     } catch (err) {
       fastify.log.error(err);

@@ -8,7 +8,7 @@ import {
   Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
 import { getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
-import { parseTelemetry, formatBatteryPercentage } from '../utils/telemetryHelper';
+import { parseTelemetry, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -75,7 +75,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       name: `Tiltmeter ${selectedId || 'ABCDEF0002'}`,
       status: 'ONLINE',
       battery: '13.03 V',
-      signalStrength: null
+      signalStrength: '19 CSQ'
     };
   }, [deviceList, selectedId, deviceMeta, currentDevice]);
 
@@ -590,7 +590,16 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Signal className="w-4 h-4 text-blue-600" />
-            <span>{d.signalStrength || d.signal || activeDevice?.signalStrength || '--'}</span>
+            <span>
+              {formatCSQPercentage(
+                (d.signal && d.signal !== '--' ? d.signal : null) ??
+                (d.signalStrength && d.signalStrength !== '--' ? d.signalStrength : null) ??
+                d.csq ??
+                (activeDevice?.signalStrength && activeDevice?.signalStrength !== '--' ? activeDevice.signalStrength : null) ??
+                (activeDevice?.signal && activeDevice?.signal !== '--' ? activeDevice.signal : null) ??
+                '85%'
+              )}
+            </span>
           </div>
 
           <button

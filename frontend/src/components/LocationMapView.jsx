@@ -7,7 +7,7 @@ import {
   BarChart3, Zap, TrendingUp, AlertTriangle, CheckCircle2, Box, Map as MapIcon
 } from 'lucide-react';
 import Landslide3DMapView from './Landslide3DMapView';
-import { formatBatteryPercentage } from '../utils/telemetryHelper';
+import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
 export default function LocationMapView({
   sites = [],
@@ -562,7 +562,7 @@ export default function LocationMapView({
                   </div>
                   <div className="flex items-center gap-1.5 font-bold text-blue-600">
                     <Signal className="w-4 h-4" />
-                    <span>{selectedDevice.signal || '85%'}</span>
+                    <span>{formatCSQPercentage(selectedDevice.signal ?? selectedDevice.signalStrength)}</span>
                   </div>
                 </div>
               </div>

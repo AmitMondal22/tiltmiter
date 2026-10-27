@@ -4,7 +4,7 @@ import {
   Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Loader2
 } from 'lucide-react';
 import { getDevices, getSites, getStructures, createDevice, updateDevice, deleteDevice, configureDeviceTelemetry } from '../api/apiClient';
-import { formatBatteryPercentage } from '../utils/telemetryHelper';
+import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
 export default function DevicesPage() {
   const navigate = useNavigate();
@@ -298,7 +298,7 @@ export default function DevicesPage() {
                         {formatBatteryPercentage(dev.battery ?? dev.batteryVoltage)}
                       </td>
                       <td className="py-3.5 px-3.5 font-mono text-blue-600 font-semibold">
-                        {dev.signal?.includes('%') ? dev.signal : (dev.signalStrength?.includes('%') ? dev.signalStrength : `${Math.min(100, Math.max(0, Math.round(((parseInt(dev.signal || dev.signalStrength) || 19) / 31) * 100)))}%`)}
+                        {formatCSQPercentage(dev.signal ?? dev.signalStrength)}
                       </td>
                       <td className="py-3.5 px-3.5 font-mono text-[11px]">
                         {dev.sleep_count || 60}M / {dev.wake_count || 30}S

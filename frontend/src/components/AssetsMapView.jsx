@@ -6,7 +6,7 @@ import {
   CheckCircle2, Compass, Radio, ExternalLink, ChevronRight,
   Eye, EyeOff, Zap, MapPin, Sliders
 } from 'lucide-react';
-import { formatBatteryPercentage } from '../utils/telemetryHelper';
+import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
 // Curated Asset Type Palettes
 export const ASSET_TYPES = {
@@ -629,7 +629,7 @@ export default function AssetsMapView({
                     </div>
                     <div className="flex items-center gap-1.5 text-blue-600 font-bold">
                       <Radio className="w-3.5 h-3.5" />
-                      <span>{selectedDevice.signal || '85%'}</span>
+                      <span>{formatCSQPercentage(selectedDevice.signal ?? selectedDevice.signalStrength)}</span>
                     </div>
                   </div>
                 </div>

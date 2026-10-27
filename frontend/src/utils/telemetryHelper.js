@@ -104,6 +104,62 @@ export function formatBatteryPercentage(val, fallback = '100%') {
   return `${pct}%`;
 }
 
+/**
+ * Converts cellular CSQ (0 to 31), RSSI dBm (-113 to -51 dBm), or raw signal into a clean 0% to 100% percentage string.
+ * Scale:
+ * - CSQ 0 (or -113 dBm) = 0%
+ * - CSQ 31 (or -51 dBm) = 100%
+ * - Typical nominal CSQ 19 (~-75 dBm) = ~61%
+ *
+ * @param {*} val - CSQ number, string like "19 CSQ", "-60 dBm", "85%", etc.
+ * @param {string} fallback - Fallback string if value is missing/invalid (default: '85%')
+ * @returns {string} Formatted percentage string (e.g. "61%", "85%", "100%")
+ */
+export function formatCSQPercentage(val, fallback = '85%') {
+  if (val === null || val === undefined || val === '' || val === '--') return fallback;
+
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (trimmed.includes('%')) {
+      const p = parseFloat(trimmed);
+      return !isNaN(p) ? `${Math.min(100, Math.max(0, Math.round(p)))}%` : fallback;
+    }
+    // Handle dBm RSSI (typical cellular range: -113 dBm [0 CSQ / 0%] to -51 dBm [31 CSQ / 100%])
+    if (/dbm/i.test(trimmed)) {
+      const dbm = parseFloat(trimmed);
+      if (!isNaN(dbm)) {
+        const pct = Math.min(100, Math.max(0, Math.round(((dbm - (-113)) / ((-51) - (-113))) * 100)));
+        return `${pct}%`;
+      }
+    }
+  }
+
+  const num = parseFloat(val);
+  if (isNaN(num)) return fallback;
+
+  // Negative numbers indicate dBm even if "dBm" is omitted (e.g. -60 or -80)
+  if (num < 0) {
+    const pct = Math.min(100, Math.max(0, Math.round(((num - (-113)) / ((-51) - (-113))) * 100)));
+    return `${pct}%`;
+  }
+
+  // CSQ 99 in AT+CSQ standard means "not known or not detectable"
+  if (num === 99) {
+    return fallback;
+  }
+
+  let pct = 0;
+  // If in standard CSQ range (0 to 31): scale 0 to 31 -> 0% to 100%
+  if (num <= 31) {
+    pct = Math.min(100, Math.max(0, Math.round((num / 31.0) * 100)));
+  } else {
+    // Already in 0 to 100 percentage scale
+    pct = Math.min(100, Math.max(0, Math.round(num)));
+  }
+
+  return `${pct}%`;
+}
+
 export function parseTelemetry(data) {
   if (!data) return {};
 
@@ -190,11 +246,12 @@ export function parseTelemetry(data) {
   const batteryStr = hasBat ? formatBatteryPercentage(rawBat, null) : null;
   const batteryPercent = (batteryStr && batteryStr !== '--') ? parseInt(batteryStr, 10) : null;
 
-  // Network & CSQ Percentage calculation: 31 CSQ is 100%, 0 CSQ is 0%, min 0%, max 100%
-  const rawCsq = data.network?.csq ?? data.csq ?? data.signal;
-  const csq = rawCsq !== undefined && rawCsq !== null && !isNaN(parseInt(rawCsq)) ? parseInt(rawCsq) : null;
-  const csqPercent = csq !== null ? Math.min(100, Math.max(0, Math.round((csq / 31) * 100))) : null;
-  const csqStr = csqPercent !== null ? `${csqPercent}%` : null;
+  // Network & CSQ Percentage calculation: 0 to 31 CSQ is 0% to 100%
+  const rawCsq = data.network?.csq ?? data.csq ?? data.signalStrength ?? data.signal;
+  const hasCsq = rawCsq !== undefined && rawCsq !== null && rawCsq !== '' && rawCsq !== '--';
+  const csqStr = hasCsq ? formatCSQPercentage(rawCsq, null) : null;
+  const csqPercent = (csqStr && csqStr !== '--') ? parseInt(csqStr, 10) : null;
+  const csq = typeof rawCsq === 'number' ? rawCsq : (!isNaN(parseInt(rawCsq)) ? parseInt(rawCsq) : null);
   const signalStr = csqStr;
 
   // Calculate cardinal tilt direction angle

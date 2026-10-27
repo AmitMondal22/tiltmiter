@@ -34,7 +34,7 @@ import {
 } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 import appLogo from '../assets/logo/logo250x150.png';
-import { formatBatteryPercentage } from '../utils/telemetryHelper';
+import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
 export default function ZeroCalibrationPage({ isDark = false, isStandalone = false }) {
   const [searchParams] = useSearchParams();
@@ -749,7 +749,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                   <div className="min-w-0">
                     <div className="text-[10px] text-slate-400 uppercase font-semibold">Cellular Signal</div>
                     <div className="font-bold text-slate-800 truncate">
-                      {isBulkMode ? 'Retained per device' : (selectedDevice?.signalStrength || '-60 dBm')}
+                      {isBulkMode ? 'Retained per device' : formatCSQPercentage(selectedDevice?.signalStrength ?? selectedDevice?.signal)}
                     </div>
                   </div>
                 </div>

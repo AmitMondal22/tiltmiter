@@ -7,7 +7,7 @@ import {
   Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, getWsUrl } from '../api/apiClient';
-import { parseTelemetry, formatBatteryPercentage } from '../utils/telemetryHelper';
+import { parseTelemetry, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -516,7 +516,16 @@ export default function DeviceDetailPage() {
 
           <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Signal className="w-3.5 h-3.5 text-blue-600" />
-            <span>{d.signalStrength || d.signal || device?.signalStrength || '--'}</span>
+            <span>
+              {formatCSQPercentage(
+                (d.signal && d.signal !== '--' ? d.signal : null) ??
+                (d.signalStrength && d.signalStrength !== '--' ? d.signalStrength : null) ??
+                d.csq ??
+                (device?.signalStrength && device?.signalStrength !== '--' ? device.signalStrength : null) ??
+                (device?.signal && device?.signal !== '--' ? device.signal : null) ??
+                '85%'
+              )}
+            </span>
           </div>
 
           <button

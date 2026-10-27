@@ -8,7 +8,7 @@ import {
   Minimize2, Globe
 } from 'lucide-react';
 import { getAssetTypeConfig, getDisplacementStatus } from './AssetsMapView';
-import { formatBatteryPercentage } from '../utils/telemetryHelper';
+import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
 // Helper to generate a realistic Satellite Aerial Orthophoto Texture Canvas
 function createSatelliteTerrainTexture() {
@@ -820,7 +820,7 @@ export default function Landslide3DMapView({
                   </div>
                   <div className="flex items-center gap-1.5 text-blue-400 font-bold">
                     <Radio className="w-3.5 h-3.5" />
-                    <span>{selectedItem.signal || '88%'}</span>
+                    <span>{formatCSQPercentage(selectedItem.signal ?? selectedItem.signalStrength)}</span>
                   </div>
                 </div>
               </div>

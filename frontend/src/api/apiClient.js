@@ -563,9 +563,10 @@ export async function deleteAlertRule(id) {
   });
 }
 
-export async function triggerAlertRule(id) {
+export async function triggerAlertRule(id, data = {}) {
   return await request(`/alert-rules/${id}/trigger`, {
     method: 'POST',
+    body: JSON.stringify(data),
   });
 }
 

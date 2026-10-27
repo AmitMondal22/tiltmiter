@@ -61,6 +61,21 @@ export const AlertRule = sequelize.define('AlertRule', {
     allowNull: false,
     defaultValue: 2.0,
   },
+  criticalThreshold: {
+    type: DataTypes.FLOAT,
+    field: 'critical_threshold',
+    defaultValue: 2.0,
+  },
+  warningThreshold: {
+    type: DataTypes.FLOAT,
+    field: 'warning_threshold',
+    defaultValue: 1.0,
+  },
+  infoThreshold: {
+    type: DataTypes.FLOAT,
+    field: 'info_threshold',
+    defaultValue: 0.5,
+  },
   severity: {
     type: DataTypes.STRING, // 'INFO', 'WARNING', 'CRITICAL', 'EMERGENCY'
     defaultValue: 'CRITICAL',

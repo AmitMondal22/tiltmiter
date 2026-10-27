@@ -47,7 +47,10 @@ export default function AlarmsPage() {
   const [formName, setFormName] = useState('');
   const [formParam, setFormParam] = useState('tilt'); // 'tilt' | 'displacement'
   const [formOperator, setFormOperator] = useState('>');
-  const [formThreshold, setFormThreshold] = useState('2.000');
+  // 3 Severity Level Threshold Values
+  const [formCriticalThreshold, setFormCriticalThreshold] = useState('2.000');
+  const [formWarningThreshold, setFormWarningThreshold] = useState('1.000');
+  const [formInfoThreshold, setFormInfoThreshold] = useState('0.500');
   const [formSeverity, setFormSeverity] = useState('CRITICAL');
   const [formMessage, setFormMessage] = useState('');
   const [formDeviceIds, setFormDeviceIds] = useState([]);
@@ -92,16 +95,32 @@ export default function AlarmsPage() {
     loadAllData();
   }, []);
 
+  // Update default 3 severity thresholds when parameter changes
+  const handleParamChange = (newParam) => {
+    setFormParam(newParam);
+    if (newParam === 'tilt') {
+      setFormCriticalThreshold('2.000');
+      setFormWarningThreshold('1.000');
+      setFormInfoThreshold('0.500');
+    } else {
+      setFormCriticalThreshold('10.00');
+      setFormWarningThreshold('5.00');
+      setFormInfoThreshold('2.00');
+    }
+  };
+
   // Open Create Modal
   const handleOpenCreateModal = () => {
     setEditingRule(null);
     setFormName('');
     setFormParam('tilt');
     setFormOperator('>');
-    setFormThreshold('2.000');
+    setFormCriticalThreshold('2.000');
+    setFormWarningThreshold('1.000');
+    setFormInfoThreshold('0.500');
     setFormSeverity('CRITICAL');
     setFormMessage('');
-    // Pre-select first 2 devices if available for convenience
+    // Pre-select first 2 devices if available
     setFormDeviceIds(devices.slice(0, 2).map(d => d.id));
     setFormEmails(['system@techavo.in']);
     setEmailInput('');
@@ -115,7 +134,10 @@ export default function AlarmsPage() {
     setFormName(rule.ruleName || '');
     setFormParam(rule.parameter || 'tilt');
     setFormOperator(rule.operator || '>');
-    setFormThreshold(String(rule.thresholdValue ?? (rule.parameter === 'tilt' ? '2.000' : '10.00')));
+    const isTilt = (rule.parameter || 'tilt') === 'tilt';
+    setFormCriticalThreshold(String(rule.criticalThreshold ?? rule.thresholdValue ?? (isTilt ? '2.000' : '10.00')));
+    setFormWarningThreshold(String(rule.warningThreshold ?? (isTilt ? '1.000' : '5.00')));
+    setFormInfoThreshold(String(rule.infoThreshold ?? (isTilt ? '0.500' : '2.00')));
     setFormSeverity(rule.severity || 'CRITICAL');
     setFormMessage(rule.message || '');
     setFormDeviceIds(Array.isArray(rule.deviceIds) ? rule.deviceIds : []);
@@ -191,15 +213,22 @@ export default function AlarmsPage() {
       return;
     }
 
+    const cVal = parseFloat(formCriticalThreshold) || (formParam === 'tilt' ? 2.0 : 10.0);
+    const wVal = parseFloat(formWarningThreshold) || (formParam === 'tilt' ? 1.0 : 5.0);
+    const iVal = parseFloat(formInfoThreshold) || (formParam === 'tilt' ? 0.5 : 2.0);
+
     setSavingRule(true);
     try {
       const payload = {
         ruleName: formName.trim(),
         parameter: formParam,
         operator: formOperator,
-        thresholdValue: parseFloat(formThreshold) || (formParam === 'tilt' ? 2.0 : 10.0),
+        thresholdValue: cVal,
+        criticalThreshold: cVal,
+        warningThreshold: wVal,
+        infoThreshold: iVal,
         severity: formSeverity,
-        message: formMessage.trim() || `${formParam.toUpperCase()} exceeded limit ${formThreshold} on assigned inclinometer devices`,
+        message: formMessage.trim() || `${formParam.toUpperCase()} multi-level safety threshold configured on assigned inclinometer devices`,
         deviceIds: formDeviceIds,
         emails: formEmails,
         enabled: true,
@@ -221,7 +250,7 @@ export default function AlarmsPage() {
 
       // If user clicked "Save & Send Test Alert Now"
       if (andTrigger && savedRuleId) {
-        handleTriggerRule({ id: savedRuleId, ruleName: payload.ruleName, emails: payload.emails });
+        handleTriggerRule({ id: savedRuleId, ruleName: payload.ruleName, emails: payload.emails }, formSeverity);
       }
     } catch (err) {
       console.error('Save rule error:', err);
@@ -246,15 +275,16 @@ export default function AlarmsPage() {
   };
 
   // Trigger Alert Rule on Demand (Sends Email & Logs Alarm)
-  const handleTriggerRule = async (rule) => {
-    setTriggeringId(rule.id);
+  const handleTriggerRule = async (rule, targetSeverity = null) => {
+    const sev = targetSeverity || rule.severity || 'CRITICAL';
+    setTriggeringId(`${rule.id}_${sev}`);
     try {
-      const res = await triggerAlertRule(rule.id);
+      await triggerAlertRule(rule.id, { severity: sev });
       const emailList = Array.isArray(rule.emails) && rule.emails.length > 0
         ? rule.emails.join(', ')
         : 'configured recipients';
 
-      showToast('success', `Alert triggered for "${rule.ruleName}"! Email dispatched via SMTP to: ${emailList}.`);
+      showToast('success', `Alert (${sev}) triggered for "${rule.ruleName}"! Email dispatched via SMTP to: ${emailList}.`);
       loadAllData();
     } catch (err) {
       console.error('Trigger rule error:', err);
@@ -277,7 +307,7 @@ export default function AlarmsPage() {
 
     setDirectSending(true);
     try {
-      const res = await generateAlert({
+      await generateAlert({
         deviceIds: directDeviceIds,
         parameter: directParam,
         severity: directSeverity,
@@ -353,7 +383,7 @@ export default function AlarmsPage() {
             <div>
               <h1 className="text-xl font-bold text-slate-900 tracking-tight">Geotechnical Alert Rules & Instant Email Dispatch</h1>
               <p className="text-xs text-slate-500 font-medium">
-                Configure safety threshold rules, associate multi-device inclinometer arrays, and dispatch automated geotechnical emails.
+                Configure safety threshold rules across 3 severity levels, associate multi-device inclinometer arrays, and dispatch automated geotechnical emails.
               </p>
             </div>
           </div>
@@ -388,7 +418,7 @@ export default function AlarmsPage() {
             <Bell className="w-4 h-4 text-blue-600" />
           </div>
           <div className="text-2xl font-bold text-slate-900">{rules.length}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Configured safety conditions</div>
+          <div className="text-[11px] text-slate-500 mt-1">3-Tier severity rules</div>
         </div>
 
         <div className={cardCls}>
@@ -472,7 +502,7 @@ export default function AlarmsPage() {
               </div>
               <h3 className="text-base font-bold text-slate-900 mb-1">No Alert Rules Configured</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto mb-6">
-                Create a simple alert rule to automatically monitor geotechnical tilt or lateral displacement on your inclinometers, and send emails whenever limits are breached.
+                Create a simple alert rule to automatically monitor geotechnical tilt or lateral displacement on your inclinometers, configure 3 severity levels, and send emails whenever limits are breached.
               </p>
               <button
                 onClick={handleOpenCreateModal}
@@ -487,8 +517,14 @@ export default function AlarmsPage() {
               {rules.map((rule) => {
                 const assignedDevices = Array.isArray(rule.deviceIds) ? rule.deviceIds : [];
                 const assignedEmails = Array.isArray(rule.emails) ? rule.emails : [];
-                const isCrit = rule.severity === 'CRITICAL' || rule.severity === 'EMERGENCY';
-                const isWarn = rule.severity === 'WARNING' || rule.severity === 'MAJOR';
+                const isTilt = (rule.parameter || 'tilt') === 'tilt';
+                const unit = isTilt ? '°' : 'mm';
+                const operator = rule.operator || '>';
+
+                // 3 Severity Level values
+                const critVal = rule.criticalThreshold ?? rule.thresholdValue ?? (isTilt ? 2.0 : 10.0);
+                const warnVal = rule.warningThreshold ?? (isTilt ? 1.0 : 5.0);
+                const infoVal = rule.infoThreshold ?? (isTilt ? 0.5 : 2.0);
 
                 return (
                   <div
@@ -496,17 +532,11 @@ export default function AlarmsPage() {
                     className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all"
                   >
                     <div>
-                      {/* Top Bar: Severity Badge & Quick Actions */}
+                      {/* Top Bar: Parameter Badge & Actions */}
                       <div className="flex items-start justify-between gap-3 mb-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider ${
-                          isCrit
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : isWarn
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${isCrit ? 'bg-rose-600 animate-pulse' : isWarn ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                          {rule.severity || 'CRITICAL'}
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200">
+                          <Radio className="w-3 h-3 text-blue-600" />
+                          {rule.parameter === 'tilt' ? 'Resultant Tilt' : 'Lateral Displacement'}
                         </span>
 
                         <div className="flex items-center gap-1">
@@ -530,15 +560,47 @@ export default function AlarmsPage() {
                       {/* Rule Name */}
                       <h3 className="text-sm font-bold text-slate-900 leading-snug mb-1">{rule.ruleName}</h3>
                       {rule.message && (
-                        <p className="text-[11px] text-slate-500 mb-3 line-clamp-2">{rule.message}</p>
+                        <p className="text-[11px] text-slate-500 mb-3 line-clamp-1">{rule.message}</p>
                       )}
 
-                      {/* Threshold Parameter Pill */}
-                      <div className="mb-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700">
-                        <span className="text-slate-400 uppercase text-[10px]">Condition:</span>
-                        <span className="font-mono text-blue-700">
-                          {rule.parameter?.toUpperCase()} {rule.operator || '>'} {rule.thresholdValue} {rule.parameter === 'tilt' ? '°' : 'mm'}
-                        </span>
+                      {/* 3 Severity Levels (Row-Wise) */}
+                      <div className="mb-4 bg-slate-50/70 border border-slate-200 rounded-xl p-2.5 space-y-1.5">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                          3 Severity Levels (Threshold Limits)
+                        </div>
+
+                        {/* Critical Row */}
+                        <div className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white border border-rose-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-rose-600" />
+                            <span className="font-bold text-rose-700 text-[11px]">CRITICAL</span>
+                          </div>
+                          <span className="font-mono font-bold text-rose-700">
+                            {operator} {critVal} {unit}
+                          </span>
+                        </div>
+
+                        {/* Warning Row */}
+                        <div className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white border border-amber-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            <span className="font-bold text-amber-700 text-[11px]">WARNING</span>
+                          </div>
+                          <span className="font-mono font-bold text-amber-700">
+                            {operator} {warnVal} {unit}
+                          </span>
+                        </div>
+
+                        {/* Info Row */}
+                        <div className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-white border border-blue-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-500" />
+                            <span className="font-bold text-blue-700 text-[11px]">INFO</span>
+                          </div>
+                          <span className="font-mono font-bold text-blue-700">
+                            {operator} {infoVal} {unit}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Associated Devices */}
@@ -549,7 +611,7 @@ export default function AlarmsPage() {
                             Target Devices ({assignedDevices.length})
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                        <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
                           {assignedDevices.length === 0 ? (
                             <span className="text-[11px] text-slate-400 italic">No devices assigned</span>
                           ) : (
@@ -589,7 +651,7 @@ export default function AlarmsPage() {
                       </div>
                     </div>
 
-                    {/* Bottom Action: Instant Send Test Alert Button */}
+                    {/* Bottom Action: Test Trigger Alert Button */}
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
                         <span className={`w-2 h-2 rounded-full ${rule.enabled !== false ? 'bg-emerald-500' : 'bg-slate-300'}`} />
@@ -597,12 +659,12 @@ export default function AlarmsPage() {
                       </div>
 
                       <button
-                        onClick={() => handleTriggerRule(rule)}
-                        disabled={triggeringId === rule.id}
+                        onClick={() => handleTriggerRule(rule, 'CRITICAL')}
+                        disabled={triggeringId === `${rule.id}_CRITICAL`}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold border border-blue-200 transition-colors cursor-pointer"
-                        title="Simulate breach, record alarm, and dispatch email immediately"
+                        title="Simulate breach and dispatch alert email immediately"
                       >
-                        {triggeringId === rule.id ? (
+                        {triggeringId === `${rule.id}_CRITICAL` ? (
                           <>
                             <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                             <span>Sending...</span>
@@ -635,7 +697,7 @@ export default function AlarmsPage() {
             <div>
               <h2 className="text-base font-bold text-slate-900">Direct Instant Alert Dispatch</h2>
               <p className="text-xs text-slate-500">
-                Immediately trigger an alert on selected inclinometer devices and send formatted email notifications to the specified email addresses.
+                Immediately trigger an alert on selected inclinometer devices and send formatted email notifications across any of the 3 severity levels.
               </p>
             </div>
           </div>
@@ -751,47 +813,64 @@ export default function AlarmsPage() {
               </div>
             </div>
 
-            {/* 3. Parameter, Severity & Value */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">Parameter</label>
-                <select
-                  value={directParam}
-                  onChange={(e) => {
-                    setDirectParam(e.target.value);
-                    setDirectValue(e.target.value === 'tilt' ? '2.45' : '12.8');
-                  }}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-medium"
-                >
-                  <option value="tilt">Resultant Tilt (°)</option>
-                  <option value="displacement">Lateral Displacement (mm)</option>
-                </select>
-              </div>
+            {/* 3. Parameter, 3 Severity Level & Threshold Value in ONE Row-Wise Section */}
+            <div>
+              <label className="text-xs font-bold text-slate-800 uppercase tracking-wider block mb-2">
+                3. Parameter, Severity Level & Simulation Value
+              </label>
 
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">Severity</label>
-                <select
-                  value={directSeverity}
-                  onChange={(e) => setDirectSeverity(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-medium"
-                >
-                  <option value="CRITICAL">CRITICAL (Limit Breach)</option>
-                  <option value="WARNING">WARNING (Early Attention)</option>
-                  <option value="INFO">INFO (Advisory)</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl items-center">
+                {/* Parameter */}
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Parameter</span>
+                  <select
+                    value={directParam}
+                    onChange={(e) => {
+                      setDirectParam(e.target.value);
+                      setDirectValue(e.target.value === 'tilt' ? '2.45' : '12.8');
+                    }}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-semibold"
+                  >
+                    <option value="tilt">Resultant Tilt (°)</option>
+                    <option value="displacement">Lateral Displacement (mm)</option>
+                  </select>
+                </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">
-                  Simulation Value {directParam === 'tilt' ? '(°)' : '(mm)'}
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={directValue}
-                  onChange={(e) => setDirectValue(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-mono"
-                />
+                {/* 3 Severity Level Selector */}
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">Severity Level</span>
+                  <select
+                    value={directSeverity}
+                    onChange={(e) => {
+                      const sev = e.target.value;
+                      setDirectSeverity(sev);
+                      if (directParam === 'tilt') {
+                        setDirectValue(sev === 'CRITICAL' ? '2.45' : sev === 'WARNING' ? '1.35' : '0.75');
+                      } else {
+                        setDirectValue(sev === 'CRITICAL' ? '12.80' : sev === 'WARNING' ? '6.50' : '2.80');
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-bold"
+                  >
+                    <option value="CRITICAL">🔴 CRITICAL (Limit Breach)</option>
+                    <option value="WARNING">🟡 WARNING (Early Warning)</option>
+                    <option value="INFO">🔵 INFO (Advisory Movement)</option>
+                  </select>
+                </div>
+
+                {/* Simulation Value */}
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
+                    Threshold Value {directParam === 'tilt' ? '(°)' : '(mm)'}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={directValue}
+                    onChange={(e) => setDirectValue(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-mono font-bold"
+                  />
+                </div>
               </div>
             </div>
 
@@ -928,7 +1007,7 @@ export default function AlarmsPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-scale-in">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-scale-in">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-200">
               <div className="flex items-center gap-2.5">
@@ -940,7 +1019,7 @@ export default function AlarmsPage() {
                     {editingRule ? 'Edit Geotechnical Alert Rule' : 'Create Geotechnical Alert Rule'}
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Configure safety limits, assign target devices, and set up notification emails.
+                    Configure safety limits across 3 severity levels, assign target devices, and set recipient emails.
                   </p>
                 </div>
               </div>
@@ -961,7 +1040,7 @@ export default function AlarmsPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., Critical Tilt Limit - North Wall"
+                  placeholder="e.g., Slope Stability Inclinometer Alert"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500 font-medium"
@@ -1007,7 +1086,7 @@ export default function AlarmsPage() {
                 </div>
 
                 {/* Devices Checkbox Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-40 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
                   {filteredModalDevices.length === 0 ? (
                     <div className="col-span-full py-4 text-center text-xs text-slate-400">
                       No devices available in database.
@@ -1081,76 +1160,138 @@ export default function AlarmsPage() {
                 </div>
               </div>
 
-              {/* Field 4: Monitoring Parameter & Safety Threshold */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">Parameter</label>
-                  <select
-                    value={formParam}
-                    onChange={(e) => {
-                      setFormParam(e.target.value);
-                      if (e.target.value === 'tilt') setFormThreshold('2.000');
-                      else setFormThreshold('10.00');
-                    }}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500 font-medium"
-                  >
-                    <option value="tilt">Resultant Tilt (°)</option>
-                    <option value="displacement">Lateral Displacement (mm)</option>
-                  </select>
+              {/* ───────────────────────────────────────────────────────────── */}
+              {/* FIELD 4: 3 SEVERITY LEVEL & PARAMETER THRESHOLD VALUE ROW-WISE */}
+              {/* ───────────────────────────────────────────────────────────── */}
+              <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/60 space-y-3.5">
+                {/* Header: Parameter & Condition Selection in one row */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 uppercase tracking-wider block">
+                      3 Severity Levels & Threshold Limits
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Configure row-wise threshold values for each severity level tier.
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Parameter Selector */}
+                    <select
+                      value={formParam}
+                      onChange={(e) => handleParamChange(e.target.value)}
+                      className="px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-bold text-slate-800"
+                    >
+                      <option value="tilt">Resultant Tilt (°)</option>
+                      <option value="displacement">Lateral Displacement (mm)</option>
+                    </select>
+
+                    {/* Condition Selector */}
+                    <select
+                      value={formOperator}
+                      onChange={(e) => setFormOperator(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-mono font-bold text-slate-800"
+                      title="Condition Operator"
+                    >
+                      <option value=">">&gt; Exceeds</option>
+                      <option value=">=">&gt;= At or Above</option>
+                      <option value="<">&lt; Drops Below</option>
+                    </select>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">Condition</label>
-                  <select
-                    value={formOperator}
-                    onChange={(e) => setFormOperator(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500 font-medium font-mono"
-                  >
-                    <option value=">">&gt; Exceeds Limit</option>
-                    <option value=">=">&gt;= Exceeds or Equal</option>
-                    <option value="<">&lt; Drops Below</option>
-                  </select>
-                </div>
+                {/* 3 Severity Level Rows (Row-Wise Table) */}
+                <div className="space-y-2.5">
+                  {/* Row 1: CRITICAL Severity Level */}
+                  <div className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-rose-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-[130px]">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold uppercase">
+                        <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                        CRITICAL
+                      </span>
+                    </div>
 
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
-                    Threshold Value {formParam === 'tilt' ? '(°)' : '(mm)'}
-                  </label>
-                  <input
-                    type="number"
-                    step="0.001"
-                    value={formThreshold}
-                    onChange={(e) => setFormThreshold(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500 font-mono font-bold"
-                  />
+                    <div className="flex-1 text-xs text-slate-500 hidden sm:block">
+                      Severe safety limit breach (Emergency inspection required)
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono text-xs font-bold text-slate-600">{formOperator}</span>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formCriticalThreshold}
+                        onChange={(e) => setFormCriticalThreshold(e.target.value)}
+                        className="w-24 px-2.5 py-1.5 text-xs bg-rose-50/50 border border-rose-300 rounded-lg text-rose-800 font-mono font-bold focus:bg-white focus:outline-none focus:border-rose-500"
+                      />
+                      <span className="font-bold text-xs text-slate-500 w-8">{formParam === 'tilt' ? '°' : 'mm'}</span>
+                    </div>
+                  </div>
+
+                  {/* Row 2: WARNING Severity Level */}
+                  <div className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-amber-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-[130px]">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-xs font-bold uppercase">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        WARNING
+                      </span>
+                    </div>
+
+                    <div className="flex-1 text-xs text-slate-500 hidden sm:block">
+                      Elevated geotechnical movement (Engineering attention needed)
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono text-xs font-bold text-slate-600">{formOperator}</span>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formWarningThreshold}
+                        onChange={(e) => setFormWarningThreshold(e.target.value)}
+                        className="w-24 px-2.5 py-1.5 text-xs bg-amber-50/50 border border-amber-300 rounded-lg text-amber-800 font-mono font-bold focus:bg-white focus:outline-none focus:border-amber-500"
+                      />
+                      <span className="font-bold text-xs text-slate-500 w-8">{formParam === 'tilt' ? '°' : 'mm'}</span>
+                    </div>
+                  </div>
+
+                  {/* Row 3: INFO Severity Level */}
+                  <div className="flex items-center justify-between gap-3 p-3 bg-white rounded-xl border border-blue-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-[130px]">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold uppercase">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        INFO
+                      </span>
+                    </div>
+
+                    <div className="flex-1 text-xs text-slate-500 hidden sm:block">
+                      Baseline movement advisory (Routine monitoring log)
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono text-xs font-bold text-slate-600">{formOperator}</span>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={formInfoThreshold}
+                        onChange={(e) => setFormInfoThreshold(e.target.value)}
+                        className="w-24 px-2.5 py-1.5 text-xs bg-blue-50/50 border border-blue-300 rounded-lg text-blue-800 font-mono font-bold focus:bg-white focus:outline-none focus:border-blue-500"
+                      />
+                      <span className="font-bold text-xs text-slate-500 w-8">{formParam === 'tilt' ? '°' : 'mm'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Field 5: Severity & Custom Message */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">Severity Level</label>
-                  <select
-                    value={formSeverity}
-                    onChange={(e) => setFormSeverity(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500 font-medium"
-                  >
-                    <option value="CRITICAL">CRITICAL (Limit Breach)</option>
-                    <option value="WARNING">WARNING (Early Warning)</option>
-                    <option value="INFO">INFO (Advisory)</option>
-                  </select>
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="text-xs font-bold text-slate-700 block mb-1.5">Notification Message (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Resultant tilt breached safety threshold on structure"
-                    value={formMessage}
-                    onChange={(e) => setFormMessage(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
+              {/* Field 5: Custom Notification Note */}
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">Notification Message / Instructions (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Immediate geotechnical inspection required upon threshold breach"
+                  value={formMessage}
+                  onChange={(e) => setFormMessage(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500"
+                />
               </div>
             </div>
 

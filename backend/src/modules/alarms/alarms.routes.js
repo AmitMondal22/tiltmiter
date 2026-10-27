@@ -59,6 +59,9 @@ export async function alarmsRoutes(fastify) {
         parameter = 'tilt',
         operator = '>',
         thresholdValue = 2.0,
+        criticalThreshold = 2.0,
+        warningThreshold = 1.0,
+        infoThreshold = 0.5,
         severity = 'CRITICAL',
         message = '',
         enabled = true,
@@ -76,6 +79,10 @@ export async function alarmsRoutes(fastify) {
         return reply.status(400).send({ statusCode: 400, message: 'Please specify at least one recipient email address.' });
       }
 
+      const critVal = parseFloat(criticalThreshold ?? thresholdValue) || (parameter === 'tilt' ? 2.0 : 10.0);
+      const warnVal = parseFloat(warningThreshold) || (parameter === 'tilt' ? 1.0 : 5.0);
+      const infoVal = parseFloat(infoThreshold) || (parameter === 'tilt' ? 0.5 : 2.0);
+
       const ruleData = {
         ruleName,
         projectId: projectId || null,
@@ -88,9 +95,12 @@ export async function alarmsRoutes(fastify) {
         emails,
         parameter,
         operator,
-        thresholdValue: parseFloat(thresholdValue) || 2.0,
+        thresholdValue: critVal,
+        criticalThreshold: critVal,
+        warningThreshold: warnVal,
+        infoThreshold: infoVal,
         severity,
-        message: message || `${parameter.toUpperCase()} exceeded threshold limit ${thresholdValue}`,
+        message: message || `${parameter.toUpperCase()} limit breach rule on assigned devices`,
         enabled: Boolean(enabled),
       };
 
@@ -144,6 +154,9 @@ export async function alarmsRoutes(fastify) {
         parameter,
         operator,
         thresholdValue,
+        criticalThreshold,
+        warningThreshold,
+        infoThreshold,
         severity,
         message,
         enabled,
@@ -161,7 +174,15 @@ export async function alarmsRoutes(fastify) {
       if (Array.isArray(emails)) updates.emails = emails;
       if (parameter !== undefined) updates.parameter = parameter;
       if (operator !== undefined) updates.operator = operator;
-      if (thresholdValue !== undefined) updates.thresholdValue = parseFloat(thresholdValue);
+      if (criticalThreshold !== undefined) {
+        updates.criticalThreshold = parseFloat(criticalThreshold);
+        updates.thresholdValue = parseFloat(criticalThreshold);
+      } else if (thresholdValue !== undefined) {
+        updates.thresholdValue = parseFloat(thresholdValue);
+        updates.criticalThreshold = parseFloat(thresholdValue);
+      }
+      if (warningThreshold !== undefined) updates.warningThreshold = parseFloat(warningThreshold);
+      if (infoThreshold !== undefined) updates.infoThreshold = parseFloat(infoThreshold);
       if (severity !== undefined) updates.severity = severity;
       if (message !== undefined) updates.message = message;
       if (enabled !== undefined) updates.enabled = Boolean(enabled);
@@ -259,13 +280,21 @@ export async function alarmsRoutes(fastify) {
         ? targetRule.emails
         : await getActiveRecipientEmails();
 
+      const requestedSeverity = (req.body?.severity || targetRule.severity || 'CRITICAL').toUpperCase();
+      let thresholdToUse = targetRule.criticalThreshold || targetRule.thresholdValue || 2.0;
+      if (requestedSeverity === 'WARNING') {
+        thresholdToUse = targetRule.warningThreshold || (targetRule.parameter === 'tilt' ? 1.0 : 5.0);
+      } else if (requestedSeverity === 'INFO') {
+        thresholdToUse = targetRule.infoThreshold || (targetRule.parameter === 'tilt' ? 0.5 : 2.0);
+      }
+
       const alertResult = await triggerManualAlert({
         deviceIds: targetRule.deviceIds || ['DEV-001'],
         parameter: targetRule.parameter || 'tilt',
-        severity: targetRule.severity || 'CRITICAL',
-        tiltValue: targetRule.parameter === 'tilt' ? (targetRule.thresholdValue || 2.45) : 0,
-        displacementValue: targetRule.parameter === 'displacement' ? (targetRule.thresholdValue || 12.8) : 0,
-        customMessage: targetRule.message || `Breach detected for rule: ${targetRule.ruleName}`,
+        severity: requestedSeverity,
+        tiltValue: targetRule.parameter === 'tilt' ? thresholdToUse : 0,
+        displacementValue: targetRule.parameter === 'displacement' ? thresholdToUse : 0,
+        customMessage: targetRule.message || `Breach detected for rule: ${targetRule.ruleName} (${requestedSeverity})`,
         recipients: activeRecipients,
       });
 

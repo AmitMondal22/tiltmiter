@@ -28,6 +28,25 @@ export async function seedDatabase() {
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "refTimestamp" TIMESTAMP WITH TIME ZONE;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "refOperator" VARCHAR(255) DEFAULT \'System\';',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "hasReferenceZero" BOOLEAN DEFAULT false;',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "projectId" VARCHAR(255);',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "projectName" VARCHAR(255);',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "siteId" VARCHAR(255);',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "siteName" VARCHAR(255);',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "assetId" VARCHAR(255);',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "assetName" VARCHAR(255);',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "deviceIds" JSON DEFAULT \'[]\';',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "emails" JSON DEFAULT \'[]\';',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "parameter" VARCHAR(255) DEFAULT \'tilt\';',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "condition" VARCHAR(255) DEFAULT \'GREATER_THAN\';',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "operator" VARCHAR(255) DEFAULT \'>\';',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "thresholdValue" FLOAT DEFAULT 2.0;',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "critical_threshold" FLOAT DEFAULT 2.0;',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "warning_threshold" FLOAT DEFAULT 1.0;',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "info_threshold" FLOAT DEFAULT 0.5;',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "severity" VARCHAR(255) DEFAULT \'CRITICAL\';',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "message" TEXT;',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "enabled" BOOLEAN DEFAULT true;',
+      'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "organizationId" INTEGER;',
     ];
 
     for (const q of addColumnQueries) {
@@ -38,6 +57,11 @@ export async function seedDatabase() {
       }
     }
 
+    // Clean up any legacy tiltmeter.io emails from database
+    try {
+      await sequelize.query(`UPDATE users SET email = 'superadmin@techavo.in' WHERE email = 'superadmin@tiltmeter.io';`);
+    } catch (_) {}
+
     // Ensure root Super Administrator exists only if no users are registered
     const userCount = await User.count();
     if (userCount === 0) {
@@ -47,7 +71,7 @@ export async function seedDatabase() {
       await User.create({
         username: 'superadmin',
         passwordHash: superadminHash,
-        email: 'superadmin@tiltmeter.io',
+        email: 'superadmin@techavo.in',
         role: 'SUPER_ADMIN',
         fullName: 'Super Administrator',
         scopeType: 'ALL',

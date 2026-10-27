@@ -18,7 +18,7 @@ export function isValidEmail(email) {
 let memoryRecipients = (process.env.ALERT_EMAIL_RECIPIENTS || 'system@techavo.in')
   .split(',')
   .map(e => e.trim().toLowerCase())
-  .filter(isValidEmail);
+  .filter(e => isValidEmail(e) && !e.includes('tiltmeter.io'));
 
 if (memoryRecipients.length === 0) {
   memoryRecipients = ['system@techavo.in'];
@@ -136,7 +136,7 @@ export async function getActiveRecipientEmails() {
     else emailSet.add('system@techavo.in');
   }
 
-  return Array.from(emailSet);
+  return Array.from(emailSet).filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
 }
 
 /**

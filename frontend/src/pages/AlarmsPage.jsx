@@ -54,7 +54,7 @@ export default function AlarmsPage() {
   const [formSeverity, setFormSeverity] = useState('CRITICAL');
   const [formMessage, setFormMessage] = useState('');
   const [formDeviceIds, setFormDeviceIds] = useState([]);
-  const [formEmails, setFormEmails] = useState(['system@techavo.in']);
+  const [formEmails, setFormEmails] = useState([]);
   const [emailInput, setEmailInput] = useState('');
   const [deviceSearchQuery, setDeviceSearchQuery] = useState('');
 
@@ -144,7 +144,8 @@ export default function AlarmsPage() {
     setFormMessage('');
     // Pre-select first 2 devices belonging to logged-in user if available
     setFormDeviceIds(userScopedDevices.slice(0, 2).map(d => d.id));
-    setFormEmails(user?.email ? [user.email] : ['system@techavo.in']);
+    // Clear recipient email list so superadmin@tiltmeter.io is never pre-filled
+    setFormEmails([]);
     setEmailInput('');
     setDeviceSearchQuery('');
     setModalOpen(true);
@@ -167,7 +168,9 @@ export default function AlarmsPage() {
       ? rule.deviceIds.filter(id => userScopedDevices.some(d => d.id === id))
       : [];
     setFormDeviceIds(validIds.length > 0 ? validIds : userScopedDevices.slice(0, 1).map(d => d.id));
-    setFormEmails(Array.isArray(rule.emails) && rule.emails.length > 0 ? rule.emails : ['system@techavo.in']);
+    const cleanEmails = (Array.isArray(rule.emails) ? rule.emails : [])
+      .filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
+    setFormEmails(cleanEmails);
     setEmailInput('');
     setDeviceSearchQuery('');
     setModalOpen(true);
@@ -177,6 +180,10 @@ export default function AlarmsPage() {
   const handleAddEmail = () => {
     const clean = emailInput.trim().toLowerCase();
     if (!clean) return;
+    if (clean.includes('tiltmeter.io')) {
+      showToast('error', 'tiltmeter.io domain email address is not permitted.');
+      return;
+    }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(clean)) {
       showToast('error', 'Please enter a valid email address.');
@@ -212,7 +219,8 @@ export default function AlarmsPage() {
       showToast('error', 'Please select at least one device to monitor.');
       return;
     }
-    if (formEmails.length === 0) {
+    const validEmails = formEmails.filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
+    if (validEmails.length === 0) {
       showToast('error', 'Please add at least one recipient email address.');
       return;
     }
@@ -234,7 +242,7 @@ export default function AlarmsPage() {
         severity: formSeverity,
         message: formMessage.trim() || `${formParam.toUpperCase()} multi-level safety threshold configured on assigned inclinometer devices`,
         deviceIds: formDeviceIds,
-        emails: formEmails,
+        emails: validEmails,
         enabled: true,
       };
 
@@ -285,7 +293,7 @@ export default function AlarmsPage() {
             parameter: formParam,
             operator: formOperator,
             deviceIds: formDeviceIds,
-            emails: formEmails,
+            emails: validEmails,
             enabled: true,
           });
           if (!firstCreatedRule) firstCreatedRule = res?.rule;
@@ -530,7 +538,9 @@ export default function AlarmsPage() {
                 const isWarn = rule.severity === 'WARNING' || rule.severity === 'MAJOR';
                 const isInfo = rule.severity === 'INFO' || rule.severity === 'MINOR';
                 const devCount = Array.isArray(rule.deviceIds) ? rule.deviceIds.length : 0;
-                const emailCount = Array.isArray(rule.emails) ? rule.emails.length : 0;
+                const ruleEmails = (Array.isArray(rule.emails) ? rule.emails : [])
+                  .filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
+                const emailCount = ruleEmails.length;
                 const unit = rule.parameter === 'tilt' ? '°' : 'mm';
                 const isTriggering = triggeringId && triggeringId.startsWith(`${rule.id}_`);
 
@@ -648,9 +658,9 @@ export default function AlarmsPage() {
                           </span>
                           <span className="font-bold text-slate-800">{emailCount} Email{emailCount !== 1 ? 's' : ''}</span>
                         </div>
-                        {Array.isArray(rule.emails) && rule.emails.length > 0 && (
-                          <div className="text-[11px] text-slate-500 truncate" title={rule.emails.join(', ')}>
-                            {rule.emails.join(', ')}
+                        {ruleEmails.length > 0 && (
+                          <div className="text-[11px] text-slate-500 truncate" title={ruleEmails.join(', ')}>
+                            {ruleEmails.join(', ')}
                           </div>
                         )}
                       </div>

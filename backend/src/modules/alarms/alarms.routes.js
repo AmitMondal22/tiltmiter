@@ -76,8 +76,11 @@ export async function alarmsRoutes(fastify) {
         return reply.status(400).send({ statusCode: 400, message: 'Please select at least one device for this alert rule.' });
       }
 
-      if (!Array.isArray(emails) || emails.length === 0) {
-        return reply.status(400).send({ statusCode: 400, message: 'Please specify at least one recipient email address.' });
+      const cleanEmails = (Array.isArray(emails) ? emails : [])
+        .filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
+
+      if (cleanEmails.length === 0) {
+        return reply.status(400).send({ statusCode: 400, message: 'Please specify at least one valid recipient email address.' });
       }
 
       const critVal = parseFloat(criticalThreshold ?? thresholdValue) || (parameter === 'tilt' ? 2.0 : 10.0);
@@ -93,7 +96,7 @@ export async function alarmsRoutes(fastify) {
         assetId: assetId || null,
         assetName: assetName || null,
         deviceIds,
-        emails,
+        emails: cleanEmails,
         parameter,
         operator,
         thresholdValue: critVal,
@@ -172,7 +175,9 @@ export async function alarmsRoutes(fastify) {
       if (assetId !== undefined) updates.assetId = assetId;
       if (assetName !== undefined) updates.assetName = assetName;
       if (Array.isArray(deviceIds)) updates.deviceIds = deviceIds;
-      if (Array.isArray(emails)) updates.emails = emails;
+      if (Array.isArray(emails)) {
+        updates.emails = emails.filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
+      }
       if (parameter !== undefined) updates.parameter = parameter;
       if (operator !== undefined) updates.operator = operator;
       if (criticalThreshold !== undefined) {
@@ -277,9 +282,9 @@ export async function alarmsRoutes(fastify) {
         return reply.status(404).send({ statusCode: 404, message: 'Alert rule not found.' });
       }
 
-      const activeRecipients = Array.isArray(targetRule.emails) && targetRule.emails.length > 0
+      const activeRecipients = (Array.isArray(targetRule.emails) && targetRule.emails.length > 0
         ? targetRule.emails
-        : await getActiveRecipientEmails();
+        : await getActiveRecipientEmails()).filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
 
       const requestedSeverity = (req.body?.severity || targetRule.severity || 'CRITICAL').toUpperCase();
       let thresholdToUse = targetRule.criticalThreshold || targetRule.thresholdValue || 2.0;

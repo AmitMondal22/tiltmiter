@@ -8,7 +8,7 @@ import {
   Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
 import { getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
-import { parseTelemetry } from '../utils/telemetryHelper';
+import { parseTelemetry, formatBatteryPercentage } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -572,7 +572,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         <div className="flex items-center gap-2 text-xs flex-wrap">
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-4 h-4 text-emerald-600" />
-            <span>{d.battery || activeDevice?.battery || '--'}</span>
+            <span>{formatBatteryPercentage(d.battery ?? d.batteryVoltage ?? activeDevice?.battery ?? activeDevice?.batteryVoltage)}</span>
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">

@@ -240,9 +240,55 @@ export default function AlarmsPage() {
         await updateAlertRule(editingRule.id, payload);
         showToast('success', `Alert rule "${payload.ruleName}" updated successfully.`);
       } else {
-        const res = await createAlertRule(payload);
-        savedRuleId = res?.rule?.id;
-        showToast('success', `Alert rule "${payload.ruleName}" created successfully.`);
+        // Create 3 alert rules at a time (Critical, Warning, Info) from one form fill
+        const baseName = formName.trim();
+        const unit = formParam === 'tilt' ? '°' : 'mm';
+
+        const threeRules = [
+          {
+            ruleName: `${baseName} (Critical)`,
+            severity: 'CRITICAL',
+            thresholdValue: cVal,
+            criticalThreshold: cVal,
+            warningThreshold: wVal,
+            infoThreshold: iVal,
+            message: formMessage.trim() || `Critical ${formParam.toUpperCase()} threshold limit (${formOperator} ${cVal} ${unit}) exceeded`,
+          },
+          {
+            ruleName: `${baseName} (Warning)`,
+            severity: 'WARNING',
+            thresholdValue: wVal,
+            criticalThreshold: cVal,
+            warningThreshold: wVal,
+            infoThreshold: iVal,
+            message: formMessage.trim() || `Warning ${formParam.toUpperCase()} threshold limit (${formOperator} ${wVal} ${unit}) exceeded`,
+          },
+          {
+            ruleName: `${baseName} (Info)`,
+            severity: 'INFO',
+            thresholdValue: iVal,
+            criticalThreshold: cVal,
+            warningThreshold: wVal,
+            infoThreshold: iVal,
+            message: formMessage.trim() || `Advisory ${formParam.toUpperCase()} movement (${formOperator} ${iVal} ${unit}) detected`,
+          },
+        ];
+
+        let firstCreatedRule = null;
+        for (const rItem of threeRules) {
+          const res = await createAlertRule({
+            ...rItem,
+            parameter: formParam,
+            operator: formOperator,
+            deviceIds: formDeviceIds,
+            emails: formEmails,
+            enabled: true,
+          });
+          if (!firstCreatedRule) firstCreatedRule = res?.rule;
+        }
+
+        savedRuleId = firstCreatedRule?.id;
+        showToast('success', `All 3 Alert Rules (Critical, Warning, Info) created at a time successfully!`);
       }
 
       setModalOpen(false);
@@ -1328,7 +1374,7 @@ export default function AlarmsPage() {
                     <span>Saving...</span>
                   </>
                 ) : (
-                  <span>Save Alert Rule</span>
+                  <span>{editingRule ? 'Save Alert Rule Updates' : 'Add All 3 Alert Rules (Critical, Warning, Info)'}</span>
                 )}
               </button>
             </div>

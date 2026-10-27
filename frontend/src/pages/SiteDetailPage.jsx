@@ -8,6 +8,7 @@ import {
 import { getSites, getDevices, getStructures, getProjects, getOrganizations } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
 import Landslide3DMapView from '../components/Landslide3DMapView';
+import { formatBatteryPercentage } from '../utils/telemetryHelper';
 
 export default function SiteDetailPage() {
   const { siteId } = useParams();
@@ -312,7 +313,7 @@ export default function SiteDetailPage() {
                         <span className="text-purple-700 font-bold">θ {tiltVal.toFixed(2)}°</span>
                         <div className="flex items-center gap-2">
                           <span className="flex items-center gap-0.5 text-emerald-700 font-bold">
-                            <Zap className="w-3 h-3" /> {d.battery || '95%'}
+                            <Zap className="w-3 h-3" /> {formatBatteryPercentage(d.battery ?? d.batteryVoltage)}
                           </span>
                           <span className="flex items-center gap-0.5 text-blue-700 font-bold">
                             <Radio className="w-3 h-3" /> {d.signal || '88%'}

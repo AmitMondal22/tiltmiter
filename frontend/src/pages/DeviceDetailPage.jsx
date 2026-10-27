@@ -7,7 +7,7 @@ import {
   Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, getWsUrl } from '../api/apiClient';
-import { parseTelemetry } from '../utils/telemetryHelper';
+import { parseTelemetry, formatBatteryPercentage } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -498,7 +498,7 @@ export default function DeviceDetailPage() {
         <div className="flex items-center gap-2 text-xs flex-wrap">
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{d.battery || device?.battery || '--'}</span>
+            <span>{formatBatteryPercentage(d.battery ?? d.batteryVoltage ?? device?.battery ?? device?.batteryVoltage)}</span>
           </div>
 
           <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">

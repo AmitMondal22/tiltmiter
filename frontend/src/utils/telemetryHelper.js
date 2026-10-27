@@ -150,11 +150,28 @@ export function parseTelemetry(data) {
   const temp = rawTemp !== undefined && rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
   const calibrated = Boolean(data.calibration?.calibrated ?? data.calibrate ?? data.hasReferenceZero ?? false);
 
-  // Power & Battery Percentage calculation: 13V is 100%, 0V is 0%, min 0%, max 100%
+/**
+ * Converts battery voltage in 0 to 13 range (0V = 0%, 13V = 100%) to a clean 0% to 100% string.
+ */
+export function formatBatteryPercentage(val) {
+  if (val === null || val === undefined || val === '') return '--';
+  if (typeof val === 'string' && val.includes('%')) return val;
+  const num = parseFloat(val);
+  if (isNaN(num)) return '--';
+  let pct = 0;
+  if (num <= 13) {
+    pct = Math.min(100, Math.max(0, Math.round((num / 13.0) * 100)));
+  } else {
+    pct = Math.min(100, Math.max(0, Math.round(num)));
+  }
+  return `${pct}%`;
+}
+
+  // Power & Battery Percentage calculation: 0 to 13 is 0 to 100%
   const rawBat = data.power?.batteryVoltage ?? data.batteryVoltage ?? data.battery;
   const batteryVoltage = rawBat !== undefined && rawBat !== null && !isNaN(parseFloat(rawBat)) ? parseFloat(rawBat) : null;
-  const batteryPercent = batteryVoltage !== null ? Math.min(100, Math.max(0, Math.round((batteryVoltage / 13) * 100))) : null;
-  const batteryStr = batteryPercent !== null ? `${batteryPercent}%` : null;
+  const batteryStr = formatBatteryPercentage(rawBat);
+  const batteryPercent = batteryStr !== '--' ? parseInt(batteryStr, 10) : null;
 
   // Network & CSQ Percentage calculation: 31 CSQ is 100%, 0 CSQ is 0%, min 0%, max 100%
   const rawCsq = data.network?.csq ?? data.csq ?? data.signal;

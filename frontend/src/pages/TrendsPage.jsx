@@ -3,11 +3,11 @@ import {
   Download, Calendar, Filter, RefreshCw, Radio,
   Activity, Layers, BarChart2, TrendingUp, Thermometer, Zap, Clock
 } from 'lucide-react';
-import { ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { getDevices, getTelemetryHistory, getWsUrl } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
-import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
+import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
+import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 
 export default function TrendsPage() {
   const cardCls = 'rounded-2xl border border-slate-200/80 bg-white p-4 text-slate-800 shadow-xs';
@@ -36,6 +36,101 @@ export default function TrendsPage() {
     }).catch(() => {});
   }, []);
 
+  const selectedDevice = useMemo(() => {
+    return devices.find(d => d.id?.toLowerCase() === selectedDeviceId?.toLowerCase()) ||
+           devices.find(d => d.id === selectedDeviceId) ||
+           { id: selectedDeviceId || 'ABCDEF0002', name: selectedDeviceId || 'Device Node' };
+  }, [devices, selectedDeviceId]);
+
+  // Standard point mapper identical to device dashboard
+  const mapPointData = (pt, activeDev = selectedDevice) => {
+    const ts = pt.timestamp || pt.time;
+    const xT = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0) || 0;
+    const yT = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
+    const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt;
+    const resT = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(xT * xT + yT * yT);
+
+    const L = parseFloat(activeDev?.gaugeLength_mm || 1000.0);
+    const refX = parseFloat(activeDev?.refThetaX ?? 0.0);
+    const refY = parseFloat(activeDev?.refThetaY ?? 0.0);
+    const refZ = parseFloat(activeDev?.refThetaZ ?? 0.0);
+    const hasRef = Boolean(activeDev?.hasReferenceZero === true || (activeDev?.calibrate === true && (refX !== 0 || refY !== 0)));
+
+    const deltaX = hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT);
+    const deltaY = hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT);
+    const deltaZ = hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT);
+
+    const radX = (deltaX * Math.PI) / 180.0;
+    const radY = (deltaY * Math.PI) / 180.0;
+    const clinoDx = L * Math.tan(radX);
+    const clinoDy = L * Math.tan(radY);
+
+    const xD = hasRef ? clinoDx : ((pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx);
+    const yD = hasRef ? clinoDy : ((pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy);
+    const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
+    const totD = hasRef ? Math.sqrt(clinoDx * clinoDx + clinoDy * clinoDy) : ((pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : Math.sqrt(xD * xD + yD * yD));
+    const activeResT = hasRef ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : resT;
+
+    const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
+    const rawAyRaw = pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? null;
+    const rawAzRaw = pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? null;
+    const rawAx = rawAxRaw !== null ? parseFloat(rawAxRaw) : null;
+    const rawAy = rawAyRaw !== null ? parseFloat(rawAyRaw) : null;
+    const rawAz = rawAzRaw !== null ? parseFloat(rawAzRaw) : null;
+    const axG = rawAx !== null && !isNaN(rawAx) ? (Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx) : null;
+    const ayG = rawAy !== null && !isNaN(rawAy) ? (Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy) : null;
+    const azG = rawAz !== null && !isNaN(rawAz) ? (Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz) : null;
+
+    const accMRaw = pt.accMag ?? pt.acceleration?.accMag ?? null;
+    const accM = accMRaw !== null ? parseFloat(accMRaw) : null;
+    const vibRRaw = pt.vibRMS ?? pt.vibrationRMS ?? pt.vibration?.vibrationRMS ?? null;
+    const vibR = vibRRaw !== null ? parseFloat(vibRRaw) : null;
+    const vibPRaw = pt.vibPeak ?? pt.vibrationPeak ?? pt.vibration?.vibrationPeak ?? null;
+    const vibP = vibPRaw !== null ? parseFloat(vibPRaw) : null;
+    const tempRaw = pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? null;
+    const tempC = tempRaw !== null ? parseFloat(tempRaw) : null;
+
+    const vibForStability = vibR ?? 0;
+    let stability = 'Stable';
+    let stabilityClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (Math.abs(activeResT) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
+      stability = 'Critical';
+      stabilityClass = 'bg-red-50 text-red-700 border-red-200';
+    } else if (Math.abs(activeResT) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
+      stability = 'Warning';
+      stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+
+    return {
+      time: formatHHMM(ts),
+      fullTime: formatFullDateTime(ts),
+      timestamp: ts,
+      resultant: Number(activeResT.toFixed(1)),
+      xTilt: Number(deltaX.toFixed(1)),
+      yTilt: Number(deltaY.toFixed(1)),
+      zTilt: Number(deltaZ.toFixed(1)),
+      totalDisp: Number(totD.toFixed(1)),
+      xDisp: Number(xD.toFixed(1)),
+      yDisp: Number(yD.toFixed(1)),
+      zDisp: Number(zD.toFixed(1)),
+      axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(1)) : null,
+      ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(1)) : null,
+      azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(1)) : null,
+      accMag: accM !== null && !isNaN(accM) ? Number(accM.toFixed(1)) : null,
+      vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(1)) : null,
+      vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(1)) : null,
+      temp: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
+      temperature: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : 25.0,
+      battery: pt.battery ?? pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
+      batteryVoltage: pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
+      power: pt.power || null,
+      signal: pt.signal ?? pt.signalStrength ?? pt.network?.csq ?? null,
+      signalStrength: pt.signalStrength ?? pt.signal ?? null,
+      stability,
+      stabilityClass,
+    };
+  };
+
   // 2. Fetch historical logs for selected device & range (converting IST user input to UTC ISO string for backend query)
   const loadHistory = (devId = selectedDeviceId, fromDt = null, toDt = null, rangeKey = activePreset) => {
     if (!devId) return;
@@ -43,17 +138,6 @@ export default function TrendsPage() {
 
     const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
     const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
-
-    const activeDev = devices.find(d => d.id?.toLowerCase() === devId?.toLowerCase());
-    const isZeroed = Boolean(
-      (activeDev && (
-        (activeDev.xTilt === 0 || activeDev.xTilt === 0.0 || activeDev.xTilt === null || activeDev.xTilt === undefined) &&
-        (activeDev.yTilt === 0 || activeDev.yTilt === 0.0 || activeDev.yTilt === null || activeDev.yTilt === undefined)
-      )) ||
-      (activeDev?.resultantTilt === 0 || activeDev?.resultantTilt === 0.0) ||
-      activeDev?.hasReferenceZero ||
-      activeDev?.calibrate
-    );
 
     getTelemetryHistory(devId, utcFrom, utcTo, rangeKey)
       .then(res => {
@@ -64,25 +148,7 @@ export default function TrendsPage() {
             const ts = pt.timestamp || pt.time;
             if (ts && seen.has(ts)) continue;
             if (ts) seen.add(ts);
-
-            const ptZeroed = isZeroed || (pt.xTilt === 0.0 && pt.yTilt === 0.0 && pt.totalDisplacement === 0.0);
-
-            mapped.push({
-              time: pt.time || formatTimeString(pt.timestamp),
-              timestamp: pt.timestamp || pt.time,
-              resultant: ptZeroed ? 0.0 : parseFloat(pt.resultant || pt.resultantTilt || 0),
-              xTilt: ptZeroed ? 0.0 : parseFloat(pt.xTilt || pt.tiltX || 0),
-              yTilt: ptZeroed ? 0.0 : parseFloat(pt.yTilt || pt.tiltY || 0),
-              zTilt: ptZeroed ? 0.0 : parseFloat(pt.zTilt || pt.tiltZ || pt.resultant || 0),
-              totalDisp: ptZeroed ? 0.0 : parseFloat(pt.totalDisp || pt.totalDisplacement || 0),
-              xDisp: ptZeroed ? 0.0 : parseFloat(pt.xDisp || pt.xDisplacement || 0),
-              yDisp: ptZeroed ? 0.0 : parseFloat(pt.yDisp || pt.yDisplacement || 0),
-              zDisp: ptZeroed ? 0.0 : parseFloat(pt.zDisp || pt.zDisplacement || 0),
-              accMag: parseFloat(pt.accMag || 0.98),
-              vibRMS: parseFloat(pt.vibRMS || pt.vibrationRMS || 0.045),
-              vibPeak: parseFloat(pt.vibPeak || pt.vibrationPeak || 0.104),
-              temperature: parseFloat(pt.temperature || pt.temp || 28.7),
-            });
+            mapped.push(mapPointData(pt, selectedDevice));
           }
           setTelemetryLogs(mapped);
           const firstPoint = mapped[0];
@@ -115,30 +181,16 @@ export default function TrendsPage() {
 
     const unsubscribe = telemetryService.subscribe((packet) => {
       if (!packet) return;
-      const pktId = packet.deviceId || packet.id;
-      if (pktId === selectedDeviceId || !selectedDeviceId) {
+      const pktId = (packet.deviceId || packet.id || packet.device_id || '').toString().trim().toLowerCase();
+      const curId = (selectedDeviceId || '').toString().trim().toLowerCase();
+      if (pktId && curId && pktId === curId) {
         const parsed = parseTelemetry(packet);
+        const newPoint = mapPointData(parsed, selectedDevice);
         setTelemetryLogs(prev => {
-          if (prev.some(p => p.timestamp === parsed.timestamp)) {
+          if (prev.some(p => p.timestamp === newPoint.timestamp)) {
             return prev; // Skip duplicate timestamp
           }
-          const newPoint = {
-            time: formatTimeString(parsed.timestamp),
-            timestamp: parsed.timestamp,
-            resultant: parsed.resultantTilt,
-            xTilt: parsed.xTilt,
-            yTilt: parsed.yTilt,
-            zTilt: parsed.zTilt || parsed.resultantTilt || 0,
-            totalDisp: parsed.totalDisplacement,
-            xDisp: parsed.xDisplacement,
-            yDisp: parsed.yDisplacement,
-            zDisp: parsed.zDisplacement || 0,
-            accMag: parsed.accMag || 0.98,
-            vibRMS: parsed.vibRMS || 0.045,
-            vibPeak: parsed.vibPeak || 0.104,
-            temperature: parsed.temp || 28.7,
-          };
-          return [...prev, newPoint].slice(-80);
+          return [...prev, newPoint].slice(-200);
         });
       }
     }, selectedDeviceId);
@@ -146,7 +198,7 @@ export default function TrendsPage() {
     return () => {
       unsubscribe();
     };
-  }, [selectedDeviceId]);
+  }, [selectedDeviceId, selectedDevice]);
 
   // Handle Preset Time Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
   const handlePresetSelect = (presetKey) => {
@@ -168,7 +220,7 @@ export default function TrendsPage() {
     }
     const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,XTilt_deg,YTilt_deg,ZTilt_deg,ResultantTilt_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C';
     const rows = telemetryLogs.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedDeviceId},${r.xTilt.toFixed(4)},${r.yTilt.toFixed(4)},${r.zTilt.toFixed(4)},${r.resultant.toFixed(4)},${r.xDisp.toFixed(4)},${r.yDisp.toFixed(4)},${r.zDisp.toFixed(4)},${r.totalDisp.toFixed(4)},${r.accMag.toFixed(3)},${r.vibRMS.toFixed(4)},${r.vibPeak.toFixed(4)},${r.temperature.toFixed(2)}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedDeviceId},${r.xTilt?.toFixed(1) ?? ''},${r.yTilt?.toFixed(1) ?? ''},${r.zTilt?.toFixed(1) ?? ''},${r.resultant?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.zDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(1) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(1) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(1) : ''},${r.temperature !== null && r.temperature !== undefined ? Number(r.temperature).toFixed(1) : (r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : '')}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -278,163 +330,8 @@ export default function TrendsPage() {
         </div>
       </div>
 
-      {/* Multi-Chart Matrix */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* 1. Multi-Axis Tilt vs Time */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <div className="flex items-center gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5 text-purple-600" />
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-                TILT ANGLE (°) VS TIME
-              </span>
-            </div>
-            <span className="text-[9px] font-mono text-purple-600 font-semibold bg-purple-50 px-2 py-0.5 rounded">
-              X, Y, Z &amp; Resultant Tilt (°)
-            </span>
-          </div>
-
-          <div className="h-56 w-full flex items-center justify-center">
-            {telemetryLogs.length === 0 ? (
-              <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching telemetry curve...' : 'No historical data available.'}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={telemetryLogs}>
-                  <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
-                  <Tooltip
-                    formatter={(v) => typeof v === 'number' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}°` : v}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={2} dot={false} name="X Tilt (°)" />
-                  <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={2} dot={false} name="Y Tilt (°)" />
-                  <Line type="monotone" dataKey="zTilt" stroke="#f59e0b" strokeWidth={2} dot={false} name="Z Tilt (°)" />
-                  <Line type="monotone" dataKey="resultant" stroke="#a855f7" strokeWidth={2} dot={false} name="Resultant Tilt (°)" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* 2. 3D Sub-surface Displacement vs Time */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <div className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5 text-pink-600" />
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-                3D DISPLACEMENT (MM) VS TIME
-              </span>
-            </div>
-            <span className="text-[9px] font-mono text-pink-600 font-semibold bg-pink-50 px-2 py-0.5 rounded">
-              Total, X, Y Displacement
-            </span>
-          </div>
-
-          <div className="h-56 w-full flex items-center justify-center">
-            {telemetryLogs.length === 0 ? (
-              <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching telemetry curve...' : 'No historical data available.'}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={telemetryLogs}>
-                  <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
-                  <Tooltip
-                    formatter={(v) => typeof v === 'number' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)} mm` : v}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Line type="monotone" dataKey="totalDisp" stroke="#ec4899" strokeWidth={2} dot={false} name="Total Disp (mm)" />
-                  <Line type="monotone" dataKey="xDisp" stroke="#06b6d4" strokeWidth={2} dot={false} name="X Disp (mm)" />
-                  <Line type="monotone" dataKey="yDisp" stroke="#f59e0b" strokeWidth={2} dot={false} name="Y Disp (mm)" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* 3. Vibration & Dynamic Shock vs Time */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <div className="flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-amber-600" />
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-                VIBRATION RMS & PEAK (G) VS TIME
-              </span>
-            </div>
-            <span className="text-[9px] font-mono text-amber-600 font-semibold bg-amber-50 px-2 py-0.5 rounded">
-              RMS & Peak Transducer
-            </span>
-          </div>
-
-          <div className="h-56 w-full flex items-center justify-center">
-            {telemetryLogs.length === 0 ? (
-              <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching telemetry curve...' : 'No historical data available.'}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={telemetryLogs}>
-                  <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
-                  <Tooltip
-                    formatter={(v) => typeof v === 'number' ? `${v.toFixed(1)} g` : v}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Area type="monotone" dataKey="vibPeak" stroke="#f59e0b" fill="#fef3c7" strokeWidth={2} name="Vibration Peak (g)" />
-                  <Area type="monotone" dataKey="vibRMS" stroke="#0284c7" fill="#e0f2fe" strokeWidth={2} name="Vibration RMS (g)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* 4. Thermal & Acceleration vs Time */}
-        <div className={cardCls}>
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-            <div className="flex items-center gap-1.5">
-              <Thermometer className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
-                TEMPERATURE (°C) & ACCELERATION (G)
-              </span>
-            </div>
-            <span className="text-[9px] font-mono text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded">
-              Thermal Drift & Accel Mag
-            </span>
-          </div>
-
-          <div className="h-56 w-full flex items-center justify-center">
-            {telemetryLogs.length === 0 ? (
-              <div className="text-center text-slate-400 text-xs font-mono">
-                {loading ? 'Fetching telemetry curve...' : 'No historical data available.'}
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={telemetryLogs}>
-                  <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
-                  <Tooltip
-                    formatter={(v, name) => typeof v === 'number' ? (name.includes('Temp') ? `${v.toFixed(1)} °C` : `${v.toFixed(1)} g`) : v}
-                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-                  <Line type="monotone" dataKey="temperature" stroke="#10b981" strokeWidth={2} dot={false} name="Temperature (°C)" />
-                  <Line type="monotone" dataKey="accMag" stroke="#64748b" strokeWidth={2} dot={false} name="Acceleration Mag (g)" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Multi-Axis Time-Series Charts (4 Panels matching exact Device Dashboard layout) */}
+      <TiltmeterChartsRow telemetryHistory={telemetryLogs} loading={loading} currentDevice={selectedDevice} />
 
       {/* Historical Telemetry Logs Table */}
       <div className={cardCls}>
@@ -478,31 +375,31 @@ export default function TrendsPage() {
                       {formatFullDateTime(r.timestamp || r.time)}
                     </td>
                     <td className="py-2 px-3 text-blue-700 font-semibold">
-                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(1)}°
+                      {r.xTilt !== null && r.xTilt !== undefined ? `${r.xTilt >= 0 ? '+' : ''}${r.xTilt.toFixed(1)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(1)}°
+                      {r.yTilt !== null && r.yTilt !== undefined ? `${r.yTilt >= 0 ? '+' : ''}${r.yTilt.toFixed(1)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(1)}°
+                      {r.zTilt !== null && r.zTilt !== undefined ? `${r.zTilt >= 0 ? '+' : ''}${r.zTilt.toFixed(1)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 font-bold text-purple-700">
-                      {r.resultant.toFixed(1)}°
+                      {r.resultant !== null && r.resultant !== undefined ? `${r.resultant.toFixed(1)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
-                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(1)} mm
+                      {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${r.xDisp.toFixed(1)} mm` : '--'}
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(1)} mm
+                      {r.yDisp !== null && r.yDisp !== undefined ? `${r.yDisp >= 0 ? '+' : ''}${r.yDisp.toFixed(1)} mm` : '--'}
                     </td>
                     <td className="py-2 px-3 font-bold text-pink-700">
-                      {r.totalDisp.toFixed(1)} mm
+                      {r.totalDisp !== null && r.totalDisp !== undefined ? `${r.totalDisp.toFixed(1)} mm` : '--'}
                     </td>
                     <td className="py-2 px-3 text-slate-700">
-                      {r.vibPeak.toFixed(1)} g
+                      {r.vibPeak !== null && r.vibPeak !== undefined ? `${r.vibPeak.toFixed(1)} g` : (r.accMag !== null && r.accMag !== undefined ? `${r.accMag.toFixed(1)} g` : '--')}
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {r.temperature.toFixed(1)} °C
+                      {r.temp !== null && r.temp !== undefined ? `${r.temp.toFixed(1)} °C` : (r.temperature !== null && r.temperature !== undefined ? `${r.temperature.toFixed(1)} °C` : '--')}
                     </td>
                   </tr>
                 ))

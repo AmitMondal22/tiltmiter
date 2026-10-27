@@ -304,8 +304,11 @@ export default function TrendsPage() {
                 <LineChart data={telemetryLogs}>
                   <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
+                  <Tooltip
+                    formatter={(v) => typeof v === 'number' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)}°` : v}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
+                  />
                   <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
                   <Line type="monotone" dataKey="xTilt" stroke="#3b82f6" strokeWidth={2} dot={false} name="X Tilt (°)" />
                   <Line type="monotone" dataKey="yTilt" stroke="#10b981" strokeWidth={2} dot={false} name="Y Tilt (°)" />
@@ -341,8 +344,11 @@ export default function TrendsPage() {
                 <LineChart data={telemetryLogs}>
                   <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
+                  <Tooltip
+                    formatter={(v) => typeof v === 'number' ? `${v >= 0 ? '+' : ''}${v.toFixed(1)} mm` : v}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
+                  />
                   <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
                   <Line type="monotone" dataKey="totalDisp" stroke="#ec4899" strokeWidth={2} dot={false} name="Total Disp (mm)" />
                   <Line type="monotone" dataKey="xDisp" stroke="#06b6d4" strokeWidth={2} dot={false} name="X Disp (mm)" />
@@ -377,8 +383,11 @@ export default function TrendsPage() {
                 <AreaChart data={telemetryLogs}>
                   <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
+                  <Tooltip
+                    formatter={(v) => typeof v === 'number' ? `${v.toFixed(1)} g` : v}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
+                  />
                   <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
                   <Area type="monotone" dataKey="vibPeak" stroke="#f59e0b" fill="#fef3c7" strokeWidth={2} name="Vibration Peak (g)" />
                   <Area type="monotone" dataKey="vibRMS" stroke="#0284c7" fill="#e0f2fe" strokeWidth={2} name="Vibration RMS (g)" />
@@ -412,8 +421,11 @@ export default function TrendsPage() {
                 <LineChart data={telemetryLogs}>
                   <CartesianGrid stroke="#f8fafc" strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="time" stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} />
-                  <Tooltip contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: 9 }} tickFormatter={(v) => Number(v).toFixed(1)} />
+                  <Tooltip
+                    formatter={(v, name) => typeof v === 'number' ? (name.includes('Temp') ? `${v.toFixed(1)} °C` : `${v.toFixed(1)} g`) : v}
+                    contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 10 }}
+                  />
                   <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
                   <Line type="monotone" dataKey="temperature" stroke="#10b981" strokeWidth={2} dot={false} name="Temperature (°C)" />
                   <Line type="monotone" dataKey="accMag" stroke="#64748b" strokeWidth={2} dot={false} name="Acceleration Mag (g)" />

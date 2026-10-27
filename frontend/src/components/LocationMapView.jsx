@@ -550,7 +550,7 @@ export default function LocationMapView({
                   <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-100">
                     <div className="text-[10px] text-purple-600 font-bold">Resultant Tilt</div>
                     <div className="text-base font-bold text-purple-900 font-mono mt-0.5">
-                      {Number(selectedDevice.resultantTilt || 0.22).toFixed(2)}°
+                      {Number(selectedDevice.resultantTilt || 0.22).toFixed(1)}°
                     </div>
                   </div>
                 </div>

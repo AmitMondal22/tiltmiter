@@ -381,11 +381,11 @@ export default function StructuresPage() {
                     <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-100 text-[11px]">
                       <div>
                         <span className="text-slate-500 block text-[10px]">Disp Δ:</span>
-                        <span className="font-bold text-blue-700">{disp.toFixed(2)}mm</span>
+                        <span className="font-bold text-blue-700">{disp.toFixed(1)}mm</span>
                       </div>
                       <div>
                         <span className="text-slate-500 block text-[10px]">Tilt θ:</span>
-                        <span className="font-bold text-purple-700">{tilt.toFixed(2)}°</span>
+                        <span className="font-bold text-purple-700">{tilt.toFixed(1)}°</span>
                       </div>
                     </div>
                   </div>

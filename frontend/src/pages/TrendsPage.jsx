@@ -466,28 +466,28 @@ export default function TrendsPage() {
                       {formatFullDateTime(r.timestamp || r.time)}
                     </td>
                     <td className="py-2 px-3 text-blue-700 font-semibold">
-                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(4)}°
+                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(4)}°
+                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(4)}°
+                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 font-bold text-purple-700">
-                      {r.resultant.toFixed(4)}°
+                      {r.resultant.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
-                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(3)} mm
+                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(1)} mm
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(3)} mm
+                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(1)} mm
                     </td>
                     <td className="py-2 px-3 font-bold text-pink-700">
-                      {r.totalDisp.toFixed(3)} mm
+                      {r.totalDisp.toFixed(1)} mm
                     </td>
                     <td className="py-2 px-3 text-slate-700">
-                      {r.vibPeak.toFixed(4)} g
+                      {r.vibPeak.toFixed(1)} g
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
                       {r.temperature.toFixed(1)} °C

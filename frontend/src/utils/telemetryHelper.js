@@ -58,17 +58,26 @@ export function calculateTiltToDisplacement({
 
   return {
     L,
-    deltaThetaX: Number(deltaThetaX.toFixed(4)),
-    deltaThetaY: Number(deltaThetaY.toFixed(4)),
-    xDisp: Number(xDisp.toFixed(3)),
-    yDisp: Number(yDisp.toFixed(3)),
-    totalDisp: Number(totalDisp.toFixed(3)),
-    formattedDeltaX: `${deltaThetaX >= 0 ? '+' : ''}${deltaThetaX.toFixed(3)}°`,
-    formattedDeltaY: `${deltaThetaY >= 0 ? '+' : ''}${deltaThetaY.toFixed(3)}°`,
-    formattedDispX: `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(2)} mm`,
-    formattedDispY: `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(2)} mm`,
-    formattedTotalDisp: `${totalDisp.toFixed(2)} mm`,
+    deltaThetaX: Number(deltaThetaX.toFixed(1)),
+    deltaThetaY: Number(deltaThetaY.toFixed(1)),
+    xDisp: Number(xDisp.toFixed(1)),
+    yDisp: Number(yDisp.toFixed(1)),
+    totalDisp: Number(totalDisp.toFixed(1)),
+    formattedDeltaX: `${deltaThetaX >= 0 ? '+' : ''}${deltaThetaX.toFixed(1)}°`,
+    formattedDeltaY: `${deltaThetaY >= 0 ? '+' : ''}${deltaThetaY.toFixed(1)}°`,
+    formattedDispX: `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(1)} mm`,
+    formattedDispY: `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(1)} mm`,
+    formattedTotalDisp: `${totalDisp.toFixed(1)} mm`,
   };
+}
+
+/**
+ * Formats any numeric value to 1 decimal place (e.g. 1.01215 -> 1.0).
+ */
+export function format1Dec(val, fallback = '0.0') {
+  if (val === null || val === undefined || val === '') return fallback;
+  const num = parseFloat(val);
+  return isNaN(num) ? fallback : num.toFixed(1);
 }
 
 /**
@@ -271,7 +280,7 @@ export function parseTelemetry(data) {
     battery: batteryStr,
     batteryPercent,
     batteryVoltage,
-    batteryVoltageFormatted: batteryVoltage !== null ? `${batteryVoltage.toFixed(2)} V` : '--',
+    batteryVoltageFormatted: batteryVoltage !== null ? `${batteryVoltage.toFixed(1)} V` : '--',
     power: { batteryVoltage, batteryPercent },
 
     // Network

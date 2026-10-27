@@ -542,31 +542,31 @@ export default function ReportsPage({ currentDevice }) {
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Max Resultant Tilt (θ)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-purple-700">{Number(stats.maxTilt).toFixed(4)}°</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-purple-700">{Number(stats.maxTilt).toFixed(1)}°</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Max X Tilt (θX)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-blue-700">{Number(stats.maxXTilt).toFixed(4)}°</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-blue-700">{Number(stats.maxXTilt).toFixed(1)}°</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Max Y Tilt (θY)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{Number(stats.maxYTilt).toFixed(4)}°</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{Number(stats.maxYTilt).toFixed(1)}°</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Max Total Disp (Total D)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-pink-700">{Number(stats.maxDisp).toFixed(3)} mm</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-pink-700">{Number(stats.maxDisp).toFixed(1)} mm</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Max X Disp (DX)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-cyan-700">{Number(stats.maxXDisp).toFixed(3)} mm</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-cyan-700">{Number(stats.maxXDisp).toFixed(1)} mm</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Max Y Disp (DY)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxYDisp).toFixed(3)} mm</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxYDisp).toFixed(1)} mm</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Peak Vibration Shock</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxVib).toFixed(4)} g</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxVib).toFixed(1)} g</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Avg Temperature</td>
@@ -606,19 +606,19 @@ export default function ReportsPage({ currentDevice }) {
 
             <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Peak Incline θ</div>
-              <div className="text-base font-bold text-purple-700 font-mono mt-0.5">{Number(stats.maxTilt).toFixed(3)}°</div>
+              <div className="text-base font-bold text-purple-700 font-mono mt-0.5">{Number(stats.maxTilt).toFixed(1)}°</div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Max Tilt Angle</div>
             </div>
 
             <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Displacement</div>
-              <div className="text-base font-bold text-pink-700 font-mono mt-0.5">{Number(stats.maxDisp).toFixed(2)} mm</div>
+              <div className="text-base font-bold text-pink-700 font-mono mt-0.5">{Number(stats.maxDisp).toFixed(1)} mm</div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Vector Total</div>
             </div>
 
             <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Peak Vibration</div>
-              <div className="text-base font-bold text-amber-700 font-mono mt-0.5">{Number(stats.maxVib).toFixed(3)} g</div>
+              <div className="text-base font-bold text-amber-700 font-mono mt-0.5">{Number(stats.maxVib).toFixed(1)} g</div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Dynamic Shock</div>
             </div>
           </div>
@@ -741,16 +741,16 @@ export default function ReportsPage({ currentDevice }) {
                           {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
                             <>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-blue-700 font-semibold">
-                                {Number(r.xTilt || r.tiltX || 0) >= 0 ? '+' : ''}{Number(r.xTilt || r.tiltX || 0).toFixed(4)}°
+                                {Number(r.xTilt || r.tiltX || 0) >= 0 ? '+' : ''}{Number(r.xTilt || r.tiltX || 0).toFixed(1)}°
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-semibold">
-                                {Number(r.yTilt || r.tiltY || 0) >= 0 ? '+' : ''}{Number(r.yTilt || r.tiltY || 0).toFixed(4)}°
+                                {Number(r.yTilt || r.tiltY || 0) >= 0 ? '+' : ''}{Number(r.yTilt || r.tiltY || 0).toFixed(1)}°
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
-                                {Number(r.zTilt || r.tiltZ || r.resultantTilt || 0) >= 0 ? '+' : ''}{Number(r.zTilt || r.tiltZ || r.resultantTilt || 0).toFixed(4)}°
+                                {Number(r.zTilt || r.tiltZ || r.resultantTilt || 0) >= 0 ? '+' : ''}{Number(r.zTilt || r.tiltZ || r.resultantTilt || 0).toFixed(1)}°
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-purple-700 font-bold">
-                                {Number(r.resultant || r.resultantTilt || 0).toFixed(4)}°
+                                {Number(r.resultant || r.resultantTilt || 0).toFixed(1)}°
                               </td>
                             </>
                           )}
@@ -759,13 +759,13 @@ export default function ReportsPage({ currentDevice }) {
                           {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                             <>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-cyan-700 font-semibold">
-                                {Number(r.xDisp || r.xDisplacement || 0) >= 0 ? '+' : ''}{Number(r.xDisp || r.xDisplacement || 0).toFixed(3)} mm
+                                {Number(r.xDisp || r.xDisplacement || 0) >= 0 ? '+' : ''}{Number(r.xDisp || r.xDisplacement || 0).toFixed(1)} mm
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
-                                {Number(r.yDisp || r.yDisplacement || 0) >= 0 ? '+' : ''}{Number(r.yDisp || r.yDisplacement || 0).toFixed(3)} mm
+                                {Number(r.yDisp || r.yDisplacement || 0) >= 0 ? '+' : ''}{Number(r.yDisp || r.yDisplacement || 0).toFixed(1)} mm
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-pink-700 font-bold">
-                                {Number(r.totalDisp || r.totalDisplacement || 0).toFixed(3)} mm
+                                {Number(r.totalDisp || r.totalDisplacement || 0).toFixed(1)} mm
                               </td>
                             </>
                           )}
@@ -773,9 +773,9 @@ export default function ReportsPage({ currentDevice }) {
                           {/* Right-aligned Numerical Vibration Columns */}
                           {(paramCategory === 'ALL' || paramCategory === 'VIBRATION') && (
                             <>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">{r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : '--'}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibRMS ?? r.vibrationRMS) !== null && (r.vibRMS ?? r.vibrationRMS) !== undefined ? Number(r.vibRMS ?? r.vibrationRMS).toFixed(4) : '--'}</td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibPeak ?? r.vibrationPeak) !== null && (r.vibPeak ?? r.vibrationPeak) !== undefined ? Number(r.vibPeak ?? r.vibrationPeak).toFixed(4) : '--'}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">{r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(1) : '--'}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibRMS ?? r.vibrationRMS) !== null && (r.vibRMS ?? r.vibrationRMS) !== undefined ? Number(r.vibRMS ?? r.vibrationRMS).toFixed(1) : '--'}</td>
+                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-600">{(r.vibPeak ?? r.vibrationPeak) !== null && (r.vibPeak ?? r.vibrationPeak) !== undefined ? Number(r.vibPeak ?? r.vibrationPeak).toFixed(1) : '--'}</td>
                             </>
                           )}
 

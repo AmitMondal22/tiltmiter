@@ -213,7 +213,7 @@ export default function SiteDetailPage() {
           <div>
             <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Max Displacement Δ</div>
             <div className="text-lg font-black font-mono text-black mt-0.5">
-              {maxDisplacement.toFixed(2)} <span className="text-xs text-slate-700 font-sans font-medium">mm</span>
+              {maxDisplacement.toFixed(1)} <span className="text-xs text-slate-700 font-sans font-medium">mm</span>
             </div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
@@ -225,7 +225,7 @@ export default function SiteDetailPage() {
           <div>
             <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Avg Vector Tilt θ</div>
             <div className="text-lg font-black font-mono text-black mt-0.5">
-              {avgTilt.toFixed(2)} <span className="text-xs text-slate-700 font-sans font-medium">degrees</span>
+              {avgTilt.toFixed(1)} <span className="text-xs text-slate-700 font-sans font-medium">degrees</span>
             </div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
@@ -306,11 +306,11 @@ export default function SiteDetailPage() {
 
                       <div className="font-mono text-[11px] text-slate-700 flex justify-between">
                         <span>Node: {d.id}</span>
-                        <span className="font-bold text-black">Δ {disp.toFixed(2)}mm</span>
+                        <span className="font-bold text-black">Δ {disp.toFixed(1)}mm</span>
                       </div>
 
                       <div className="flex items-center justify-between text-[11px] font-mono text-slate-700 pt-1 border-t border-slate-100">
-                        <span className="text-purple-700 font-bold">θ {tiltVal.toFixed(2)}°</span>
+                        <span className="text-purple-700 font-bold">θ {tiltVal.toFixed(1)}°</span>
                         <div className="flex items-center gap-2">
                           <span className="flex items-center gap-0.5 text-emerald-700 font-bold">
                             <Zap className="w-3 h-3" /> {formatBatteryPercentage(d.battery ?? d.batteryVoltage)}

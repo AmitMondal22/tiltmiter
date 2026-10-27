@@ -804,11 +804,11 @@ export default function Landslide3DMapView({
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-purple-900/40 font-mono text-[11px]">
                     <div>
                       <span className="text-slate-400 text-[10px] block">θX:</span>
-                      <span className="text-purple-300 font-bold">{Number(selectedItem.xTilt || 1.9).toFixed(2)}°</span>
+                      <span className="text-purple-300 font-bold">{Number(selectedItem.xTilt || 1.9).toFixed(1)}°</span>
                     </div>
                     <div>
                       <span className="text-slate-400 text-[10px] block">θY:</span>
-                      <span className="text-pink-300 font-bold">{Number(selectedItem.yTilt || 2.0).toFixed(2)}°</span>
+                      <span className="text-pink-300 font-bold">{Number(selectedItem.yTilt || 2.0).toFixed(1)}°</span>
                     </div>
                   </div>
                 </div>

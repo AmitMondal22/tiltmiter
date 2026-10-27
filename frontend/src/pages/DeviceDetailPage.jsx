@@ -133,22 +133,22 @@ export default function DeviceDetailPage() {
       time: formatHHMM(ts),
       fullTime: formatFullDateTime(ts),
       timestamp: ts,
-      resultant: Number(activeResT.toFixed(4)),
-      xTilt: Number(deltaX.toFixed(4)),
-      yTilt: Number(deltaY.toFixed(4)),
-      zTilt: Number(deltaZ.toFixed(4)),
-      deltaThetaX: Number(deltaX.toFixed(4)),
-      deltaThetaY: Number(deltaY.toFixed(4)),
-      totalDisp: Number(totD.toFixed(3)),
-      xDisp: Number(xD.toFixed(3)),
-      yDisp: Number(yD.toFixed(3)),
-      zDisp: Number(zD.toFixed(3)),
-      axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(3)) : null,
-      ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(3)) : null,
-      azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(3)) : null,
-      accMag: accM !== null && !isNaN(accM) ? Number(accM.toFixed(3)) : null,
-      vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(4)) : null,
-      vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(4)) : null,
+      resultant: Number(activeResT.toFixed(1)),
+      xTilt: Number(deltaX.toFixed(1)),
+      yTilt: Number(deltaY.toFixed(1)),
+      zTilt: Number(deltaZ.toFixed(1)),
+      deltaThetaX: Number(deltaX.toFixed(1)),
+      deltaThetaY: Number(deltaY.toFixed(1)),
+      totalDisp: Number(totD.toFixed(1)),
+      xDisp: Number(xD.toFixed(1)),
+      yDisp: Number(yD.toFixed(1)),
+      zDisp: Number(zD.toFixed(1)),
+      axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(1)) : null,
+      ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(1)) : null,
+      azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(1)) : null,
+      accMag: accM !== null && !isNaN(accM) ? Number(accM.toFixed(1)) : null,
+      vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(1)) : null,
+      vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(1)) : null,
       temp: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
       stability,
       stabilityClass,
@@ -299,7 +299,7 @@ export default function DeviceDetailPage() {
       loadHistory(deviceId, null, null, activeFilter);
       setMsg({
         type: 'success',
-        text: `Zero reference baseline saved: θX₀=${curX.toFixed(3)}°, θY₀=${curY.toFixed(3)}° (L=${L}mm). At instant: ΔθX=ΔθY=0° and DX=DY=0.000mm.`,
+        text: `Zero reference baseline saved: θX₀=${curX.toFixed(1)}°, θY₀=${curY.toFixed(1)}° (L=${L}mm). At instant: ΔθX=ΔθY=0° and DX=DY=0.0mm.`,
       });
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Error saving zero reference' });
@@ -615,10 +615,10 @@ export default function DeviceDetailPage() {
                     ΔθX
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
-                    {hasData ? `${roll >= 0 ? '+' : ''}${roll.toFixed(3)}°` : '--'}
+                    {hasData ? `${roll >= 0 ? '+' : ''}${roll.toFixed(1)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
+                    {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(1)} mm/m` : '--'}
                   </div>
                   {/* Soft bottom-right corner wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
@@ -634,10 +634,10 @@ export default function DeviceDetailPage() {
                     ΔθY
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
-                    {hasData ? `${pitch >= 0 ? '+' : ''}${pitch.toFixed(3)}°` : '--'}
+                    {hasData ? `${pitch >= 0 ? '+' : ''}${pitch.toFixed(1)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
+                    {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(1)} mm/m` : '--'}
                   </div>
                   {/* Soft bottom-right corner wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
@@ -653,10 +653,10 @@ export default function DeviceDetailPage() {
                     ΔθZ
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
-                    {hasData ? `${zTilt >= 0 ? '+' : ''}${zTilt.toFixed(3)}°` : '--'}
+                    {hasData ? `${zTilt >= 0 ? '+' : ''}${zTilt.toFixed(1)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
+                    {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(1)} mm/m` : '--'}
                   </div>
                   {/* Soft bottom-right corner wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
@@ -683,7 +683,7 @@ export default function DeviceDetailPage() {
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 tracking-tight">
-                      {hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(3)}` : '--'}
+                      {hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(1)}` : '--'}
                     </span>
                     <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
                   </div>
@@ -702,7 +702,7 @@ export default function DeviceDetailPage() {
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-2xl sm:text-3xl font-extrabold text-amber-600 tracking-tight">
-                      {hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(3)}` : '--'}
+                      {hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(1)}` : '--'}
                     </span>
                     <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
                   </div>
@@ -900,28 +900,28 @@ export default function DeviceDetailPage() {
                       {r.fullTime || r.time}
                     </td>
                     <td className="py-2 px-3 text-blue-700 font-semibold">
-                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(3)}°
+                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 text-purple-700 font-semibold">
-                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(3)}°
+                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(3)}°
+                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 text-purple-900 font-bold">
-                      {r.resultant.toFixed(3)}°
+                      {r.resultant.toFixed(1)}°
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
-                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(3)} mm
+                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(1)} mm
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(3)} mm
+                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(1)} mm
                     </td>
                     <td className="py-2 px-3 text-pink-700 font-bold">
-                      {r.totalDisp.toFixed(3)} mm
+                      {r.totalDisp.toFixed(1)} mm
                     </td>
                     <td className="py-2 px-3 text-amber-800">
-                      {r.vibPeak !== null && r.vibPeak !== undefined ? `${Number(r.vibPeak).toFixed(4)} g` : '--'}
+                      {r.vibPeak !== null && r.vibPeak !== undefined ? `${Number(r.vibPeak).toFixed(1)} g` : '--'}
                     </td>
                     <td className="py-2 px-3 text-orange-700">
                       {r.temp !== null && r.temp !== undefined ? `${Number(r.temp).toFixed(1)} °C` : '--'}

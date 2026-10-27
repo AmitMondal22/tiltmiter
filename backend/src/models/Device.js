@@ -54,6 +54,14 @@ export const Device = sequelize.define('Device', {
     type: DataTypes.FLOAT,
     defaultValue: 0.0,
   },
+  zTilt: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.0,
+  },
+  yaw: {
+    type: DataTypes.FLOAT,
+    defaultValue: 0.0,
+  },
   resultantTilt: {
     type: DataTypes.FLOAT,
     defaultValue: 0.0,

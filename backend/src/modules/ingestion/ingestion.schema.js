@@ -20,9 +20,13 @@ export const telemetryIngestSchema = Joi.object({
   tilt: Joi.object({
     roll: Joi.number().optional(),
     pitch: Joi.number().optional(),
+    yaw: Joi.number().optional().default(0.0),
+    zTilt: Joi.number().optional().default(0.0),
     tilt: Joi.number().optional(),
     tiltStatus: Joi.string().optional().default('NORMAL'),
   }).optional(),
+  yaw: Joi.number().optional().default(0.0),
+  zTilt: Joi.number().optional().default(0.0),
 
   vibration: Joi.object({
     vibration: Joi.number().optional(),

@@ -125,7 +125,7 @@ export async function reportsRoutes(fastify) {
 
         let finalXTilt = parseFloat(r.xTilt || 0);
         let finalYTilt = parseFloat(r.yTilt || 0);
-        let finalZTilt = parseFloat(r.zTilt || r.resultantTilt || 0);
+        let finalZTilt = parseFloat(r.yaw ?? r.zTilt ?? r.rawPayload?.tilt?.yaw ?? r.rawPayload?.tilt?.zTilt ?? 0) || 0;
         let finalResultant = parseFloat(r.resultantTilt || 0);
         let finalXDisp = parseFloat(r.xDisplacement || 0);
         let finalYDisp = parseFloat(r.yDisplacement || 0);
@@ -136,7 +136,7 @@ export async function reportsRoutes(fastify) {
           // Hardware already tare zeroed: use rawPayload delta tilt directly
           finalXTilt = parseFloat(r.rawPayload?.tilt?.roll ?? 0) || 0;
           finalYTilt = parseFloat(r.rawPayload?.tilt?.pitch ?? 0) || 0;
-          finalZTilt = parseFloat(r.rawPayload?.tilt?.zTilt ?? 0) || 0;
+          finalZTilt = parseFloat(r.rawPayload?.tilt?.yaw ?? r.rawPayload?.tilt?.zTilt ?? 0) || 0;
           finalResultant = Math.sqrt(finalXTilt * finalXTilt + finalYTilt * finalYTilt);
           if (Math.abs(finalXTilt) < 0.015 && Math.abs(finalYTilt) < 0.015) {
             finalXTilt = 0.0;
@@ -173,6 +173,7 @@ export async function reportsRoutes(fastify) {
           tiltY: Number(finalYTilt.toFixed(4)),
           zTilt: Number(finalZTilt.toFixed(4)),
           tiltZ: Number(finalZTilt.toFixed(4)),
+          yaw: Number(finalZTilt.toFixed(4)),
           totalDisplacement: Number(finalTotalDisp.toFixed(4)),
           totalDisp: Number(finalTotalDisp.toFixed(4)),
           xDisplacement: Number(finalXDisp.toFixed(4)),

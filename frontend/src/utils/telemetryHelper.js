@@ -171,8 +171,10 @@ export function parseTelemetry(data) {
 
   const roll = typeof data.tilt?.roll === 'number' ? data.tilt.roll : (typeof data.xTilt === 'number' ? data.xTilt : (typeof data.roll === 'number' ? data.roll : (parseFloat(data.tilt?.roll ?? data.xTilt ?? data.roll) || 0)));
   const pitch = typeof data.tilt?.pitch === 'number' ? data.tilt.pitch : (typeof data.yTilt === 'number' ? data.yTilt : (typeof data.pitch === 'number' ? data.pitch : (parseFloat(data.tilt?.pitch ?? data.yTilt ?? data.pitch) || 0)));
+  const rawYaw = data.tilt?.yaw ?? data.yaw ?? data.tilt?.zTilt ?? data.zTilt;
+  const yaw = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
   const tiltVal = typeof data.tilt?.tilt === 'number' ? data.tilt.tilt : (typeof data.resultantTilt === 'number' ? data.resultantTilt : (typeof data.tilt === 'number' ? data.tilt : (parseFloat(data.tilt?.tilt ?? data.resultantTilt ?? data.tilt) || Math.sqrt(roll * roll + pitch * pitch))));
-  const zTilt = typeof data.tilt?.zTilt === 'number' ? data.tilt.zTilt : (typeof data.zTilt === 'number' ? data.zTilt : (!isNaN(az) && accMag > 0 ? (Math.acos(Math.max(-1, Math.min(1, Math.abs(az) / accMag))) * 180) / Math.PI : tiltVal));
+  const zTilt = yaw;
   const tiltStatus = data.tilt?.tiltStatus || data.tiltStatus || 'NORMAL';
 
   // Slope in mm/m (1000 * sin(angle * π / 180))
@@ -269,12 +271,22 @@ export function parseTelemetry(data) {
     // Mapped flat fields
     roll,
     pitch,
+    yaw,
     tilt: tiltVal,
     xTilt: roll,
     yTilt: pitch,
     zTilt,
+    tiltZ: yaw,
     resultantTilt: tiltVal,
     tiltStatus,
+    tilt: {
+      roll,
+      pitch,
+      yaw,
+      tilt: tiltVal,
+      tiltStatus,
+      ...(typeof data.tilt === 'object' ? data.tilt : {}),
+    },
     tiltDirectionAngle: angleDeg,
     tiltDirectionCardinal: cardinalStr,
 

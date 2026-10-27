@@ -30,7 +30,8 @@ export async function saveTelemetryPoint(data) {
   const xTilt = typeof data.xTilt === 'number' ? data.xTilt : (data.tilt?.roll ?? 0);
   const yTilt = typeof data.yTilt === 'number' ? data.yTilt : (data.tilt?.pitch ?? 0);
   const resultantTilt = typeof data.resultantTilt === 'number' ? data.resultantTilt : (data.tilt?.tilt ?? Math.sqrt(xTilt * xTilt + yTilt * yTilt));
-  const zTilt = typeof data.zTilt === 'number' ? data.zTilt : resultantTilt;
+  const zTilt = typeof data.zTilt === 'number' ? data.zTilt : (typeof data.yaw === 'number' ? data.yaw : (parseFloat(data.tilt?.yaw ?? data.yaw ?? 0.0) || 0.0));
+  const yaw = zTilt;
   const xDisplacement = typeof data.xDisplacement === 'number' ? data.xDisplacement : (data.displacement?.xDisplacement_mm ?? 0);
   const yDisplacement = typeof data.yDisplacement === 'number' ? data.yDisplacement : (data.displacement?.yDisplacement_mm ?? 0);
   const zDisplacement = typeof data.zDisplacement === 'number' ? data.zDisplacement : (data.displacement?.zDisplacement_mm ?? 0);
@@ -62,6 +63,8 @@ export async function saveTelemetryPoint(data) {
         timestamp: validTimestamp,
         xTilt,
         yTilt,
+        zTilt,
+        yaw,
         resultantTilt,
         xDisplacement,
         yDisplacement,
@@ -81,6 +84,8 @@ export async function saveTelemetryPoint(data) {
         timestamp: new Date(),
         xTilt,
         yTilt,
+        zTilt,
+        yaw,
         resultantTilt,
         xDisplacement,
         yDisplacement,
@@ -100,6 +105,8 @@ export async function saveTelemetryPoint(data) {
       await existingDevice.update({
         xTilt,
         yTilt,
+        zTilt,
+        yaw,
         resultantTilt,
         xDisplacement,
         yDisplacement,
@@ -116,6 +123,8 @@ export async function saveTelemetryPoint(data) {
         name: data.name || `Tiltmeter ${deviceId}`,
         xTilt,
         yTilt,
+        zTilt,
+        yaw,
         resultantTilt,
         xDisplacement,
         yDisplacement,

@@ -82,9 +82,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   // Map individual history point into structured format
   const mapPointData = (pt) => {
     const ts = pt.timestamp || pt.time;
-    const xT = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0) || 0;
-    const yT = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
-    const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt;
+    const xT = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.tilt?.roll ?? 0) || 0;
+    const yT = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.tilt?.pitch ?? 0) || 0;
+    const rawYaw = pt.yaw ?? pt.tilt?.yaw ?? pt.zTilt ?? pt.tiltZ;
+    const zT = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+    const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? pt.tilt?.tilt;
     const resT = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(xT * xT + yT * yT);
 
     // ClinoX Reference-Zero Delta and Lateral Displacement: D = L * tan(Δθ * π / 180)
@@ -97,7 +99,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
     const deltaX = hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT);
     const deltaY = hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT);
-    const deltaZ = hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT);
+    const deltaZ = hasRef ? zT - refZ : (pt.deltaThetaZ !== undefined ? pt.deltaThetaZ : zT);
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;
@@ -306,7 +308,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       const lastHist = telemetryHistory.length > 0 ? telemetryHistory[telemetryHistory.length - 1] : null;
       const curX = liveData?.xTilt ?? liveData?.roll ?? lastHist?.xTilt ?? parseFloat(activeDevice?.xTilt ?? 0) ?? 0;
       const curY = liveData?.yTilt ?? liveData?.pitch ?? lastHist?.yTilt ?? parseFloat(activeDevice?.yTilt ?? 0) ?? 0;
-      const curZ = liveData?.zTilt ?? lastHist?.zTilt ?? parseFloat(activeDevice?.zTilt ?? 0) ?? 0;
+      const curZ = liveData?.yaw ?? liveData?.zTilt ?? lastHist?.yaw ?? lastHist?.zTilt ?? parseFloat(activeDevice?.zTilt ?? 0) ?? 0;
       const L = parseFloat(configForm.gaugeLength_mm || activeDevice?.gaugeLength_mm || 1000);
 
       const res = await setDeviceReference(selectedId, {
@@ -435,10 +437,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
   const hasData = Boolean(liveData);
   const d = liveData || parseTelemetry(activeDevice || { id: selectedId });
-  const rawRoll = typeof d.xTilt === 'number' ? d.xTilt : 0;
-  const rawPitch = typeof d.yTilt === 'number' ? d.yTilt : 0;
+  const rawRoll = typeof d.xTilt === 'number' ? d.xTilt : (parseFloat(d.tilt?.roll ?? d.roll) || 0);
+  const rawPitch = typeof d.yTilt === 'number' ? d.yTilt : (parseFloat(d.tilt?.pitch ?? d.pitch) || 0);
   const rawRes = typeof d.resultantTilt === 'number' ? d.resultantTilt : Math.sqrt(rawRoll * rawRoll + rawPitch * rawPitch);
-  const rawZTilt = typeof d.zTilt === 'number' ? d.zTilt : rawRes;
+  const rawYaw = d.yaw ?? d.tilt?.yaw ?? d.zTilt ?? d.tiltZ;
+  const rawZTilt = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
 
   const L = parseFloat(activeDevice?.gaugeLength_mm || d.gaugeLength_mm || 1000.0);
   const refX = parseFloat(activeDevice?.refThetaX ?? d.refThetaX ?? 0.0);
@@ -455,6 +458,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const roll = hasRef ? rawRoll - refX : (d.deltaThetaX !== undefined ? d.deltaThetaX : rawRoll);
   const pitch = hasRef ? rawPitch - refY : (d.deltaThetaY !== undefined ? d.deltaThetaY : rawPitch);
   const zTilt = hasRef ? rawZTilt - refZ : rawZTilt;
+  const yaw = zTilt;
   const resultant = Math.sqrt(roll * roll + pitch * pitch);
 
   const xSlope = typeof d.xSlope === 'number' ? d.xSlope : Math.sin((roll * Math.PI) / 180) * 1000;

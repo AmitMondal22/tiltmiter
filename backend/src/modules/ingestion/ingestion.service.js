@@ -8,9 +8,15 @@ const { Op } = pkg;
 export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const deviceId = rawPayload.deviceId || rawPayload.device_id || params.deviceId || 'TM-001';
 
-  // 1. Parse tilt angles safely, with fallback from 3-axis accelerometer if tilt object is not present
+  // 1. Parse tilt angles safely:
+  // roll = X axis
+  // pitch = Y axis
+  // yaw = Z axis (optional, default 0.0)
+  // tilt = Resultant tilt
   let roll = rawPayload.tilt?.roll ?? rawPayload.xTilt ?? rawPayload.roll;
   let pitch = rawPayload.tilt?.pitch ?? rawPayload.yTilt ?? rawPayload.pitch;
+  const rawYaw = rawPayload.tilt?.yaw ?? rawPayload.yaw ?? rawPayload.tilt?.zTilt ?? rawPayload.zTilt;
+  let yaw = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
 
   const ax = typeof rawPayload.acceleration?.ax === 'number' ? rawPayload.acceleration.ax : parseFloat(rawPayload.acceleration?.ax);
   const ay = typeof rawPayload.acceleration?.ay === 'number' ? rawPayload.acceleration.ay : parseFloat(rawPayload.acceleration?.ay);
@@ -25,16 +31,15 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
 
   roll = parseFloat(roll) || 0;
   pitch = parseFloat(pitch) || 0;
+  yaw = parseFloat(yaw) || 0;
+
   const rawTilt = rawPayload.tilt?.tilt ?? rawPayload.resultantTilt ?? rawPayload.tilt;
   const tiltVal = typeof rawTilt === 'number' && !isNaN(rawTilt)
     ? rawTilt
     : Math.sqrt(roll * roll + pitch * pitch);
 
-  const zTilt = typeof rawPayload.tilt?.zTilt === 'number'
-    ? rawPayload.tilt.zTilt
-    : (!isNaN(az) && !isNaN(ax) && !isNaN(ay) && Math.sqrt(ax * ax + ay * ay + az * az) > 0
-      ? (Math.acos(Math.max(-1, Math.min(1, Math.abs(az) / Math.sqrt(ax * ax + ay * ay + az * az)))) * 180) / Math.PI
-      : tiltVal);
+  // yaw is the Z-value
+  const zTilt = yaw;
 
   // 2. Calculate Slopes in mm/m (1000 * sin(angle))
   const xSlope = Math.sin((roll * Math.PI) / 180) * 1000;
@@ -65,24 +70,29 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const hasRefZero = Boolean(deviceRecord?.calibrate ?? deviceRecord?.hasReferenceZero ?? false);
   const dbRefX = deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null ? parseFloat(deviceRecord.refThetaX) : 0.0;
   const dbRefY = deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null ? parseFloat(deviceRecord.refThetaY) : 0.0;
+  const dbRefZ = deviceRecord?.refThetaZ !== undefined && deviceRecord?.refThetaZ !== null ? parseFloat(deviceRecord.refThetaZ) : 0.0;
   const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;
 
   const L = parseFloat(rawPayload.gaugeLength_mm || rawPayload.L || dbGaugeL);
   // When hardware already reports calibrated: true, it sends delta angles directly relative to tare baseline
   const refX = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaX ?? rawPayload.baselineRoll ?? (hasRefZero ? dbRefX : 0.0));
   const refY = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaY ?? rawPayload.baselinePitch ?? (hasRefZero ? dbRefY : 0.0));
+  const refZ = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaZ ?? (hasRefZero ? dbRefZ : 0.0));
   const deltaThetaX = isHardwareCalibrated ? roll : (roll - refX);
   const deltaThetaY = isHardwareCalibrated ? pitch : (pitch - refY);
+  const deltaThetaZ = isHardwareCalibrated ? yaw : (yaw - refZ);
 
   // If device is tare zero calibrated or hardware calibrated, report tilt relative to zero reference baseline
   let activeXTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaX : roll;
   let activeYTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaY : pitch;
+  let activeZTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaZ : yaw;
   let activeResultant = (hasRefZero || isHardwareCalibrated) ? Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) : tiltVal;
 
   // Clean zero rounding for noise near zero
-  if ((isHardwareCalibrated || hasRefZero) && Math.abs(activeXTilt) < 0.015 && Math.abs(activeYTilt) < 0.015) {
+  if ((isHardwareCalibrated || hasRefZero) && Math.abs(activeXTilt) < 0.015 && Math.abs(activeYTilt) < 0.015 && Math.abs(activeZTilt) < 0.015) {
     activeXTilt = 0.0;
     activeYTilt = 0.0;
+    activeZTilt = 0.0;
     activeResultant = 0.0;
   }
 
@@ -116,6 +126,18 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     utcTimestamp = new Date().toISOString();
   }
 
+  // Ensure rawPayload.tilt has standard format with roll, pitch, yaw, tilt, tiltStatus
+  if (!rawPayload.tilt || typeof rawPayload.tilt !== 'object') {
+    rawPayload.tilt = {};
+  }
+  rawPayload.tilt = {
+    roll,
+    pitch,
+    yaw,
+    tilt: rawPayload.tilt.tilt ?? activeResultant,
+    tiltStatus: rawPayload.tilt.tiltStatus || 'NORMAL',
+  };
+
   const telemetryData = {
     // Preserve raw nested payload
     rawPayload,
@@ -124,12 +146,14 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     // Mapped flat fields for UI component binding
     xTilt: activeXTilt,
     yTilt: activeYTilt,
-    zTilt,
+    zTilt: activeZTilt,
     resultantTilt: activeResultant,
     roll: activeXTilt,
     pitch: activeYTilt,
+    yaw: activeZTilt,
     rawRoll: roll,
     rawPitch: pitch,
+    rawYaw: yaw,
     tilt: activeResultant,
     tiltStatus: rawPayload.tilt?.tiltStatus || 'NORMAL',
 

@@ -126,10 +126,10 @@ export async function telemetryRoutes(fastify) {
 
     // Helper to format every point ensuring calibration data is correctly applied
     const formatPoint = (pt, extracted = null) => {
-      const rawX = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0) || 0;
-      const rawY = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
-      const rawZ = parseFloat(pt.zTilt ?? pt.tiltZ ?? 0) || 0;
-      const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt;
+      const rawX = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.rawPayload?.tilt?.roll ?? 0) || 0;
+      const rawY = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.rawPayload?.tilt?.pitch ?? 0) || 0;
+      const rawZ = parseFloat(pt.yaw ?? pt.zTilt ?? pt.tiltZ ?? pt.rawPayload?.tilt?.yaw ?? pt.rawPayload?.tilt?.zTilt ?? 0) || 0;
+      const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? pt.rawPayload?.tilt?.tilt;
       const calcRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(rawX * rawX + rawY * rawY);
 
       // Check if hardware already performed zero tare (calibration flag in rawPayload)
@@ -176,6 +176,7 @@ export async function telemetryRoutes(fastify) {
         pitch: Number(finalYTilt.toFixed(4)),
         zTilt: Number(finalZTilt.toFixed(4)),
         tiltZ: Number(finalZTilt.toFixed(4)),
+        yaw: Number(finalZTilt.toFixed(4)),
         resultant: Number(finalResultant.toFixed(4)),
         resultantTilt: Number(finalResultant.toFixed(4)),
         tilt: Number(finalResultant.toFixed(4)),

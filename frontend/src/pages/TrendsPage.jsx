@@ -45,9 +45,11 @@ export default function TrendsPage() {
   // Standard point mapper identical to device dashboard
   const mapPointData = (pt, activeDev = selectedDevice) => {
     const ts = pt.timestamp || pt.time;
-    const xT = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? 0) || 0;
-    const yT = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? 0) || 0;
-    const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt;
+    const xT = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.tilt?.roll ?? 0) || 0;
+    const yT = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.tilt?.pitch ?? 0) || 0;
+    const rawYaw = pt.yaw ?? pt.tilt?.yaw ?? pt.zTilt ?? pt.tiltZ;
+    const zT = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+    const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? pt.tilt?.tilt;
     const resT = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(xT * xT + yT * yT);
 
     const L = parseFloat(activeDev?.gaugeLength_mm || 1000.0);
@@ -58,7 +60,7 @@ export default function TrendsPage() {
 
     const deltaX = hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT);
     const deltaY = hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT);
-    const deltaZ = hasRef ? ((parseFloat(pt.zTilt ?? pt.tiltZ) || resT) - refZ) : (parseFloat(pt.zTilt ?? pt.tiltZ) || resT);
+    const deltaZ = hasRef ? zT - refZ : (pt.deltaThetaZ !== undefined ? pt.deltaThetaZ : zT);
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;

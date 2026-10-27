@@ -14,10 +14,10 @@ export default function TrendsPage() {
 
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState('');
-  
+
   // Time presets: '1h', '6h', '24h', '7d', 'custom'
   const [activePreset, setActivePreset] = useState('24h');
-  
+
   const now = new Date();
   const initFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const [fromDateTime, setFromDateTime] = useState(formatISTDatetimeLocal(initFrom));
@@ -33,7 +33,7 @@ export default function TrendsPage() {
         setDevices(res.devices);
         if (!selectedDeviceId) setSelectedDeviceId(res.devices[0].id);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // 2. Fetch historical logs for selected device & range (converting IST user input to UTC ISO string for backend query)
@@ -234,11 +234,10 @@ export default function TrendsPage() {
                 <button
                   key={p.id}
                   onClick={() => handlePresetSelect(p.id, p.hours)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                    activePreset === p.id
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${activePreset === p.id
                       ? 'bg-blue-600 text-white shadow-2xs'
                       : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   {p.label}
                 </button>

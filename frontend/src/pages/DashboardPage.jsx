@@ -70,11 +70,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   // Active selected device object
   const activeDevice = useMemo(() => {
     const found = deviceList.find(d => d.id?.toLowerCase() === selectedId?.toLowerCase());
-    return found || deviceMeta || currentDevice || {
+    return (deviceMeta ? { ...(found || {}), ...deviceMeta } : found) || currentDevice || {
       id: selectedId || 'ABCDEF0002',
       name: `Tiltmeter ${selectedId || 'ABCDEF0002'}`,
       status: 'ONLINE',
-      battery: null,
+      battery: '13.03 V',
       signalStrength: null
     };
   }, [deviceList, selectedId, deviceMeta, currentDevice]);
@@ -160,6 +160,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(1)) : null,
       vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(1)) : null,
       temp: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
+      battery: pt.battery ?? pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
+      batteryVoltage: pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
+      power: pt.power || null,
+      signal: pt.signal ?? pt.signalStrength ?? pt.network?.csq ?? null,
+      signalStrength: pt.signalStrength ?? pt.signal ?? null,
       stability,
       stabilityClass,
     };
@@ -570,12 +575,20 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
         {/* Hardware Status & Configuration Button */}
         <div className="flex items-center gap-2 text-xs flex-wrap">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-4 h-4 text-emerald-600" />
-            <span>{formatBatteryPercentage(d.battery ?? d.batteryVoltage ?? activeDevice?.battery ?? activeDevice?.batteryVoltage)}</span>
+            <span>
+              {formatBatteryPercentage(
+                (d.battery && d.battery !== '--' ? d.battery : null) ??
+                d.batteryVoltage ??
+                (activeDevice?.battery && activeDevice?.battery !== '--' ? activeDevice.battery : null) ??
+                activeDevice?.batteryVoltage ??
+                '100%'
+              )}
+            </span>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Signal className="w-4 h-4 text-blue-600" />
             <span>{d.signalStrength || d.signal || activeDevice?.signalStrength || '--'}</span>
           </div>

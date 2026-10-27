@@ -150,6 +150,11 @@ export default function DeviceDetailPage() {
       vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(1)) : null,
       vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(1)) : null,
       temp: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
+      battery: pt.battery ?? pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
+      batteryVoltage: pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
+      power: pt.power || null,
+      signal: pt.signal ?? pt.signalStrength ?? pt.network?.csq ?? null,
+      signalStrength: pt.signalStrength ?? pt.signal ?? null,
       stability,
       stabilityClass,
     };
@@ -496,12 +501,20 @@ export default function DeviceDetailPage() {
 
         {/* Hardware Status & Configuration Button */}
         <div className="flex items-center gap-2 text-xs flex-wrap">
-          <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
+          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Battery className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{formatBatteryPercentage(d.battery ?? d.batteryVoltage ?? device?.battery ?? device?.batteryVoltage)}</span>
+            <span>
+              {formatBatteryPercentage(
+                (d.battery && d.battery !== '--' ? d.battery : null) ??
+                d.batteryVoltage ??
+                (device?.battery && device?.battery !== '--' ? device.battery : null) ??
+                device?.batteryVoltage ??
+                '100%'
+              )}
+            </span>
           </div>
 
-          <div className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
+          <div className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium">
             <Signal className="w-3.5 h-3.5 text-blue-600" />
             <span>{d.signalStrength || d.signal || device?.signalStrength || '--'}</span>
           </div>

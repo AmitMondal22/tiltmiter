@@ -324,11 +324,14 @@ export default function AlarmsPage() {
       return;
     }
     try {
+      // Optimistically remove immediately from local state
+      setRules((prev) => prev.filter((r) => String(r.id) !== String(rule.id)));
       await deleteAlertRule(rule.id);
       showToast('success', `Alert rule "${rule.ruleName}" deleted.`);
       loadAllData();
     } catch (err) {
       showToast('error', 'Failed to delete alert rule: ' + err.message);
+      loadAllData();
     }
   };
 
@@ -395,50 +398,6 @@ export default function AlarmsPage() {
         </div>
       )}
 
-      {/* Header Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div>
-          <div className="flex items-center gap-2.5 mb-1.5">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-100">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Geotechnical Alert Rules & Instant Email Dispatch</h1>
-                {user && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[11px] font-mono border border-slate-200 font-semibold">
-                    {user.username} ({user.role})
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 font-medium">
-                Configure safety threshold rules across 3 severity levels, associate multi-device inclinometer arrays, and dispatch automated geotechnical emails.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={loadAllData}
-            disabled={loading}
-            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors cursor-pointer"
-            title="Refresh rules & alarms"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-
-          <button
-            onClick={handleOpenCreateModal}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create Alert Rule</span>
-          </button>
-        </div>
-      </div>
-
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className={cardCls}>
@@ -482,31 +441,53 @@ export default function AlarmsPage() {
         </div>
       </div>
 
-      {/* Navigation Tabs (Direct Instant Alert Dispatch removed) */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-        <button
-          onClick={() => setActiveTab('rules')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'rules'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <Bell className="w-3.5 h-3.5" />
-          <span>Configured Alert Rules ({rules.length})</span>
-        </button>
+      {/* Navigation Tabs and Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setActiveTab('rules')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'rules'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>Configured Alert Rules ({rules.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('feed')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeTab === 'feed'
-              ? 'bg-blue-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-          }`}
-        >
-          <AlertTriangle className="w-3.5 h-3.5" />
-          <span>Live Alarms History ({alarms.length})</span>
-        </button>
+          <button
+            onClick={() => setActiveTab('feed')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'feed'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Live Alarms History ({alarms.length})</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={loadAllData}
+            disabled={loading}
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-colors cursor-pointer shadow-2xs"
+            title="Refresh rules & alarms"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            onClick={handleOpenCreateModal}
+            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Alert Rule</span>
+          </button>
+        </div>
       </div>
 
       {/* ───────────────────────────────────────────────────────────── */}
@@ -542,7 +523,6 @@ export default function AlarmsPage() {
                   .filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
                 const emailCount = ruleEmails.length;
                 const unit = rule.parameter === 'tilt' ? '°' : 'mm';
-                const isTriggering = triggeringId && triggeringId.startsWith(`${rule.id}_`);
 
                 return (
                   <div
@@ -664,60 +644,6 @@ export default function AlarmsPage() {
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    {/* Footer Trigger Actions */}
-                    <div className="pt-4 border-t border-slate-100 mt-4 space-y-2">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className="text-[10px] uppercase font-bold text-slate-400">Trigger Alert:</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleTriggerRule(rule, 'CRITICAL')}
-                            disabled={isTriggering}
-                            className="px-2 py-1 text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            title="Dispatch critical alert now"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
-                            Crit
-                          </button>
-                          <button
-                            onClick={() => handleTriggerRule(rule, 'WARNING')}
-                            disabled={isTriggering}
-                            className="px-2 py-1 text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            title="Dispatch warning alert now"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                            Warn
-                          </button>
-                          <button
-                            onClick={() => handleTriggerRule(rule, 'INFO')}
-                            disabled={isTriggering}
-                            className="px-2 py-1 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-                            title="Dispatch info alert now"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                            Info
-                          </button>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => handleTriggerRule(rule)}
-                        disabled={isTriggering}
-                        className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                      >
-                        {isTriggering ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>Sending Email Dispatch...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-3.5 h-3.5" />
-                            <span>Dispatch Alert &amp; Send Email</span>
-                          </>
-                        )}
-                      </button>
                     </div>
                   </div>
                 );
@@ -1130,17 +1056,6 @@ export default function AlarmsPage() {
 
               <button
                 type="button"
-                onClick={() => handleSaveRule(true)}
-                disabled={savingRule}
-                className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-                title="Save rule and immediately dispatch an automated email test"
-              >
-                <Zap className="w-3.5 h-3.5 text-blue-600" />
-                <span>Save &amp; Send Test Alert Now</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => handleSaveRule(false)}
                 disabled={savingRule}
                 className="w-full sm:w-auto px-5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
@@ -1151,7 +1066,7 @@ export default function AlarmsPage() {
                     <span>Saving...</span>
                   </>
                 ) : (
-                  <span>{editingRule ? 'Save Alert Rule Updates' : 'Add All 3 Alert Rules (Critical, Warning, Info)'}</span>
+                  <span>{editingRule ? 'Save Alert Rule Updates' : 'Add Alert Rules (Critical, Warning, Info)'}</span>
                 )}
               </button>
             </div>

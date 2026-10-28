@@ -239,14 +239,19 @@ export async function alarmsRoutes(fastify) {
   fastify.delete('/api/alert-rules/:id', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     try {
       const { id } = req.params;
+      const numId = parseInt(id, 10);
 
       try {
-        await AlertRule.destroy({ where: { id } });
+        if (!isNaN(numId)) {
+          await AlertRule.destroy({ where: { id: numId } });
+        } else {
+          await AlertRule.destroy({ where: { id } });
+        }
       } catch (dbErr) {
-        // Fallback
+        fastify.log.warn(`[AlertRules] DB destroy notice: ${dbErr.message}`);
       }
 
-      memoryAlertRules = memoryAlertRules.filter(r => String(r.id) !== String(id));
+      memoryAlertRules = memoryAlertRules.filter(r => String(r.id) !== String(id) && (!isNaN(numId) ? Number(r.id) !== numId : true));
 
       return reply.send({
         statusCode: 200,

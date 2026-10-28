@@ -140,7 +140,7 @@ async function request(endpoint, options = {}, isRetry = false) {
   }
 
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };

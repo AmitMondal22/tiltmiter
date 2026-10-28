@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Bell, Mail, Plus, Trash2, Edit, Send, CheckCircle2, AlertTriangle,
+  Bell, Mail, Plus, Trash2, Edit, Send, CheckCircle2, AlertTriangle, AlertCircle,
   ShieldAlert, RefreshCw, X, Search, Check, Filter, Info, Eye, Layers,
   ChevronRight, Radio, ExternalLink, Zap
 } from 'lucide-react';
@@ -252,55 +252,9 @@ export default function AlarmsPage() {
         await updateAlertRule(editingRule.id, payload);
         showToast('success', `Alert rule "${formName}" updated successfully.`);
       } else {
-        // Create all 3 Severity Level Rules at a time (Critical, Warning, Info)
-        const baseName = formName.trim();
-        const unit = formParam === 'tilt' ? '°' : 'mm';
-
-        const threeRules = [
-          {
-            ruleName: `${baseName} (Critical)`,
-            severity: 'CRITICAL',
-            thresholdValue: cVal,
-            criticalThreshold: cVal,
-            warningThreshold: wVal,
-            infoThreshold: iVal,
-            message: formMessage.trim() || `Critical ${formParam.toUpperCase()} threshold limit (${formOperator} ${cVal} ${unit}) exceeded`,
-          },
-          {
-            ruleName: `${baseName} (Warning)`,
-            severity: 'WARNING',
-            thresholdValue: wVal,
-            criticalThreshold: cVal,
-            warningThreshold: wVal,
-            infoThreshold: iVal,
-            message: formMessage.trim() || `Warning ${formParam.toUpperCase()} threshold limit (${formOperator} ${wVal} ${unit}) exceeded`,
-          },
-          {
-            ruleName: `${baseName} (Info)`,
-            severity: 'INFO',
-            thresholdValue: iVal,
-            criticalThreshold: cVal,
-            warningThreshold: wVal,
-            infoThreshold: iVal,
-            message: formMessage.trim() || `Advisory ${formParam.toUpperCase()} movement (${formOperator} ${iVal} ${unit}) detected`,
-          },
-        ];
-
-        let firstCreatedRule = null;
-        for (const rItem of threeRules) {
-          const res = await createAlertRule({
-            ...rItem,
-            parameter: formParam,
-            operator: formOperator,
-            deviceIds: formDeviceIds,
-            emails: validEmails,
-            enabled: true,
-          });
-          if (!firstCreatedRule) firstCreatedRule = res?.rule;
-        }
-
-        savedRuleId = firstCreatedRule?.id;
-        showToast('success', `All 3 Alert Rules (Critical, Warning, Info) created at a time successfully!`);
+        const res = await createAlertRule(payload);
+        savedRuleId = res?.rule?.id;
+        showToast('success', `Alert rule "${formName}" created successfully!`);
       }
 
       setModalOpen(false);
@@ -513,141 +467,210 @@ export default function AlarmsPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {rules.map((rule) => {
-                const isCrit = rule.severity === 'CRITICAL' || rule.severity === 'EMERGENCY';
-                const isWarn = rule.severity === 'WARNING' || rule.severity === 'MAJOR';
-                const isInfo = rule.severity === 'INFO' || rule.severity === 'MINOR';
-                const devCount = Array.isArray(rule.deviceIds) ? rule.deviceIds.length : 0;
-                const ruleEmails = (Array.isArray(rule.emails) ? rule.emails : [])
-                  .filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
-                const emailCount = ruleEmails.length;
-                const unit = rule.parameter === 'tilt' ? '°' : 'mm';
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#0B3B70] text-white text-xs font-semibold tracking-wide">
+                      <th className="px-4 py-3.5 text-center w-12 font-bold">#</th>
+                      <th className="px-4 py-3.5 font-bold">Alert Rule</th>
+                      <th className="px-4 py-3.5 font-bold">Severity</th>
+                      <th className="px-4 py-3.5 font-bold">Condition / Threshold (Resultant Tilt)</th>
+                      <th className="px-4 py-3.5 font-bold">Target Devices</th>
+                      <th className="px-4 py-3.5 font-bold">Recipients</th>
+                      <th className="px-4 py-3.5 font-bold">Trigger Alert</th>
+                      <th className="px-4 py-3.5 text-center font-bold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white text-xs">
+                    {rules.map((rule, idx) => {
+                      const isCrit = rule.severity === 'CRITICAL' || rule.severity === 'EMERGENCY';
+                      const isWarn = rule.severity === 'WARNING' || rule.severity === 'MAJOR';
+                      const isInfo = rule.severity === 'INFO' || rule.severity === 'MINOR';
+                      const devCount = Array.isArray(rule.deviceIds) ? rule.deviceIds.length : 0;
+                      const ruleEmails = (Array.isArray(rule.emails) ? rule.emails : [])
+                        .filter(e => typeof e === 'string' && !e.toLowerCase().includes('tiltmeter.io'));
+                      const emailCount = ruleEmails.length;
+                      const unit = rule.parameter === 'tilt' ? '°' : 'mm';
 
-                return (
-                  <div
-                    key={rule.id}
-                    className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between group"
-                  >
-                    <div>
-                      {/* Card Header: Severity & Actions */}
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wider ${
-                          isCrit
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : isWarn
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}>
-                          <span className={`w-2 h-2 rounded-full ${isCrit ? 'bg-rose-600 animate-pulse' : isWarn ? 'bg-amber-500' : 'bg-blue-500'}`} />
-                          {rule.severity || 'CRITICAL'}
-                        </span>
+                      const cThreshold = rule.criticalThreshold ?? (rule.parameter === 'tilt' ? 2.0 : 10.0);
+                      const wThreshold = rule.warningThreshold ?? (rule.parameter === 'tilt' ? 1.0 : 5.0);
+                      const iThreshold = rule.infoThreshold ?? (rule.parameter === 'tilt' ? 0.5 : 2.0);
 
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleOpenEditModal(rule)}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                            title="Edit rule parameters"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRule(rule)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete rule"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                      const isTriggeringCrit = triggeringId === `${rule.id}_CRITICAL`;
+                      const isTriggeringWarn = triggeringId === `${rule.id}_WARNING`;
+                      const isTriggeringInfo = triggeringId === `${rule.id}_INFO`;
 
-                      {/* Rule Title */}
-                      <h3 className="text-sm font-bold text-slate-900 mb-1 leading-snug group-hover:text-blue-600 transition-colors">
-                        {rule.ruleName}
-                      </h3>
-                      <p className="text-xs text-slate-500 line-clamp-2 mb-3">
-                        {rule.message || 'Automated email dispatch upon geotechnical movement breach.'}
-                      </p>
+                      return (
+                        <tr key={rule.id} className="hover:bg-slate-50/70 transition-colors">
+                          {/* Col 1: # */}
+                          <td className="px-4 py-4 text-center font-bold text-slate-800 text-sm align-middle">
+                            {idx + 1}
+                          </td>
 
-                      {/* Threshold limit highlights */}
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1.5 font-mono text-xs mb-3">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-500 uppercase font-semibold">Parameter:</span>
-                          <span className="font-bold text-slate-800 capitalize">
-                            {rule.parameter === 'tilt' ? 'Resultant Tilt (°)' : 'Lateral Displacement (mm)'}
-                          </span>
-                        </div>
+                          {/* Col 2: Alert Rule */}
+                          <td className="px-4 py-4 align-middle">
+                            <div className="font-bold text-slate-900 text-sm leading-tight">
+                              {rule.ruleName}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
+                              {rule.message || (isCrit ? `Critical ${rule.parameter?.toUpperCase()} threshold limit exceeded` : isWarn ? `Warning ${rule.parameter?.toUpperCase()} threshold limit exceeded` : `Advisory ${rule.parameter?.toUpperCase()} movement detected`)}
+                            </div>
+                          </td>
 
-                        {rule.criticalThreshold !== undefined && rule.criticalThreshold !== null && (
-                          <div className="flex items-center justify-between text-[11px] text-rose-700">
-                            <span className="font-semibold">🔴 Critical limit:</span>
-                            <span className="font-bold">{rule.operator || '>'} {Number(rule.criticalThreshold).toFixed(1)} {unit}</span>
-                          </div>
-                        )}
-
-                        {rule.warningThreshold !== undefined && rule.warningThreshold !== null && (
-                          <div className="flex items-center justify-between text-[11px] text-amber-700">
-                            <span className="font-semibold">🟡 Warning limit:</span>
-                            <span className="font-bold">{rule.operator || '>'} {Number(rule.warningThreshold).toFixed(1)} {unit}</span>
-                          </div>
-                        )}
-
-                        {rule.infoThreshold !== undefined && rule.infoThreshold !== null && (
-                          <div className="flex items-center justify-between text-[11px] text-blue-700">
-                            <span className="font-semibold">🔵 Info limit:</span>
-                            <span className="font-bold">{rule.operator || '>'} {Number(rule.infoThreshold).toFixed(1)} {unit}</span>
-                          </div>
-                        )}
-
-                        {!rule.criticalThreshold && (
-                          <div className="flex items-center justify-between text-[11px]">
-                            <span className="text-slate-500 font-semibold">Threshold:</span>
-                            <span className="font-bold text-rose-600">{rule.operator || '>'} {rule.thresholdValue} {unit}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Associated Devices & Email Pills */}
-                      <div className="space-y-1.5 text-xs text-slate-600">
-                        <div className="flex items-center justify-between">
-                          <span className="flex items-center gap-1.5 text-slate-500 font-medium">
-                            <Radio className="w-3.5 h-3.5 text-blue-500" />
-                            Target Devices:
-                          </span>
-                          <span className="font-bold font-mono text-slate-800">{devCount} Device{devCount !== 1 ? 's' : ''}</span>
-                        </div>
-                        {Array.isArray(rule.deviceIds) && rule.deviceIds.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            {rule.deviceIds.slice(0, 4).map(id => (
-                              <span key={id} className="px-2 py-0.5 rounded-md bg-blue-50/70 border border-blue-100 text-blue-700 font-mono text-[10px] font-semibold">
-                                {id}
+                          {/* Col 3: Severity */}
+                          <td className="px-4 py-4 align-middle whitespace-nowrap">
+                            {isCrit ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                                <span>Critical</span>
                               </span>
-                            ))}
-                            {rule.deviceIds.length > 4 && (
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 font-mono text-[10px]">
-                                +{rule.deviceIds.length - 4} more
+                            ) : isWarn ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                <span>Warning</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-200">
+                                <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                                <span>Info</span>
                               </span>
                             )}
-                          </div>
-                        )}
+                          </td>
 
-                        <div className="flex items-center justify-between pt-1">
-                          <span className="flex items-center gap-1.5 text-slate-500 font-medium">
-                            <Mail className="w-3.5 h-3.5 text-purple-500" />
-                            Recipients:
-                          </span>
-                          <span className="font-bold text-slate-800">{emailCount} Email{emailCount !== 1 ? 's' : ''}</span>
-                        </div>
-                        {ruleEmails.length > 0 && (
-                          <div className="text-[11px] text-slate-500 truncate" title={ruleEmails.join(', ')}>
-                            {ruleEmails.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                          {/* Col 4: Condition / Threshold (Resultant Tilt) */}
+                          <td className="px-4 py-4 align-middle whitespace-nowrap">
+                            <div className="space-y-1 font-mono text-xs">
+                              <div className="font-bold text-slate-900 font-sans mb-1.5">
+                                {rule.parameter === 'tilt' ? 'Resultant Tilt (°)' : 'Lateral Displacement (mm)'}
+                              </div>
+                              <div className="flex items-center justify-between gap-6 text-xs">
+                                <span className="text-rose-600 font-medium flex items-center gap-1.5 font-sans">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600 shrink-0 inline-block"></span>
+                                  Critical limit:
+                                </span>
+                                <span className="font-bold text-rose-600">
+                                  {rule.operator || '>'} {Number(cThreshold).toFixed(1)} {unit}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-6 text-xs">
+                                <span className="text-amber-600 font-medium flex items-center gap-1.5 font-sans">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0 inline-block"></span>
+                                  Warning limit:
+                                </span>
+                                <span className="font-bold text-amber-600">
+                                  {rule.operator || '>'} {Number(wThreshold).toFixed(1)} {unit}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between gap-6 text-xs">
+                                <span className="text-blue-600 font-medium flex items-center gap-1.5 font-sans">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 inline-block"></span>
+                                  Info limit:
+                                </span>
+                                <span className="font-bold text-blue-600">
+                                  {rule.operator || '>'} {Number(iThreshold).toFixed(1)} {unit}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Col 5: Target Devices */}
+                          <td className="px-4 py-4 align-middle">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 mb-1.5">
+                              <Radio className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span>{devCount} Device{devCount !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1 max-w-[220px]">
+                              {Array.isArray(rule.deviceIds) && rule.deviceIds.length > 0 ? (
+                                rule.deviceIds.map((id) => (
+                                  <span
+                                    key={id}
+                                    className="px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 font-mono text-[11px] font-semibold"
+                                  >
+                                    {id}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-slate-400 italic text-xs">No devices</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Col 6: Recipients */}
+                          <td className="px-4 py-4 align-middle">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 mb-1">
+                              <Mail className="w-4 h-4 text-purple-600 shrink-0" />
+                              <span>{emailCount} Email{emailCount !== 1 ? 's' : ''}</span>
+                            </div>
+                            <div className="text-xs text-slate-600 font-mono break-all max-w-[200px]">
+                              {ruleEmails.length > 0 ? (
+                                ruleEmails.join(', ')
+                              ) : (
+                                <span className="text-slate-400 italic font-sans">No emails</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Col 7: Trigger Alert */}
+                          <td className="px-4 py-4 align-middle whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => handleTriggerRule(rule, 'CRITICAL')}
+                                disabled={Boolean(triggeringId)}
+                                className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                title="Trigger critical alert"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0"></span>
+                                <span>{isTriggeringCrit ? '...' : 'Crit'}</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleTriggerRule(rule, 'WARNING')}
+                                disabled={Boolean(triggeringId)}
+                                className="px-2.5 py-1 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                title="Trigger warning alert"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
+                                <span>{isTriggeringWarn ? '...' : 'Warn'}</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleTriggerRule(rule, 'INFO')}
+                                disabled={Boolean(triggeringId)}
+                                className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                                title="Trigger info alert"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                                <span>{isTriggeringInfo ? '...' : 'Info'}</span>
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Col 8: Actions */}
+                          <td className="px-4 py-4 align-middle text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenEditModal(rule)}
+                                className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                                title="Edit rule"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRule(rule)}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                                title="Delete rule"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -1066,7 +1089,7 @@ export default function AlarmsPage() {
                     <span>Saving...</span>
                   </>
                 ) : (
-                  <span>{editingRule ? 'Save Alert Rule Updates' : 'Add Alert Rules (Critical, Warning, Info)'}</span>
+                  <span>{editingRule ? 'Save Alert Rule Updates' : 'Create Alert Rule'}</span>
                 )}
               </button>
             </div>

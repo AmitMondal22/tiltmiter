@@ -50,6 +50,21 @@ const fastify = Fastify({
   bodyLimit: 15 * 1024 * 1024, // 15MB limit to allow high-res image uploads & base64 payloads
 });
 
+// Allow empty body when content-type is application/json (e.g. for DELETE requests)
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+  if (!body || typeof body !== 'string' || body.trim() === '') {
+    done(null, {});
+    return;
+  }
+  try {
+    const json = JSON.parse(body);
+    done(null, json);
+  } catch (err) {
+    err.statusCode = 400;
+    done(err, undefined);
+  }
+});
+
 // Register Plugins with full cross-origin (CORS) access
 await fastify.register(cors, {
   origin: true,

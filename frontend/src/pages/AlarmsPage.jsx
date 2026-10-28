@@ -470,16 +470,16 @@ export default function AlarmsPage() {
             <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#0B3B70] text-white text-xs font-semibold tracking-wide">
-                      <th className="px-4 py-3.5 text-center w-12 font-bold">#</th>
-                      <th className="px-4 py-3.5 font-bold">Alert Rule</th>
-                      <th className="px-4 py-3.5 font-bold">Severity</th>
-                      <th className="px-4 py-3.5 font-bold">Condition / Threshold (Resultant Tilt)</th>
-                      <th className="px-4 py-3.5 font-bold">Target Devices</th>
-                      <th className="px-4 py-3.5 font-bold">Recipients</th>
-                      <th className="px-4 py-3.5 font-bold">Trigger Alert</th>
-                      <th className="px-4 py-3.5 text-center font-bold">Actions</th>
+                  <thead className="bg-white border-b border-slate-200">
+                    <tr className="text-slate-900 text-xs font-bold tracking-wide">
+                      <th className="px-4 py-3.5 text-center w-12">#</th>
+                      <th className="px-4 py-3.5">Alert Rule</th>
+                      <th className="px-4 py-3.5">Severity</th>
+                      <th className="px-4 py-3.5">Condition / Threshold (Resultant Tilt)</th>
+                      <th className="px-4 py-3.5">Target Devices</th>
+                      <th className="px-4 py-3.5">Recipients</th>
+                      <th className="px-4 py-3.5">Trigger Alert</th>
+                      <th className="px-4 py-3.5 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white text-xs">

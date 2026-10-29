@@ -296,25 +296,186 @@ export async function telemetryRoutes(fastify) {
           }, extracted);
         });
 
+        // Fetch latest point directly from telemetry_records for this device
+        let latestPoint = null;
+        try {
+          const latestDbRec = await TelemetryRecord.findOne({
+            where: {
+              [Op.or]: [
+                { deviceId },
+                { deviceId: deviceId.toUpperCase() },
+                { deviceId: deviceId.toLowerCase() }
+              ]
+            },
+            order: [['timestamp', 'DESC']],
+          });
+          if (latestDbRec) {
+            const ext = extractFromRecord(latestDbRec);
+            latestPoint = formatPoint({
+              timestamp: new Date(latestDbRec.timestamp).toISOString(),
+              deviceId: latestDbRec.deviceId,
+              xTilt: (latestDbRec.xTilt !== undefined && latestDbRec.xTilt !== null && !isNaN(parseFloat(latestDbRec.xTilt))) ? parseFloat(latestDbRec.xTilt) : 0,
+              yTilt: (latestDbRec.yTilt !== undefined && latestDbRec.yTilt !== null && !isNaN(parseFloat(latestDbRec.yTilt))) ? parseFloat(latestDbRec.yTilt) : 0,
+              zTilt: (latestDbRec.zTilt !== undefined && latestDbRec.zTilt !== null && !isNaN(parseFloat(latestDbRec.zTilt))) ? parseFloat(latestDbRec.zTilt) : ((latestDbRec.yaw !== undefined && latestDbRec.yaw !== null && !isNaN(parseFloat(latestDbRec.yaw))) ? parseFloat(latestDbRec.yaw) : 0),
+              resultantTilt: (latestDbRec.resultantTilt !== undefined && latestDbRec.resultantTilt !== null && !isNaN(parseFloat(latestDbRec.resultantTilt))) ? parseFloat(latestDbRec.resultantTilt) : 0,
+              xDisplacement: (latestDbRec.xDisplacement !== undefined && latestDbRec.xDisplacement !== null && !isNaN(parseFloat(latestDbRec.xDisplacement))) ? parseFloat(latestDbRec.xDisplacement) : 0,
+              yDisplacement: (latestDbRec.yDisplacement !== undefined && latestDbRec.yDisplacement !== null && !isNaN(parseFloat(latestDbRec.yDisplacement))) ? parseFloat(latestDbRec.yDisplacement) : 0,
+              zDisplacement: (latestDbRec.zDisplacement !== undefined && latestDbRec.zDisplacement !== null && !isNaN(parseFloat(latestDbRec.zDisplacement))) ? parseFloat(latestDbRec.zDisplacement) : 0,
+              totalDisplacement: (latestDbRec.totalDisplacement !== undefined && latestDbRec.totalDisplacement !== null && !isNaN(parseFloat(latestDbRec.totalDisplacement))) ? parseFloat(latestDbRec.totalDisplacement) : 0,
+              rawPayload: latestDbRec.rawPayload || null,
+              acceleration: latestDbRec.acceleration || null,
+              vibration: latestDbRec.vibration || null,
+            }, ext);
+          }
+        } catch (e) {}
+
         return reply.send({
           statusCode: 200,
           deviceId,
           source: 'PostgreSQL DB',
           totalPoints: history.length,
           history,
+          latest: latestPoint,
         });
       }
     } catch (err) {
       fastify.log.warn('[Telemetry] PostgreSQL query error:', err.message);
     }
 
-    // 2. If no history recorded in PostgreSQL for selected device & range, return empty dataset
+    // 2. If no history recorded in PostgreSQL for selected device & range, check for latest point
+    let latestPoint = null;
+    try {
+      const latestDbRec = await TelemetryRecord.findOne({
+        where: {
+          [Op.or]: [
+            { deviceId },
+            { deviceId: deviceId.toUpperCase() },
+            { deviceId: deviceId.toLowerCase() }
+          ]
+        },
+        order: [['timestamp', 'DESC']],
+      });
+      if (latestDbRec) {
+        const ext = extractFromRecord(latestDbRec);
+        latestPoint = formatPoint({
+          timestamp: new Date(latestDbRec.timestamp).toISOString(),
+          deviceId: latestDbRec.deviceId,
+          xTilt: (latestDbRec.xTilt !== undefined && latestDbRec.xTilt !== null && !isNaN(parseFloat(latestDbRec.xTilt))) ? parseFloat(latestDbRec.xTilt) : 0,
+          yTilt: (latestDbRec.yTilt !== undefined && latestDbRec.yTilt !== null && !isNaN(parseFloat(latestDbRec.yTilt))) ? parseFloat(latestDbRec.yTilt) : 0,
+          zTilt: (latestDbRec.zTilt !== undefined && latestDbRec.zTilt !== null && !isNaN(parseFloat(latestDbRec.zTilt))) ? parseFloat(latestDbRec.zTilt) : ((latestDbRec.yaw !== undefined && latestDbRec.yaw !== null && !isNaN(parseFloat(latestDbRec.yaw))) ? parseFloat(latestDbRec.yaw) : 0),
+          resultantTilt: (latestDbRec.resultantTilt !== undefined && latestDbRec.resultantTilt !== null && !isNaN(parseFloat(latestDbRec.resultantTilt))) ? parseFloat(latestDbRec.resultantTilt) : 0,
+          xDisplacement: (latestDbRec.xDisplacement !== undefined && latestDbRec.xDisplacement !== null && !isNaN(parseFloat(latestDbRec.xDisplacement))) ? parseFloat(latestDbRec.xDisplacement) : 0,
+          yDisplacement: (latestDbRec.yDisplacement !== undefined && latestDbRec.yDisplacement !== null && !isNaN(parseFloat(latestDbRec.yDisplacement))) ? parseFloat(latestDbRec.yDisplacement) : 0,
+          zDisplacement: (latestDbRec.zDisplacement !== undefined && latestDbRec.zDisplacement !== null && !isNaN(parseFloat(latestDbRec.zDisplacement))) ? parseFloat(latestDbRec.zDisplacement) : 0,
+          totalDisplacement: (latestDbRec.totalDisplacement !== undefined && latestDbRec.totalDisplacement !== null && !isNaN(parseFloat(latestDbRec.totalDisplacement))) ? parseFloat(latestDbRec.totalDisplacement) : 0,
+          rawPayload: latestDbRec.rawPayload || null,
+          acceleration: latestDbRec.acceleration || null,
+          vibration: latestDbRec.vibration || null,
+        }, ext);
+      }
+    } catch (e) {}
+
     return reply.send({
       statusCode: 200,
       deviceId,
       source: 'PostgreSQL DB',
-      totalPoints: 0,
-      history: [],
+      totalPoints: latestPoint ? 1 : 0,
+      history: latestPoint ? [latestPoint] : [],
+      latest: latestPoint,
     });
+  });
+
+  // Query single latest telemetry point for a device directly from telemetry_records
+  fastify.get('/api/telemetry/:deviceId/latest', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
+    const { deviceId } = req.params;
+    try {
+      const devRecord = await Device.findOne({
+        where: {
+          [Op.or]: [
+            { id: deviceId },
+            { id: deviceId.toUpperCase() },
+            { id: deviceId.toLowerCase() }
+          ]
+        }
+      });
+
+      const hasReferenceZero = Boolean(devRecord?.hasReferenceZero || devRecord?.calibrate);
+      const refX = hasReferenceZero ? (parseFloat(devRecord?.refThetaX ?? 0.0) || 0.0) : 0.0;
+      const refY = hasReferenceZero ? (parseFloat(devRecord?.refThetaY ?? 0.0) || 0.0) : 0.0;
+      const refZ = hasReferenceZero ? (parseFloat(devRecord?.refThetaZ ?? 0.0) || 0.0) : 0.0;
+      const L = parseFloat(devRecord?.gaugeLength_mm ?? 1000.0) || 1000.0;
+
+      const latestDbRec = await TelemetryRecord.findOne({
+        where: {
+          [Op.or]: [
+            { deviceId },
+            { deviceId: deviceId.toUpperCase() },
+            { deviceId: deviceId.toLowerCase() }
+          ]
+        },
+        order: [['timestamp', 'DESC']],
+      });
+
+      if (!latestDbRec) {
+        return reply.send({ statusCode: 200, deviceId, latest: null });
+      }
+
+      const raw = latestDbRec.rawPayload || {};
+      const rawX = parseFloat(latestDbRec.xTilt ?? raw.tilt?.roll ?? 0) || 0;
+      const rawY = parseFloat(latestDbRec.yTilt ?? raw.tilt?.pitch ?? 0) || 0;
+      const rawZ = parseFloat(latestDbRec.zTilt ?? latestDbRec.yaw ?? raw.tilt?.yaw ?? 0) || 0;
+      const calcRes = Math.sqrt(rawX * rawX + rawY * rawY);
+
+      const deltaX = rawX - refX;
+      const deltaY = rawY - refY;
+      const deltaZ = rawZ - refZ;
+
+      const rawDisp = latestDbRec.displacement || raw.displacement || {};
+      const xD = parseFloat(rawDisp.xDisplacement_mm ?? latestDbRec.xDisplacement ?? 0.0) || 0.0;
+      const yD = parseFloat(rawDisp.yDisplacement_mm ?? latestDbRec.yDisplacement ?? 0.0) || 0.0;
+      const zD = parseFloat(rawDisp.zDisplacement_mm ?? latestDbRec.zDisplacement ?? 0.0) || 0.0;
+      const totD = parseFloat(rawDisp.totalDisplacement_mm ?? latestDbRec.totalDisplacement ?? 0.0) || Math.sqrt(xD * xD + yD * yD + zD * zD);
+
+      const rawTemp = latestDbRec.temperature ?? raw.environment?.temperature;
+      const temp = rawTemp !== undefined && rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
+
+      return reply.send({
+        statusCode: 200,
+        deviceId,
+        latest: {
+          timestamp: new Date(latestDbRec.timestamp).toISOString(),
+          time: new Date(latestDbRec.timestamp).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+          deviceId,
+          presentX: rawX,
+          presentY: rawY,
+          presentZ: rawZ,
+          roll: rawX,
+          pitch: rawY,
+          yaw: rawZ,
+          xTilt: rawX,
+          yTilt: rawY,
+          zTilt: rawZ,
+          resultantTilt: calcRes,
+          deltaX,
+          deltaY,
+          deltaZ,
+          refX,
+          refY,
+          refZ,
+          xDisp: xD,
+          yDisp: yD,
+          zDisp: zD,
+          totalDisp: totD,
+          temperature: temp,
+          temp,
+          acceleration: latestDbRec.acceleration || raw.acceleration || null,
+          gyroscope: latestDbRec.gyroscope || raw.gyroscope || null,
+          vibration: latestDbRec.vibration || raw.vibration || null,
+          rawPayload: raw,
+        }
+      });
+    } catch (err) {
+      return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
+    }
   });
 }

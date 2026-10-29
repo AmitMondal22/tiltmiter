@@ -31,14 +31,64 @@ export async function devicesRoutes(fastify) {
         order: [['id', 'ASC']],
       });
 
-      const onlineCount = dbDevices.filter(d => d.status === 'ONLINE').length;
-      const offlineCount = dbDevices.filter(d => d.status === 'OFFLINE').length;
-      const alarmCount = dbDevices.filter(d => d.status === 'ALARM' || d.status === 'WARNING').length;
+      // Fetch latest telemetry for all returned devices from telemetry_records
+      const deviceIds = dbDevices.map(d => d.id);
+      let latestRecordsMap = new Map();
+      if (deviceIds.length > 0) {
+        try {
+          const latestRecords = await TelemetryRecord.findAll({
+            where: {
+              deviceId: { [Op.in]: deviceIds }
+            },
+            order: [['timestamp', 'DESC']],
+          });
+          for (const rec of latestRecords) {
+            const dId = String(rec.deviceId).toLowerCase();
+            if (!latestRecordsMap.has(dId)) {
+              latestRecordsMap.set(dId, rec);
+            }
+          }
+        } catch (telemetryErr) {}
+      }
+
+      const enrichedDevices = dbDevices.map(d => {
+        const devObj = d.toJSON ? d.toJSON() : { ...d };
+        const rec = latestRecordsMap.get(String(d.id).toLowerCase());
+        if (rec) {
+          const raw = rec.rawPayload || {};
+          const xTilt = rec.xTilt ?? raw.tilt?.roll ?? devObj.xTilt;
+          const yTilt = rec.yTilt ?? raw.tilt?.pitch ?? devObj.yTilt;
+          const zTilt = rec.zTilt ?? rec.yaw ?? raw.tilt?.yaw ?? devObj.zTilt;
+          const totalDisp = rec.totalDisplacement ?? raw.displacement?.totalDisplacement_mm ?? devObj.totalDisplacement;
+          const tempVal = rec.temperature ?? raw.environment?.temperature ?? devObj.temperature;
+
+          devObj.xTilt = (xTilt !== undefined && xTilt !== null && !isNaN(parseFloat(xTilt))) ? parseFloat(xTilt) : devObj.xTilt;
+          devObj.yTilt = (yTilt !== undefined && yTilt !== null && !isNaN(parseFloat(yTilt))) ? parseFloat(yTilt) : devObj.yTilt;
+          devObj.zTilt = (zTilt !== undefined && zTilt !== null && !isNaN(parseFloat(zTilt))) ? parseFloat(zTilt) : devObj.zTilt;
+          devObj.yaw = devObj.zTilt;
+          devObj.totalDisplacement = (totalDisp !== undefined && totalDisp !== null && !isNaN(parseFloat(totalDisp))) ? parseFloat(totalDisp) : devObj.totalDisplacement;
+          devObj.temperature = (tempVal !== undefined && tempVal !== null && !isNaN(parseFloat(tempVal))) ? parseFloat(tempVal) : devObj.temperature;
+          devObj.lastSeen = rec.timestamp || devObj.lastSeen;
+          devObj.latestTelemetry = {
+            timestamp: rec.timestamp,
+            xTilt: devObj.xTilt,
+            yTilt: devObj.yTilt,
+            zTilt: devObj.zTilt,
+            temperature: devObj.temperature,
+            totalDisplacement: devObj.totalDisplacement
+          };
+        }
+        return devObj;
+      });
+
+      const onlineCount = enrichedDevices.filter(d => d.status === 'ONLINE').length;
+      const offlineCount = enrichedDevices.filter(d => d.status === 'OFFLINE').length;
+      const alarmCount = enrichedDevices.filter(d => d.status === 'ALARM' || d.status === 'WARNING').length;
 
       return reply.send({
         statusCode: 200,
-        devices: dbDevices || [],
-        statusSummary: { online: onlineCount, offline: offlineCount, alarm: alarmCount, total: dbDevices.length }
+        devices: enrichedDevices || [],
+        statusSummary: { online: onlineCount, offline: offlineCount, alarm: alarmCount, total: enrichedDevices.length }
       });
     } catch (err) {
       return reply.send({
@@ -49,7 +99,7 @@ export async function devicesRoutes(fastify) {
     }
   });
 
-  // Query individual device by ID
+  // Query individual device by ID with last data from telemetry_records
   fastify.get('/api/devices/:id', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -96,9 +146,91 @@ export async function devicesRoutes(fastify) {
         });
       }
 
+      // Fetch last data directly from telemetry_records table for this device
+      let latestRecord = null;
+      try {
+        latestRecord = await TelemetryRecord.findOne({
+          where: {
+            [Op.or]: [
+              { deviceId: device.id },
+              { deviceId: device.id.toUpperCase() },
+              { deviceId: device.id.toLowerCase() }
+            ]
+          },
+          order: [['timestamp', 'DESC']],
+        });
+      } catch (err) {}
+
+      const devObj = device.toJSON ? device.toJSON() : { ...device };
+
+      if (latestRecord) {
+        const raw = latestRecord.rawPayload || {};
+        const rawRoll = latestRecord.xTilt ?? raw.tilt?.roll ?? raw.xTilt ?? raw.roll;
+        const rawPitch = latestRecord.yTilt ?? raw.tilt?.pitch ?? raw.yTilt ?? raw.pitch;
+        const rawYaw = latestRecord.zTilt ?? latestRecord.yaw ?? raw.tilt?.yaw ?? raw.tilt?.zTilt ?? raw.yaw;
+        const rawRes = latestRecord.resultantTilt ?? raw.tilt?.tilt ?? raw.resultantTilt ?? raw.tilt;
+
+        const xTilt = (rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll))) ? parseFloat(rawRoll) : (devObj.xTilt || 0.0);
+        const yTilt = (rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch))) ? parseFloat(rawPitch) : (devObj.yTilt || 0.0);
+        const zTilt = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : (devObj.zTilt || 0.0);
+        const resultantTilt = (rawRes !== undefined && rawRes !== null && !isNaN(parseFloat(rawRes))) ? parseFloat(rawRes) : Math.sqrt(xTilt * xTilt + yTilt * yTilt);
+
+        const rawDisp = latestRecord.displacement || raw.displacement || {};
+        const xD = parseFloat(rawDisp.xDisplacement_mm ?? latestRecord.xDisplacement ?? devObj.xDisplacement ?? 0.0) || 0.0;
+        const yD = parseFloat(rawDisp.yDisplacement_mm ?? latestRecord.yDisplacement ?? devObj.yDisplacement ?? 0.0) || 0.0;
+        const zD = parseFloat(rawDisp.zDisplacement_mm ?? latestRecord.zDisplacement ?? devObj.zDisplacement ?? 0.0) || 0.0;
+        const totD = parseFloat(rawDisp.totalDisplacement_mm ?? latestRecord.totalDisplacement ?? devObj.totalDisplacement ?? 0.0) || Math.sqrt(xD * xD + yD * yD + zD * zD);
+
+        const tempVal = latestRecord.temperature !== null && latestRecord.temperature !== undefined
+          ? parseFloat(latestRecord.temperature)
+          : (raw.environment?.temperature !== undefined ? parseFloat(raw.environment.temperature) : devObj.temperature);
+
+        devObj.xTilt = xTilt;
+        devObj.yTilt = yTilt;
+        devObj.zTilt = zTilt;
+        devObj.yaw = zTilt;
+        devObj.resultantTilt = resultantTilt;
+        devObj.xDisplacement = xD;
+        devObj.yDisplacement = yD;
+        devObj.zDisplacement = zD;
+        devObj.totalDisplacement = totD;
+        devObj.temperature = tempVal;
+        devObj.lastSeen = latestRecord.timestamp || devObj.lastSeen;
+
+        devObj.latestTelemetry = {
+          timestamp: latestRecord.timestamp,
+          deviceId: device.id,
+          xTilt,
+          yTilt,
+          zTilt,
+          yaw: zTilt,
+          presentX: xTilt,
+          presentY: yTilt,
+          presentZ: zTilt,
+          resultantTilt,
+          displacement: {
+            xDisplacement_mm: xD,
+            yDisplacement_mm: yD,
+            zDisplacement_mm: zD,
+            totalDisplacement_mm: totD,
+          },
+          xDisplacement: xD,
+          yDisplacement: yD,
+          zDisplacement: zD,
+          totalDisplacement: totD,
+          temperature: tempVal,
+          acceleration: latestRecord.acceleration || raw.acceleration || null,
+          gyroscope: latestRecord.gyroscope || raw.gyroscope || null,
+          vibration: latestRecord.vibration || raw.vibration || null,
+          power: raw.power || { batteryVoltage: devObj.battery ? parseFloat(devObj.battery) : 0 },
+          network: raw.network || { csq: devObj.signalStrength ? parseInt(devObj.signalStrength) : 0 },
+          rawPayload: raw,
+        };
+      }
+
       return reply.send({
         statusCode: 200,
-        device
+        device: devObj
       });
     } catch (err) {
       return reply.status(500).send({

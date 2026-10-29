@@ -237,9 +237,14 @@ export default function DeviceDetailPage() {
             setFromDateTime(formatISTDatetimeLocal(new Date(firstPoint.timestamp)));
             setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
           }
-          if (lastPoint) {
-            setLiveData(parseTelemetry(lastPoint));
+          const latestPointCandidate = res?.latest ? mapPointData(res.latest) : lastPoint;
+          if (latestPointCandidate) {
+            setLiveData(parseTelemetry(latestPointCandidate));
           }
+        } else if (res?.latest) {
+          const mappedLatest = mapPointData(res.latest);
+          setTelemetryHistory([mappedLatest]);
+          setLiveData(parseTelemetry(mappedLatest));
         } else {
           setTelemetryHistory([]);
           setLiveData(null);
@@ -450,8 +455,11 @@ export default function DeviceDetailPage() {
     if (liveData && hasTelemetryData(liveData)) {
       return liveData;
     }
+    if (device?.latestTelemetry && hasTelemetryData(device.latestTelemetry)) {
+      return mapPointData(device.latestTelemetry);
+    }
     return null;
-  }, [liveData, telemetryHistory]);
+  }, [liveData, telemetryHistory, device]);
 
   const hasData = Boolean(latestData && hasTelemetryData(latestData));
 

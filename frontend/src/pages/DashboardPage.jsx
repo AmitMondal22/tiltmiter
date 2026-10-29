@@ -244,11 +244,16 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             setFromDateTime(formatISTDatetimeLocal(new Date(firstPoint.timestamp)));
             setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
           }
-          if (lastPoint) {
-            setLiveData(parseTelemetry(lastPoint));
+          const latestPointCandidate = res?.latest ? mapPointData(res.latest) : lastPoint;
+          if (latestPointCandidate) {
+            setLiveData(parseTelemetry(latestPointCandidate));
           } else {
             setLiveData(null);
           }
+        } else if (res?.latest) {
+          const mappedLatest = mapPointData(res.latest);
+          setTelemetryHistory([mappedLatest]);
+          setLiveData(parseTelemetry(mappedLatest));
         } else {
           setTelemetryHistory([]);
           setLiveData(null);
@@ -507,8 +512,14 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     if (liveData && hasTelemetryData(liveData)) {
       return liveData;
     }
+    if (deviceMeta?.latestTelemetry && hasTelemetryData(deviceMeta.latestTelemetry)) {
+      return mapPointData(deviceMeta.latestTelemetry);
+    }
+    if (activeDevice?.latestTelemetry && hasTelemetryData(activeDevice.latestTelemetry)) {
+      return mapPointData(activeDevice.latestTelemetry);
+    }
     return null;
-  }, [liveData, telemetryHistory]);
+  }, [liveData, telemetryHistory, deviceMeta, activeDevice]);
 
   const hasData = Boolean(latestData && hasTelemetryData(latestData));
 

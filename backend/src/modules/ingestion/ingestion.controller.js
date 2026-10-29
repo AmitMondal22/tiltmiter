@@ -6,7 +6,12 @@ const { Op } = pkg;
 export async function receiveTelemetryHandler(req, reply) {
   try {
     const rawPayload = req.body || {};
-    const targetDeviceId = req.params?.deviceId || req.query?.deviceId || rawPayload.deviceId || rawPayload.device_id || 'ABCDEF0002';
+    let targetDeviceId = req.params?.deviceId || req.query?.deviceId || rawPayload.deviceId || rawPayload.device_id || rawPayload.id || req.headers?.['x-device-id'] || req.headers?.deviceid || req.headers?.['device-id'];
+
+    if (!targetDeviceId) {
+      const activeDev = await Device.findOne({ order: [['lastSeen', 'DESC NULLS LAST'], ['createdAt', 'DESC']] }).catch(() => null);
+      targetDeviceId = activeDev?.id || 'TM-001';
+    }
     const params = { deviceId: targetDeviceId };
 
     console.log('\n================================================================');

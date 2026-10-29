@@ -1,7 +1,7 @@
 import pkg from 'sequelize';
 const { Op } = pkg;
 import { TelemetryRecord, Device } from '../../models/index.js';
-import { inMemoryTelemetryStore } from '../../config/influx.js';
+import { inMemoryTelemetryStore } from '../../services/telemetryStore.js';
 import { authenticate, authenticateOptional } from '../../middleware/authMiddleware.js';
 
 export async function telemetryRoutes(fastify) {

@@ -4,7 +4,7 @@ import { Device, Site, Structure, Project, Organization, TelemetryRecord, Alarm,
 import { authenticate, authenticateOptional } from '../../middleware/authMiddleware.js';
 import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
 import { broadcastTelemetry, removeDeviceTelemetry } from '../../websocket/websocket.service.js';
-import { inMemoryTelemetryStore } from '../../config/influx.js';
+import { inMemoryTelemetryStore } from '../../services/telemetryStore.js';
 
 export async function devicesRoutes(fastify) {
   // Query devices scoped by organization (supports direct access with authenticateOptional)

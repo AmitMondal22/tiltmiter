@@ -28,7 +28,7 @@ This document provides a comprehensive technical reference for the **Tiltmeter /
 |                                FASTIFY BACKEND INGESTION                                        |
 |  1. Joi Schema Validation [ingestion.schema.js]                                                 |
 |  2. Resultant Vector & Flat Mappings [ingestion.service.js]                                      |
-|  3. Time-Series InfluxDB & PostgreSQL Storage [influx.js, TelemetryRecord.js]                   |
+|  3. Time-Series PostgreSQL Storage [telemetryStore.js, TelemetryRecord.js]          |
 |  4. Threshold Alert Evaluation [alertEngineService.js]                                          |
 |  5. Downlink Settings Response ({ sleep_count, wake_count, calibrate })                         |
 |  6. Real-time WebSocket Broadcast [websocket.service.js]                                       |
@@ -408,7 +408,7 @@ print("Server Response:", response.status_code, response.json())
 
 - Ingestion Schema: [`backend/src/modules/ingestion/ingestion.schema.js`](file:///d:/inclinometer/backend/src/modules/ingestion/ingestion.schema.js)
 - Ingestion Service: [`backend/src/modules/ingestion/ingestion.service.js`](file:///d:/inclinometer/backend/src/modules/ingestion/ingestion.service.js)
-- Time-series Influx Handler: [`backend/src/config/influx.js`](file:///d:/inclinometer/backend/src/config/influx.js)
+- Time-series Telemetry Handler: [`backend/src/services/telemetryStore.js`](file:///d:/inclinometer/backend/src/services/telemetryStore.js)
 - Alert Engine: [`backend/src/services/alertEngineService.js`](file:///d:/inclinometer/backend/src/services/alertEngineService.js)
 - Frontend Telemetry Parser: [`frontend/src/utils/telemetryHelper.js`](file:///d:/inclinometer/frontend/src/utils/telemetryHelper.js)
 - Dashboard Stat Cards: [`frontend/src/components/TiltmeterStatCards.jsx`](file:///d:/inclinometer/frontend/src/components/TiltmeterStatCards.jsx)

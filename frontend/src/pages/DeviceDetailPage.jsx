@@ -6,9 +6,8 @@ import {
   CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
   Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
-import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, getWsUrl } from '../api/apiClient';
+import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
-import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
@@ -82,10 +81,9 @@ export default function DeviceDetailPage() {
     // X-Axis: tilt.roll
     // Y-Axis: tilt.pitch
     // Z-Axis: tilt.yaw
-    // Do not use the combined tilt.tilt value as an individual X, Y, or Z axis value.
-    const currentRoll = pt.tilt?.roll ?? pt.roll;
-    const currentPitch = pt.tilt?.pitch ?? pt.pitch;
-    const currentYaw = pt.tilt?.yaw ?? pt.yaw;
+    const currentRoll = pt.tilt?.roll ?? pt.roll ?? pt.presentX ?? pt.xTilt;
+    const currentPitch = pt.tilt?.pitch ?? pt.pitch ?? pt.presentY ?? pt.yTilt;
+    const currentYaw = pt.tilt?.yaw ?? pt.yaw ?? pt.presentZ ?? pt.zTilt;
 
     // 2. Present Values: actual device angle values without subtracting reference
     const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
@@ -105,9 +103,15 @@ export default function DeviceDetailPage() {
     // Delta X = Current Roll − Reference Roll
     // Delta Y = Current Pitch − Reference Pitch
     // Delta Z = Current Yaw − Reference Yaw
-    const deltaX = presentX - refX;
-    const deltaY = presentY - refY;
-    const deltaZ = presentZ - refZ;
+    const deltaX = (pt.deltaX !== undefined && pt.deltaX !== null && !isNaN(parseFloat(pt.deltaX)))
+      ? parseFloat(pt.deltaX)
+      : (presentX - refX);
+    const deltaY = (pt.deltaY !== undefined && pt.deltaY !== null && !isNaN(parseFloat(pt.deltaY)))
+      ? parseFloat(pt.deltaY)
+      : (presentY - refY);
+    const deltaZ = (pt.deltaZ !== undefined && pt.deltaZ !== null && !isNaN(parseFloat(pt.deltaZ)))
+      ? parseFloat(pt.deltaZ)
+      : (presentZ - refZ);
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;
@@ -124,7 +128,7 @@ export default function DeviceDetailPage() {
     const xD = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
     const yD = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
     const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
-    const totD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
+    const totD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : Math.sqrt(xD * xD + yD * yD + zD * zD);
     const deltaRes = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
     // Sensor data - use actual values from DB, no dummy fallbacks
@@ -252,39 +256,23 @@ export default function DeviceDetailPage() {
       });
   };
 
-  // 2. Subscribe to centralized telemetry stream for live hardware updates
+  // 1-minute auto-refresh interval: fetch telemetry data and device status from API every 60s
   useEffect(() => {
-    const unsubscribe = telemetryService.subscribe((packet) => {
-      if (!packet) return;
-      const pktId = (packet.deviceId || packet.id || packet.device_id || '').toString().trim().toLowerCase();
-      const curId = (deviceId || '').toString().trim().toLowerCase();
-      // STRICT FILTER: Only accept packets that strictly belong to this device!
-      if (pktId && curId && pktId === curId) {
-        if (!hasTelemetryData(packet)) {
-          return;
-        }
+    if (!deviceId) return;
 
-        const parsed = parseTelemetry(packet);
-        setLiveData(parsed);
-        const newPoint = mapPointData(parsed);
+    const intervalId = setInterval(() => {
+      // Re-fetch historical telemetry and device status every 1 minute
+      loadHistory(deviceId, fromDateTime, toDateTime, activeFilter);
+      getDevice(deviceId)
+        .then(res => {
+          const dev = res?.device || res;
+          if (dev) setDevice(dev);
+        })
+        .catch(() => {});
+    }, 60000);
 
-        // Append live packets into telemetry history smoothly
-        setTelemetryHistory(prev => {
-          if (!prev || prev.length === 0) {
-            return [newPoint];
-          }
-          if (prev.some(p => p.timestamp === newPoint.timestamp)) {
-            return prev;
-          }
-          return [...prev, newPoint].slice(-200);
-        });
-      }
-    }, deviceId);
-
-    return () => {
-      unsubscribe();
-    };
-  }, [deviceId]);
+    return () => clearInterval(intervalId);
+  }, [deviceId, fromDateTime, toDateTime, activeFilter]);
 
   // Handle Preset Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
   const handleRangeSelect = (presetKey) => {
@@ -522,11 +510,12 @@ export default function DeviceDetailPage() {
   const zDisp = hasData && rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp)) ? parseFloat(rawZDisp) : null;
   const totalDisp = hasData && rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : null;
 
-  // Filtered rows for the table
+  // Filtered rows for the table: newest logs at the top
   const filteredRows = useMemo(() => {
-    if (!tableSearch) return telemetryHistory;
+    const list = [...telemetryHistory].reverse();
+    if (!tableSearch) return list;
     const q = tableSearch.toLowerCase();
-    return telemetryHistory.filter(r =>
+    return list.filter(r =>
       r.fullTime?.toLowerCase().includes(q) ||
       r.stability?.toLowerCase().includes(q) ||
       String(r.resultant).includes(q) ||
@@ -999,8 +988,8 @@ export default function DeviceDetailPage() {
               HISTORICAL TELEMETRY LOGS • <span className="text-blue-600">{deviceId}</span> ({filteredRows.length} Records)
             </span>
             <div className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold font-mono">
-              <Radio className="w-3 h-3 animate-pulse" />
-              <span>LIVE SYNC</span>
+              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+              <span>AUTO SYNC (1m)</span>
             </div>
           </div>
 

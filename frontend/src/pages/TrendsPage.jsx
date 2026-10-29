@@ -3,9 +3,8 @@ import {
   Download, Calendar, Filter, RefreshCw, Radio,
   Activity, Layers, BarChart2, TrendingUp, Thermometer, Zap, Clock
 } from 'lucide-react';
-import { getDevices, getTelemetryHistory, getWsUrl } from '../api/apiClient';
+import { getDevices, getTelemetryHistory } from '../api/apiClient';
 import { parseTelemetry } from '../utils/telemetryHelper';
-import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 
@@ -189,30 +188,16 @@ export default function TrendsPage() {
     }
   }, [selectedDeviceId]);
 
-  // 3. Subscribe to live telemetry stream for live packet streaming into history
+  // 3. 1-minute auto-refresh interval: fetch telemetry data from API every 60s
   useEffect(() => {
     if (!selectedDeviceId) return;
 
-    const unsubscribe = telemetryService.subscribe((packet) => {
-      if (!packet) return;
-      const pktId = (packet.deviceId || packet.id || packet.device_id || '').toString().trim().toLowerCase();
-      const curId = (selectedDeviceId || '').toString().trim().toLowerCase();
-      if (pktId && curId && pktId === curId) {
-        const parsed = parseTelemetry(packet);
-        const newPoint = mapPointData(parsed, selectedDevice);
-        setTelemetryLogs(prev => {
-          if (prev.some(p => p.timestamp === newPoint.timestamp)) {
-            return prev; // Skip duplicate timestamp
-          }
-          return [...prev, newPoint].slice(-200);
-        });
-      }
-    }, selectedDeviceId);
+    const intervalId = setInterval(() => {
+      loadHistory(selectedDeviceId, fromDateTime, toDateTime, activePreset);
+    }, 60000);
 
-    return () => {
-      unsubscribe();
-    };
-  }, [selectedDeviceId, selectedDevice]);
+    return () => clearInterval(intervalId);
+  }, [selectedDeviceId, fromDateTime, toDateTime, activePreset]);
 
   // Handle Preset Time Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
   const handlePresetSelect = (presetKey) => {
@@ -353,9 +338,9 @@ export default function TrendsPage() {
           <div className="text-xs font-semibold text-slate-800">
             Time-Series Logs • <span className="font-mono text-blue-600">{selectedDeviceId || '--'}</span> ({telemetryLogs.length} Records)
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-blue-600 font-semibold">
-            <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span>LIVE SYNC</span>
+          <div className="flex items-center gap-1.5 text-xs text-blue-600 font-semibold font-mono">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>AUTO SYNC (1m)</span>
           </div>
         </div>
 
@@ -383,7 +368,7 @@ export default function TrendsPage() {
                   </td>
                 </tr>
               ) : (
-                telemetryLogs.map((r, i) => (
+                [...telemetryLogs].reverse().map((r, i) => (
                   <tr key={i} className="hover:bg-slate-50/80 transition-colors font-mono">
                     <td className="py-2 px-3 text-slate-700 font-medium font-sans">
                       {formatFullDateTime(r.timestamp || r.time)}

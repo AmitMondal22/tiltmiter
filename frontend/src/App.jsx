@@ -4,7 +4,6 @@ import Sidebar from './components/Sidebar';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { getDevices } from './api/apiClient';
 import { Menu } from 'lucide-react';
-import { telemetryService } from './services/telemetryManager';
 
 // Eagerly loaded critical pages
 import LoginPage from './pages/LoginPage';
@@ -62,12 +61,7 @@ function MainLayout() {
       .catch(() => {});
   }, [user]);
 
-  // Cleanup on logout
-  useEffect(() => {
-    if (!user) {
-      telemetryService.disconnect();
-    }
-  }, [user]);
+
 
   if (authLoading) {
     return (

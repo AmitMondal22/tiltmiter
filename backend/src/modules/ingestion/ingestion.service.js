@@ -200,7 +200,7 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
 
   // 1. Save to Time-Series PostgreSQL - values stored purely without zero reference subtraction
   saveTelemetryPoint(telemetryData);
-  console.log(`💾 [POSTGRESQL SAVED] Device: ${deviceId} | Time: ${utcTimestamp} | θX: ${activeXTilt.toFixed(3)}° | θY: ${activeYTilt.toFixed(3)}° | TotDisp: ${totalDisp.toFixed(3)}mm`);
+  console.log(`💾 [POSTGRESQL SAVED] Device: ${deviceId} | Time: ${utcTimestamp} | θX: ${presentX.toFixed(3)}° | θY: ${presentY.toFixed(3)}° | TotDisp: ${totalDisp.toFixed(3)}mm`);
 
   // 2. Broadcast raw & mapped telemetry to WebSockets
   broadcastTelemetry(telemetryData);

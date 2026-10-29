@@ -113,11 +113,11 @@ export default function DeviceDetailPage() {
     const clinoDx = L * Math.tan(radX);
     const clinoDy = L * Math.tan(radY);
 
-    const xD = hasRef ? clinoDx : ((pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx);
-    const yD = hasRef ? clinoDy : ((pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy);
+    const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx;
+    const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy;
     const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
-    const totD = hasRef ? Math.sqrt(clinoDx * clinoDx + clinoDy * clinoDy) : ((pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : Math.sqrt(xD * xD + yD * yD));
-    const activeResT = hasRef ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : resT;
+    const totD = Math.sqrt(xD * xD + yD * yD);
+    const deltaRes = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
     // Sensor data - use actual values from DB, no dummy fallbacks
     const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
@@ -143,10 +143,10 @@ export default function DeviceDetailPage() {
     const vibForStability = vibR ?? 0;
     let stability = 'Stable';
     let stabilityClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (Math.abs(activeResT) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
+    if (Math.abs(deltaRes) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
       stability = 'Critical';
       stabilityClass = 'bg-red-50 text-red-700 border-red-200';
-    } else if (Math.abs(activeResT) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
+    } else if (Math.abs(deltaRes) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
       stability = 'Warning';
       stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
     }
@@ -157,13 +157,13 @@ export default function DeviceDetailPage() {
       timestamp: ts,
 
       // Present Values = Pure actual device values (Never subtract reference zero)
-      presentX: xT,
-      presentY: yT,
-      presentZ: zT,
-      roll: xT,
-      pitch: yT,
-      yaw: zT,
-      resultant: Number(resT.toFixed(2)),
+      presentX,
+      presentY,
+      presentZ,
+      roll: presentX,
+      pitch: presentY,
+      yaw: presentZ,
+      resultant: Number(presentRes.toFixed(2)),
 
       // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
       deltaX,
@@ -172,7 +172,7 @@ export default function DeviceDetailPage() {
       deltaThetaX: deltaX,
       deltaThetaY: deltaY,
       deltaThetaZ: deltaZ,
-      deltaResultant: Number(activeResT.toFixed(2)),
+      deltaResultant: Number(deltaRes.toFixed(2)),
 
       xTilt: deltaX,
       yTilt: deltaY,
@@ -485,6 +485,7 @@ export default function DeviceDetailPage() {
   const refX = parseFloat(device?.refThetaX ?? d.refThetaX ?? 0.0) || 0.0;
   const refY = parseFloat(device?.refThetaY ?? d.refThetaY ?? 0.0) || 0.0;
   const refZ = parseFloat(device?.refThetaZ ?? d.refThetaZ ?? 0.0) || 0.0;
+  const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate || (refX !== 0 || refY !== 0));
 
   // 3. Delta Values: Current − Reference (Calculated with original numeric full precision)
   // Delta X = Current Roll − Reference Roll

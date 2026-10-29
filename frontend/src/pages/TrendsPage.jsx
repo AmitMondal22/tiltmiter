@@ -45,33 +45,43 @@ export default function TrendsPage() {
   // Standard point mapper identical to device dashboard
   const mapPointData = (pt, activeDev = selectedDevice) => {
     const ts = pt.timestamp || pt.time;
-    const xT = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.tilt?.roll ?? 0) || 0;
-    const yT = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.tilt?.pitch ?? 0) || 0;
-    const rawYaw = pt.yaw ?? pt.tilt?.yaw ?? pt.zTilt ?? pt.tiltZ;
-    const zT = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
-    const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? pt.tilt?.tilt;
-    const resT = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(xT * xT + yT * yT);
+    // 1. Axis Mapping:
+    // X-Axis: tilt.roll
+    // Y-Axis: tilt.pitch
+    // Z-Axis: tilt.yaw
+    const currentRoll = pt.tilt?.roll ?? pt.roll;
+    const currentPitch = pt.tilt?.pitch ?? pt.pitch;
+    const currentYaw = pt.tilt?.yaw ?? pt.yaw;
 
+    // 2. Present Values: actual device angle values without subtracting reference
+    const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
+    const presentY = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
+    const presentZ = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
+    const rawRes = pt.tilt?.tilt ?? pt.presentTilt ?? pt.resultantTilt ?? pt.resultant ?? pt.tilt;
+    const presentRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY);
+
+    // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
     const L = parseFloat(activeDev?.gaugeLength_mm || 1000.0);
-    const refX = parseFloat(activeDev?.refThetaX ?? 0.0);
-    const refY = parseFloat(activeDev?.refThetaY ?? 0.0);
-    const refZ = parseFloat(activeDev?.refThetaZ ?? 0.0);
-    const hasRef = Boolean(activeDev?.hasReferenceZero === true || (activeDev?.calibrate === true && (refX !== 0 || refY !== 0)));
+    const refX = parseFloat(activeDev?.refThetaX ?? 0.0) || 0.0;
+    const refY = parseFloat(activeDev?.refThetaY ?? 0.0) || 0.0;
+    const refZ = parseFloat(activeDev?.refThetaZ ?? 0.0) || 0.0;
+    const hasRef = Boolean(activeDev?.hasReferenceZero || activeDev?.calibrate || (refX !== 0 || refY !== 0));
 
-    const deltaX = hasRef ? xT - refX : (pt.deltaThetaX !== undefined ? pt.deltaThetaX : xT);
-    const deltaY = hasRef ? yT - refY : (pt.deltaThetaY !== undefined ? pt.deltaThetaY : yT);
-    const deltaZ = hasRef ? zT - refZ : (pt.deltaThetaZ !== undefined ? pt.deltaThetaZ : zT);
+    // 4. Delta Values = Current − Reference
+    const deltaX = presentX - refX;
+    const deltaY = presentY - refY;
+    const deltaZ = presentZ - refZ;
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;
     const clinoDx = L * Math.tan(radX);
     const clinoDy = L * Math.tan(radY);
 
-    const xD = hasRef ? clinoDx : ((pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx);
-    const yD = hasRef ? clinoDy : ((pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy);
+    const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx;
+    const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy;
     const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
-    const totD = hasRef ? Math.sqrt(clinoDx * clinoDx + clinoDy * clinoDy) : ((pt.totalDisp !== undefined && pt.totalDisp !== null) ? parseFloat(pt.totalDisp) : Math.sqrt(xD * xD + yD * yD));
-    const activeResT = hasRef ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : resT;
+    const totD = Math.sqrt(xD * xD + yD * yD);
+    const deltaRes = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
     const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
     const rawAyRaw = pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? null;

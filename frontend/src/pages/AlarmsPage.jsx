@@ -478,7 +478,6 @@ export default function AlarmsPage() {
                       <th className="px-4 py-3.5">Condition / Threshold (Resultant Tilt)</th>
                       <th className="px-4 py-3.5">Target Devices</th>
                       <th className="px-4 py-3.5">Recipients</th>
-                      <th className="px-4 py-3.5">Trigger Alert</th>
                       <th className="px-4 py-3.5 text-center">Actions</th>
                     </tr>
                   </thead>
@@ -611,42 +610,7 @@ export default function AlarmsPage() {
                             </div>
                           </td>
 
-                          {/* Col 7: Trigger Alert */}
-                          <td className="px-4 py-4 align-middle whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => handleTriggerRule(rule, 'CRITICAL')}
-                                disabled={Boolean(triggeringId)}
-                                className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                                title="Trigger critical alert"
-                              >
-                                <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0"></span>
-                                <span>{isTriggeringCrit ? '...' : 'Crit'}</span>
-                              </button>
-
-                              <button
-                                onClick={() => handleTriggerRule(rule, 'WARNING')}
-                                disabled={Boolean(triggeringId)}
-                                className="px-2.5 py-1 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                                title="Trigger warning alert"
-                              >
-                                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0"></span>
-                                <span>{isTriggeringWarn ? '...' : 'Warn'}</span>
-                              </button>
-
-                              <button
-                                onClick={() => handleTriggerRule(rule, 'INFO')}
-                                disabled={Boolean(triggeringId)}
-                                className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                                title="Trigger info alert"
-                              >
-                                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-                                <span>{isTriggeringInfo ? '...' : 'Info'}</span>
-                              </button>
-                            </div>
-                          </td>
-
-                          {/* Col 8: Actions */}
+                          {/* Col 7: Actions */}
                           <td className="px-4 py-4 align-middle text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5">
                               <button

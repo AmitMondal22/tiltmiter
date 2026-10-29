@@ -199,15 +199,25 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   broadcastTelemetry(telemetryData);
   console.log(`📡 [WEBSOCKET BROADCAST SENT] Live packet broadcasted to connected web clients for device ${deviceId}`);
 
-  // 3. Asynchronously evaluate alerts against safety thresholds
+  // 3. Asynchronously evaluate alerts against safety thresholds for this device
+  const defaultDevice = { id: deviceId, deviceId, name: `Inclinometer ${deviceId}` };
   if (Device && typeof Device.findByPk === 'function') {
-    Device.findByPk(deviceId).then(device => {
-      if (device) {
-        evaluateTelemetryAlerts(device, telemetryData).catch(err => {
+    Device.findByPk(deviceId)
+      .then(device => {
+        const devObj = device ? (device.toJSON ? device.toJSON() : device) : defaultDevice;
+        evaluateTelemetryAlerts(devObj, telemetryData).catch(err => {
           console.warn(`[Alert Engine] Evaluation error on ${deviceId}:`, err.message);
         });
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {
+        evaluateTelemetryAlerts(defaultDevice, telemetryData).catch(err => {
+          console.warn(`[Alert Engine] Evaluation error on ${deviceId}:`, err.message);
+        });
+      });
+  } else {
+    evaluateTelemetryAlerts(defaultDevice, telemetryData).catch(err => {
+      console.warn(`[Alert Engine] Evaluation error on ${deviceId}:`, err.message);
+    });
   }
 
   return { deviceId, timestamp: telemetryData.timestamp, data: telemetryData };

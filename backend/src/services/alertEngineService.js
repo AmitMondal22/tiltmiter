@@ -1,61 +1,49 @@
 import { AlertRule, Alarm, Incident, Device, Site } from '../models/index.js';
 import { sendAlertEmail, getActiveRecipientEmails } from './emailService.js';
 import { broadcastAlarm } from '../websocket/websocket.service.js';
+import { getMemoryAlertRules } from '../modules/alarms/alarms.routes.js';
 
 // Rate-limiting cache to prevent email flood while still dispatching on breaches
 const lastEmailSentAt = new Map();
 const EMAIL_COOLDOWN_MS = 25000; // 25 seconds debounce per device+parameter
 
 /**
- * Evaluates live telemetry data against geotechnical tilt and displacement safety thresholds.
- *
- * Threshold Rules:
- * 1. Resultant Tilt:
- *    - Critical: > 2.000°
- *    - Warning:  > 1.000°
- * 2. Lateral Displacement:
- *    - Critical: > 10.00 mm
- *    - Warning:  > 5.00 mm
+ * Compares a measured telemetry value against a rule threshold using the rule's operator.
+ */
+function checkThresholdBreach(val, threshold, operator = '>') {
+  const numVal = parseFloat(val);
+  const numThresh = parseFloat(threshold);
+  if (isNaN(numVal) || isNaN(numThresh)) return false;
+
+  switch (operator) {
+    case '<':
+      return numVal < numThresh;
+    case '<=':
+      return numVal <= numThresh;
+    case '>=':
+      return numVal >= numThresh;
+    case '>':
+    default:
+      return numVal > numThresh;
+  }
+}
+
+/**
+ * Evaluates live telemetry data against geotechnical safety thresholds and configured alert rules.
+ * Automatically evaluates rules assigned to this particular device.
  */
 export async function evaluateTelemetryAlerts(device, telemetry) {
   if (!device || !telemetry) return [];
 
   const triggeredAlerts = [];
-  const devId = device.id || device.deviceId;
+  const devId = String(device.id || device.deviceId || '').trim();
   const siteId = device.siteId || (device.Site ? device.Site.id : null);
   const devName = device.name || devId;
 
-  // 1. Tilt Threshold Evaluation
+  // 1. Calculate live measurements
   const rawTilt = telemetry.tilt?.tilt ?? telemetry.resultantTilt ?? device.resultantTilt ?? 0;
   const tiltVal = Math.abs(parseFloat(rawTilt) || 0);
 
-  if (tiltVal > 2.0) {
-    triggeredAlerts.push({
-      deviceId: devId,
-      siteId,
-      deviceName: devName,
-      parameter: 'tilt',
-      severity: 'CRITICAL',
-      value: `${tiltVal.toFixed(3)}°`,
-      threshold: '2.000° (Critical Limit)',
-      title: `Critical Tilt Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
-      message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, breaching the critical safety limit of 2.000°. Immediate inspection required.`,
-    });
-  } else if (tiltVal > 1.0) {
-    triggeredAlerts.push({
-      deviceId: devId,
-      siteId,
-      deviceName: devName,
-      parameter: 'tilt',
-      severity: 'WARNING',
-      value: `${tiltVal.toFixed(3)}°`,
-      threshold: '1.000° (Warning Limit)',
-      title: `Tilt Warning Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
-      message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, exceeding the warning threshold of 1.000°.`,
-    });
-  }
-
-  // 2. Lateral Displacement Threshold Evaluation
   const rawXDisp = telemetry.displacement?.xDisplacement_mm ?? telemetry.xDisplacement ?? device.xDisplacement ?? 0;
   const rawYDisp = telemetry.displacement?.yDisplacement_mm ?? telemetry.yDisplacement ?? device.yDisplacement ?? 0;
   const rawTotalDisp = telemetry.displacement?.totalDisplacement_mm ?? telemetry.totalDisplacement ?? device.totalDisplacement ?? null;
@@ -64,38 +52,140 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
   const yDisp = Math.abs(parseFloat(rawYDisp) || 0);
   const dispVal = rawTotalDisp !== null ? Math.abs(parseFloat(rawTotalDisp) || 0) : Math.sqrt(xDisp * xDisp + yDisp * yDisp);
 
-  if (dispVal > 10.0) {
-    triggeredAlerts.push({
-      deviceId: devId,
-      siteId,
-      deviceName: devName,
-      parameter: 'displacement',
-      severity: 'CRITICAL',
-      value: `${dispVal.toFixed(2)} mm`,
-      threshold: '10.00 mm (Critical Limit)',
-      title: `Critical Displacement Exceeded: ${dispVal.toFixed(2)} mm`,
-      message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the critical limit of 10.00 mm.`,
-    });
-  } else if (dispVal > 5.0) {
-    triggeredAlerts.push({
-      deviceId: devId,
-      siteId,
-      deviceName: devName,
-      parameter: 'displacement',
-      severity: 'WARNING',
-      value: `${dispVal.toFixed(2)} mm`,
-      threshold: '5.00 mm (Warning Limit)',
-      title: `Displacement Warning Exceeded: ${dispVal.toFixed(2)} mm`,
-      message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the warning threshold of 5.00 mm.`,
-    });
+  // 2. Fetch all enabled AlertRules matching THIS particular device
+  let allRules = [];
+  try {
+    const dbRules = await AlertRule.findAll({ where: { enabled: true } });
+    if (dbRules && dbRules.length > 0) {
+      allRules = dbRules.map(r => (r.toJSON ? r.toJSON() : r));
+    }
+  } catch (dbErr) {
+    // DB fallback
   }
 
-  // 3. Process, persist, and dispatch alerts
+  try {
+    const memRules = typeof getMemoryAlertRules === 'function' ? getMemoryAlertRules() : [];
+    for (const mRule of memRules) {
+      if (mRule && mRule.enabled && !allRules.some(r => String(r.id) === String(mRule.id))) {
+        allRules.push(mRule);
+      }
+    }
+  } catch (memErr) {}
+
+  // Filter rules targeting THIS particular device
+  const deviceSpecificRules = allRules.filter(r => {
+    if (!r.enabled) return false;
+    const ids = Array.isArray(r.deviceIds) ? r.deviceIds : [];
+    return ids.some(id => String(id).trim().toUpperCase() === devId.toUpperCase());
+  });
+
+  console.log(`[Alert Engine] Evaluating telemetry for device "${devId}". Found ${deviceSpecificRules.length} matching rule(s). (Tilt: ${tiltVal.toFixed(3)}°, Disp: ${dispVal.toFixed(2)}mm)`);
+
+  if (deviceSpecificRules.length > 0) {
+    // Evaluate configured rules for this device
+    for (const rule of deviceSpecificRules) {
+      const param = (rule.parameter || 'tilt').toLowerCase();
+      const measuredVal = param === 'tilt' ? tiltVal : dispVal;
+      const unit = param === 'tilt' ? '°' : 'mm';
+      const op = rule.operator || '>';
+
+      const cThresh = rule.criticalThreshold ?? rule.thresholdValue ?? (param === 'tilt' ? 2.0 : 10.0);
+      const wThresh = rule.warningThreshold ?? (param === 'tilt' ? 1.0 : 5.0);
+      const iThresh = rule.infoThreshold ?? (param === 'tilt' ? 0.5 : 2.0);
+
+      let breachedSeverity = null;
+      let limitValue = null;
+
+      // Evaluate 3 severity tiers in order of precedence: Critical > Warning > Info
+      if (checkThresholdBreach(measuredVal, cThresh, op)) {
+        breachedSeverity = 'CRITICAL';
+        limitValue = `${op} ${Number(cThresh).toFixed(2)} ${unit}`;
+      } else if (checkThresholdBreach(measuredVal, wThresh, op)) {
+        breachedSeverity = 'WARNING';
+        limitValue = `${op} ${Number(wThresh).toFixed(2)} ${unit}`;
+      } else if (checkThresholdBreach(measuredVal, iThresh, op)) {
+        breachedSeverity = 'INFO';
+        limitValue = `${op} ${Number(iThresh).toFixed(2)} ${unit}`;
+      }
+
+      if (breachedSeverity) {
+        console.warn(`🚨 [AUTO-TRIGGER ALERT] Device ${devId} breached rule "${rule.ruleName}" (${breachedSeverity}) | Value: ${measuredVal.toFixed(3)} ${unit} vs Limit: ${limitValue}`);
+        triggeredAlerts.push({
+          deviceId: devId,
+          siteId,
+          siteName: device.Site?.name || 'Main Geotechnical Site',
+          deviceName: devName,
+          parameter: param,
+          severity: breachedSeverity,
+          value: `${measuredVal.toFixed(3)} ${unit}`,
+          threshold: `${limitValue} (${breachedSeverity} Limit)`,
+          title: `${breachedSeverity} ${param.toUpperCase()} Alert: ${rule.ruleName}`,
+          message: rule.message || `${param.toUpperCase()} threshold limit (${limitValue}) breached on device ${devId} (${devName}). Rule: "${rule.ruleName}".`,
+          recipients: Array.isArray(rule.emails) && rule.emails.length > 0 ? rule.emails : null,
+        });
+      }
+    }
+  } else {
+    // Fallback: Default geotechnical safety limits if no custom rule assigned yet
+    if (tiltVal > 2.0) {
+      triggeredAlerts.push({
+        deviceId: devId,
+        siteId,
+        deviceName: devName,
+        parameter: 'tilt',
+        severity: 'CRITICAL',
+        value: `${tiltVal.toFixed(3)}°`,
+        threshold: '2.000° (Critical Limit)',
+        title: `Critical Tilt Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
+        message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, breaching the critical safety limit of 2.000°. Immediate inspection required.`,
+      });
+    } else if (tiltVal > 1.0) {
+      triggeredAlerts.push({
+        deviceId: devId,
+        siteId,
+        deviceName: devName,
+        parameter: 'tilt',
+        severity: 'WARNING',
+        value: `${tiltVal.toFixed(3)}°`,
+        threshold: '1.000° (Warning Limit)',
+        title: `Tilt Warning Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
+        message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, exceeding the warning threshold of 1.000°.`,
+      });
+    }
+
+    if (dispVal > 10.0) {
+      triggeredAlerts.push({
+        deviceId: devId,
+        siteId,
+        deviceName: devName,
+        parameter: 'displacement',
+        severity: 'CRITICAL',
+        value: `${dispVal.toFixed(2)} mm`,
+        threshold: '10.00 mm (Critical Limit)',
+        title: `Critical Displacement Exceeded: ${dispVal.toFixed(2)} mm`,
+        message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the critical limit of 10.00 mm.`,
+      });
+    } else if (dispVal > 5.0) {
+      triggeredAlerts.push({
+        deviceId: devId,
+        siteId,
+        deviceName: devName,
+        parameter: 'displacement',
+        severity: 'WARNING',
+        value: `${dispVal.toFixed(2)} mm`,
+        threshold: '5.00 mm (Warning Limit)',
+        title: `Displacement Warning Exceeded: ${dispVal.toFixed(2)} mm`,
+        message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the warning threshold of 5.00 mm.`,
+      });
+    }
+  }
+
+  // 3. Process, persist, broadcast, and email-dispatch alerts
   for (const alt of triggeredAlerts) {
     try {
       const alarmId = `ALM-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
 
-      // Check if an alarm already exists for this device and parameter
+      // Check if an active alarm already exists for this device and parameter
       let alarm = null;
       try {
         const existingActiveAlarm = await Alarm.findOne({
@@ -177,7 +267,11 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
 
       if (now - lastSent > EMAIL_COOLDOWN_MS || alt.severity === 'CRITICAL') {
         lastEmailSentAt.set(cacheKey, now);
-        sendAlertEmail({ alert: alt, device }).catch(err => {
+        sendAlertEmail({
+          alert: alt,
+          device,
+          recipients: alt.recipients || null,
+        }).catch(err => {
           console.warn(`[Alert Engine] Error auto-sending alert email for ${alt.deviceId}:`, err.message);
         });
       }

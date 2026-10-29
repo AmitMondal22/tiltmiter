@@ -5,8 +5,11 @@ import { triggerManualAlert } from '../../services/alertEngineService.js';
 import { getActiveRecipientEmails } from '../../services/emailService.js';
 
 // In-memory alarm and alert-rule store for persistence across DB fallback modes
-const memoryAlarms = [];
-let memoryAlertRules = [];
+export const memoryAlarms = [];
+export let memoryAlertRules = [];
+export function getMemoryAlertRules() {
+  return memoryAlertRules;
+}
 let nextRuleId = 1;
 
 export async function alarmsRoutes(fastify) {

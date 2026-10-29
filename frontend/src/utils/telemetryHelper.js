@@ -189,6 +189,27 @@ export function formatCSQPercentage(val, fallback = '85%') {
   return `${pct}%`;
 }
 
+/**
+ * Checks whether a given telemetry object has genuine, valid sensor data.
+ * Devices that have never sent telemetry or empty records return false.
+ */
+export function hasTelemetryData(data) {
+  if (!data || typeof data !== 'object') return false;
+  const hasTs = Boolean(data.timestamp || data.time);
+  const hasSensor = (
+    (typeof data.xTilt === 'number' && !isNaN(data.xTilt)) ||
+    (typeof data.roll === 'number' && !isNaN(data.roll)) ||
+    (typeof data.presentX === 'number' && !isNaN(data.presentX)) ||
+    (typeof data.deltaX === 'number' && !isNaN(data.deltaX)) ||
+    (typeof data.yTilt === 'number' && !isNaN(data.yTilt)) ||
+    (typeof data.pitch === 'number' && !isNaN(data.pitch)) ||
+    (typeof data.tilt?.roll === 'number' && !isNaN(data.tilt.roll)) ||
+    (typeof data.tilt?.pitch === 'number' && !isNaN(data.tilt.pitch)) ||
+    (data.rawPayload && (data.rawPayload.tilt || data.rawPayload.acceleration))
+  );
+  return hasTs && hasSensor;
+}
+
 export function parseTelemetry(data) {
   if (!data) return {};
 

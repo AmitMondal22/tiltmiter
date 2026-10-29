@@ -509,21 +509,6 @@ export async function devicesRoutes(fastify) {
             }
           );
           recordsUpdatedCount = count;
-          if (count === 0 && device.lastSeen) {
-            await TelemetryRecord.create({
-              deviceId: device.id,
-              timestamp: device.lastSeen,
-              xTilt: 0.0,
-              yTilt: 0.0,
-              resultantTilt: 0.0,
-              xDisplacement: 0.0,
-              yDisplacement: 0.0,
-              zDisplacement: 0.0,
-              totalDisplacement: 0.0,
-              temperature: parseFloat(device.temperature) || 25.0,
-            });
-            recordsUpdatedCount = 1;
-          }
         }
       } catch (telemetryErr) {
         console.warn(`[Zero Readings] TelemetryRecord update skipped:`, telemetryErr.message);
@@ -566,26 +551,28 @@ export async function devicesRoutes(fastify) {
         }
       }
 
-      // 4. Broadcast live update preserving original lastSeen date time
-      const originalTime = device.lastSeen ? new Date(device.lastSeen).toISOString() : new Date().toISOString();
-      broadcastTelemetry({
-        deviceId: device.id,
-        xTilt: 0.0,
-        yTilt: 0.0,
-        resultantTilt: 0.0,
-        xDisplacement: 0.0,
-        yDisplacement: 0.0,
-        totalDisplacement: 0.0,
-        roll: 0.0,
-        pitch: 0.0,
-        tilt: 0.0,
-        tempVal: device.temperature || 25.0,
-        temperature: `${device.temperature || 25.0} °C`,
-        batteryVoltage: parseFloat(device.battery) || 13.0,
-        csq: parseInt(device.signalStrength) || 19,
-        timestamp: originalTime,
-        status: device.status,
-      });
+      // 4. Broadcast live update preserving original lastSeen date time ONLY if records actually exist
+      if (recordsUpdatedCount > 0) {
+        const originalTime = device.lastSeen ? new Date(device.lastSeen).toISOString() : new Date().toISOString();
+        broadcastTelemetry({
+          deviceId: device.id,
+          xTilt: 0.0,
+          yTilt: 0.0,
+          resultantTilt: 0.0,
+          xDisplacement: 0.0,
+          yDisplacement: 0.0,
+          totalDisplacement: 0.0,
+          roll: 0.0,
+          pitch: 0.0,
+          tilt: 0.0,
+          tempVal: device.temperature || 25.0,
+          temperature: device.temperature ? `${device.temperature} °C` : null,
+          batteryVoltage: parseFloat(device.battery) || 13.0,
+          csq: parseInt(device.signalStrength) || 19,
+          timestamp: originalTime,
+          status: device.status,
+        });
+      }
 
       const reloadedDevice = await Device.findByPk(device.id, {
         include: [{ model: Site, include: [Project, Organization] }, Structure]
@@ -663,6 +650,7 @@ export async function devicesRoutes(fastify) {
         await dev.update(fieldsToUpdate);
         updatedDeviceIds.push(dev.id);
 
+        let hasRecords = false;
         // Safely update datapoint records in TelemetryRecord WITHOUT CHANGING DATE TIME
         try {
           if (scope === 'last') {
@@ -686,19 +674,7 @@ export async function devicesRoutes(fastify) {
                 zDisplacement: 0.0,
                 totalDisplacement: 0.0,
               });
-            } else if (dev.lastSeen) {
-              await TelemetryRecord.create({
-                deviceId: dev.id,
-                timestamp: dev.lastSeen,
-                xTilt: 0.0,
-                yTilt: 0.0,
-                resultantTilt: 0.0,
-                xDisplacement: 0.0,
-                yDisplacement: 0.0,
-                zDisplacement: 0.0,
-                totalDisplacement: 0.0,
-                temperature: parseFloat(dev.temperature) || 25.0,
-              });
+              hasRecords = true;
             }
           } else {
             // scope === 'all': update all datapoints of the device without changing date time
@@ -722,20 +698,7 @@ export async function devicesRoutes(fastify) {
                 }
               }
             );
-            if (bulkCount === 0 && dev.lastSeen) {
-              await TelemetryRecord.create({
-                deviceId: dev.id,
-                timestamp: dev.lastSeen,
-                xTilt: 0.0,
-                yTilt: 0.0,
-                resultantTilt: 0.0,
-                xDisplacement: 0.0,
-                yDisplacement: 0.0,
-                zDisplacement: 0.0,
-                totalDisplacement: 0.0,
-                temperature: parseFloat(dev.temperature) || 25.0,
-              });
-            }
+            if (bulkCount > 0) hasRecords = true;
           }
         } catch (telemetryErr) {
           console.warn(`[Bulk Zero] TelemetryRecord update skipped:`, telemetryErr.message);
@@ -776,25 +739,27 @@ export async function devicesRoutes(fastify) {
           }
         }
 
-        const originalTime = dev.lastSeen ? new Date(dev.lastSeen).toISOString() : new Date().toISOString();
-        broadcastTelemetry({
-          deviceId: dev.id,
-          xTilt: 0.0,
-          yTilt: 0.0,
-          resultantTilt: 0.0,
-          xDisplacement: 0.0,
-          yDisplacement: 0.0,
-          totalDisplacement: 0.0,
-          roll: 0.0,
-          pitch: 0.0,
-          tilt: 0.0,
-          tempVal: dev.temperature || 25.0,
-          temperature: `${dev.temperature || 25.0} °C`,
-          batteryVoltage: parseFloat(dev.battery) || 13.0,
-          csq: parseInt(dev.signalStrength) || 19,
-          timestamp: originalTime,
-          status: dev.status,
-        });
+        if (hasRecords) {
+          const originalTime = dev.lastSeen ? new Date(dev.lastSeen).toISOString() : new Date().toISOString();
+          broadcastTelemetry({
+            deviceId: dev.id,
+            xTilt: 0.0,
+            yTilt: 0.0,
+            resultantTilt: 0.0,
+            xDisplacement: 0.0,
+            yDisplacement: 0.0,
+            totalDisplacement: 0.0,
+            roll: 0.0,
+            pitch: 0.0,
+            tilt: 0.0,
+            tempVal: dev.temperature || 25.0,
+            temperature: dev.temperature ? `${dev.temperature} °C` : null,
+            batteryVoltage: parseFloat(dev.battery) || 13.0,
+            csq: parseInt(dev.signalStrength) || 19,
+            timestamp: originalTime,
+            status: dev.status,
+          });
+        }
       }
 
       return reply.send({

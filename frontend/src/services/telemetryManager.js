@@ -253,6 +253,13 @@ class TelemetryManager {
     this.notifyStatus();
     console.log('🔌 WebSocket disconnected and resources released.');
   }
+
+  clearDevice(deviceId) {
+    if (!deviceId) return;
+    const id = deviceId.toString().trim();
+    this.latestByDevice.delete(id);
+    this.latestByDevice.delete(id.toLowerCase());
+  }
 }
 
 export const telemetryService = new TelemetryManager();

@@ -12,21 +12,7 @@ async function sendInitialData(socket, targetDeviceId) {
   const lowerTarget = cleanTargetId.toLowerCase();
 
   try {
-    // 1. Check in-memory cache for this EXACT device (case-insensitive)
-    for (const [key, devData] of latestTelemetryByDevice.entries()) {
-      if (key && key.toLowerCase() === lowerTarget) {
-        if (socket.readyState === 1) {
-          socket.send(JSON.stringify({
-            type: 'TELEMETRY_UPDATE',
-            data: devData,
-            timestamp: new Date().toISOString()
-          }));
-        }
-        return;
-      }
-    }
-
-    // 2. Query latest telemetry record for this EXACT device from PostgreSQL
+    // 1. PostgreSQL TelemetryRecord is the authoritative source of truth
     const latestRec = await TelemetryRecord.findOne({
       where: {
         [Op.or]: [
@@ -38,36 +24,40 @@ async function sendInitialData(socket, targetDeviceId) {
       order: [['timestamp', 'DESC']],
     });
 
-    if (latestRec) {
-      const rec = latestRec.toJSON ? latestRec.toJSON() : latestRec;
-      const payload = {
-        deviceId: rec.deviceId,
-        xTilt: rec.xTilt ?? 0,
-        yTilt: rec.yTilt ?? 0,
-        zTilt: rec.zTilt ?? 0,
-        resultantTilt: rec.resultantTilt ?? 0,
-        xDisplacement: rec.xDisplacement ?? 0,
-        yDisplacement: rec.yDisplacement ?? 0,
-        totalDisplacement: rec.totalDisplacement ?? 0,
-        temperature: rec.temperature !== null && rec.temperature !== undefined ? `${rec.temperature} °C` : '--',
-        temp: rec.temperature ?? null,
-        timestamp: rec.timestamp,
-        status: 'ONLINE',
-        rawPayload: rec.rawPayload || {}
-      };
-      latestTelemetryByDevice.set(rec.deviceId, payload);
-      latestTelemetryByDevice.set(rec.deviceId.toLowerCase(), payload);
-      if (socket.readyState === 1) {
-        socket.send(JSON.stringify({
-          type: 'TELEMETRY_UPDATE',
-          data: payload,
-          timestamp: new Date().toISOString()
-        }));
-      }
+    // 2. If NO telemetry records exist in database for this device, clear stale in-memory cache and DO NOT send anything
+    if (!latestRec) {
+      latestTelemetryByDevice.delete(cleanTargetId);
+      latestTelemetryByDevice.delete(cleanTargetId.toUpperCase());
+      latestTelemetryByDevice.delete(lowerTarget);
       return;
     }
 
-    // 3. If device has no telemetry records in database yet, do NOT send fake telemetry
+    // 3. Telemetry record exists in database -> format and send genuine latest telemetry
+    const rec = latestRec.toJSON ? latestRec.toJSON() : latestRec;
+    const payload = {
+      deviceId: rec.deviceId,
+      xTilt: rec.xTilt ?? 0,
+      yTilt: rec.yTilt ?? 0,
+      zTilt: rec.zTilt ?? 0,
+      resultantTilt: rec.resultantTilt ?? 0,
+      xDisplacement: rec.xDisplacement ?? 0,
+      yDisplacement: rec.yDisplacement ?? 0,
+      totalDisplacement: rec.totalDisplacement ?? 0,
+      temperature: rec.temperature !== null && rec.temperature !== undefined ? `${rec.temperature} °C` : null,
+      temp: rec.temperature ?? null,
+      timestamp: rec.timestamp,
+      status: 'ONLINE',
+      rawPayload: rec.rawPayload || {}
+    };
+    latestTelemetryByDevice.set(rec.deviceId, payload);
+    latestTelemetryByDevice.set(rec.deviceId.toLowerCase(), payload);
+    if (socket.readyState === 1) {
+      socket.send(JSON.stringify({
+        type: 'TELEMETRY_UPDATE',
+        data: payload,
+        timestamp: rec.timestamp
+      }));
+    }
     return;
   } catch (err) {
     console.warn(`[WebSocket] sendInitialData error for ${cleanTargetId}:`, err.message);

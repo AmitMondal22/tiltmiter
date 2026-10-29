@@ -8,7 +8,7 @@ import {
   Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
 import { getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
-import { parseTelemetry, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
+import { parseTelemetry, hasTelemetryData, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -296,11 +296,19 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       const curId = (selectedId || '').toString().trim().toLowerCase();
       // STRICT FILTER: Only accept packets that strictly belong to this selected device!
       if (pktId && curId && pktId === curId) {
+        if (!hasTelemetryData(packet)) {
+          return;
+        }
+
         const parsed = parseTelemetry(packet);
         setLiveData(parsed);
         const newPoint = mapPointData(parsed);
 
+        // Do NOT inject live packets into historical logs if the device/range has no history in database
         setTelemetryHistory(prev => {
+          if (!prev || prev.length === 0) {
+            return prev;
+          }
           if (prev.some(p => p.timestamp === newPoint.timestamp)) {
             return prev;
           }
@@ -316,6 +324,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
   const handleDeviceSelect = (newId) => {
     if (newId === selectedId) return;
+    telemetryService.clearDevice(selectedId);
+    telemetryService.clearDevice(newId);
     setSelectedId(newId);
     setDeviceMeta(null);
     setLiveData(null);
@@ -483,19 +493,40 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     document.body.removeChild(link);
   };
 
-  const hasData = Boolean(liveData);
-  const d = liveData || parseTelemetry(activeDevice || { id: selectedId });
+  // Resolve latest device telemetry packet:
+  // 1. liveData (from real-time stream) ONLY if it has genuine telemetry
+  // 2. OR latest historical record (last point in telemetryHistory)
+  // 3. OR null if device has never sent any data
+  const latestData = useMemo(() => {
+    if (telemetryHistory && telemetryHistory.length > 0) {
+      const lastPoint = telemetryHistory[telemetryHistory.length - 1];
+      if (liveData && hasTelemetryData(liveData)) {
+        if (!lastPoint?.timestamp || new Date(liveData.timestamp) >= new Date(lastPoint.timestamp)) {
+          return liveData;
+        }
+      }
+      return lastPoint;
+    }
+    if (liveData && hasTelemetryData(liveData)) {
+      return liveData;
+    }
+    return null;
+  }, [liveData, telemetryHistory]);
+
+  const hasData = Boolean(latestData && hasTelemetryData(latestData));
+
+  const d = latestData || {};
 
   // Core Logic:
   // Present X (Roll) = Actual device Roll value (Never subtract zero reference)
   // Present Y (Pitch) = Actual device Pitch value (Never subtract zero reference)
   // Present Z (Yaw) = Actual device Yaw value (Never subtract zero reference)
-  const presentX = typeof d.presentX === 'number' ? d.presentX : (typeof d.roll === 'number' ? d.roll : (typeof d.xTilt === 'number' ? d.xTilt : (parseFloat(d.tilt?.roll ?? d.roll) || 0)));
-  const presentY = typeof d.presentY === 'number' ? d.presentY : (typeof d.pitch === 'number' ? d.pitch : (typeof d.yTilt === 'number' ? d.yTilt : (parseFloat(d.tilt?.pitch ?? d.pitch) || 0)));
+  const presentX = hasData ? (typeof d.presentX === 'number' ? d.presentX : (typeof d.roll === 'number' ? d.roll : (typeof d.xTilt === 'number' ? d.xTilt : (parseFloat(d.tilt?.roll ?? d.roll) || 0)))) : null;
+  const presentY = hasData ? (typeof d.presentY === 'number' ? d.presentY : (typeof d.pitch === 'number' ? d.pitch : (typeof d.yTilt === 'number' ? d.yTilt : (parseFloat(d.tilt?.pitch ?? d.pitch) || 0)))) : null;
   const rawYaw = d.presentZ ?? d.yaw ?? d.tilt?.yaw ?? d.zTilt ?? d.tiltZ;
-  const presentZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
-  const rawRes = typeof d.presentTilt === 'number' ? d.presentTilt : (typeof d.resultantTilt === 'number' ? d.resultantTilt : Math.sqrt(presentX * presentX + presentY * presentY));
-  const presentResultant = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY);
+  const presentZ = hasData ? ((rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0) : null;
+  const rawRes = typeof d.presentTilt === 'number' ? d.presentTilt : (typeof d.resultantTilt === 'number' ? d.resultantTilt : (hasData ? Math.sqrt(presentX * presentX + presentY * presentY) : null));
+  const presentResultant = hasData ? (typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY)) : null;
 
   const L = parseFloat(activeDevice?.gaugeLength_mm || d.gaugeLength_mm || 1000.0);
   const refX = parseFloat(activeDevice?.refThetaX ?? d.refThetaX ?? 0.0);
@@ -513,32 +544,32 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   // Delta Y = Current Pitch − Zero Reference Pitch
   // Delta Z = Current Yaw − Zero Reference Yaw
   // (Full-precision values, never truncate before display)
-  const deltaX = hasRef ? (presentX - refX) : (d.deltaX !== undefined ? parseFloat(d.deltaX) : (presentX - refX));
-  const deltaY = hasRef ? (presentY - refY) : (d.deltaY !== undefined ? parseFloat(d.deltaY) : (presentY - refY));
-  const deltaZ = hasRef ? (presentZ - refZ) : (d.deltaZ !== undefined ? parseFloat(d.deltaZ) : (presentZ - refZ));
-  const deltaResultant = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  const deltaX = hasData ? (hasRef ? (presentX - refX) : (d.deltaX !== undefined ? parseFloat(d.deltaX) : (presentX - refX))) : null;
+  const deltaY = hasData ? (hasRef ? (presentY - refY) : (d.deltaY !== undefined ? parseFloat(d.deltaY) : (presentY - refY))) : null;
+  const deltaZ = hasData ? (hasRef ? (presentZ - refZ) : (d.deltaZ !== undefined ? parseFloat(d.deltaZ) : (presentZ - refZ))) : null;
+  const deltaResultant = hasData ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
 
   const roll = deltaX;
   const pitch = deltaY;
   const zTilt = deltaZ;
 
-  const xSlope = Math.sin((deltaX * Math.PI) / 180) * 1000;
-  const ySlope = Math.sin((deltaY * Math.PI) / 180) * 1000;
-  const zSlope = Math.sin((deltaZ * Math.PI) / 180) * 1000;
+  const xSlope = hasData ? (Math.sin((deltaX * Math.PI) / 180) * 1000) : null;
+  const ySlope = hasData ? (Math.sin((deltaY * Math.PI) / 180) * 1000) : null;
+  const zSlope = hasData ? (Math.sin((deltaZ * Math.PI) / 180) * 1000) : null;
 
   // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
-  const radX = (deltaX * Math.PI) / 180.0;
-  const radY = (deltaY * Math.PI) / 180.0;
-  const clinoDx = L * Math.tan(radX);
-  const clinoDy = L * Math.tan(radY);
+  const radX = hasData ? ((deltaX * Math.PI) / 180.0) : 0;
+  const radY = hasData ? ((deltaY * Math.PI) / 180.0) : 0;
+  const clinoDx = hasData ? (L * Math.tan(radX)) : null;
+  const clinoDy = hasData ? (L * Math.tan(radY)) : null;
 
   const xDisp = clinoDx;
   const yDisp = clinoDy;
-  const zDisp = typeof d.zDisplacement === 'number' ? d.zDisplacement : 0;
-  const totalDisp = Math.sqrt(xDisp * xDisp + yDisp * yDisp);
+  const zDisp = hasData ? (typeof d.zDisplacement === 'number' ? d.zDisplacement : 0) : null;
+  const totalDisp = hasData ? Math.sqrt(xDisp * xDisp + yDisp * yDisp) : null;
 
-  let dispAngleRad = Math.atan2(yDisp, xDisp);
-  let dispAngleDeg = (dispAngleRad * 180) / Math.PI;
+  let dispAngleRad = hasData ? Math.atan2(yDisp, xDisp) : 0;
+  let dispAngleDeg = hasData ? ((dispAngleRad * 180) / Math.PI) : 0;
   if (dispAngleDeg < 0) dispAngleDeg += 360;
   const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const dispCardinal = cardinals[Math.round(dispAngleDeg / 45) % 8];
@@ -756,10 +787,17 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 LIVE INCLINOMETER &amp; DISPLACEMENT
               </h3>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
-              <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>LIVE STREAM</span>
-            </div>
+            {hasData ? (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
+                <Radio className="w-3.5 h-3.5 animate-pulse" />
+                <span>LIVE STREAM</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
+                <Radio className="w-3.5 h-3.5" />
+                <span>NO DATA</span>
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">
@@ -780,7 +818,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present X (Roll)</div>
                   <div className="text-lg sm:text-xl font-bold font-mono text-blue-700 mt-1">
-                    {hasData ? `${presentX >= 0 ? '+' : ''}${presentX.toFixed(2)}°` : '--'}
+                    {hasData && typeof presentX === 'number' ? `${presentX >= 0 ? '+' : ''}${presentX.toFixed(2)}°` : '--'}
                   </div>
                 </div>
 
@@ -788,7 +826,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Y (Pitch)</div>
                   <div className="text-lg sm:text-xl font-bold font-mono text-purple-700 mt-1">
-                    {hasData ? `${presentY >= 0 ? '+' : ''}${presentY.toFixed(2)}°` : '--'}
+                    {hasData && typeof presentY === 'number' ? `${presentY >= 0 ? '+' : ''}${presentY.toFixed(2)}°` : '--'}
                   </div>
                 </div>
 
@@ -796,7 +834,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Z (Yaw)</div>
                   <div className="text-lg sm:text-xl font-bold font-mono text-emerald-700 mt-1">
-                    {hasData ? `${presentZ >= 0 ? '+' : ''}${presentZ.toFixed(2)}°` : '--'}
+                    {hasData && typeof presentZ === 'number' ? `${presentZ >= 0 ? '+' : ''}${presentZ.toFixed(2)}°` : '--'}
                   </div>
                 </div>
               </div>
@@ -824,10 +862,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                     ΔX (Roll)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
-                    {hasData ? `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(2)}°` : '--'}
+                    {hasData && typeof deltaX === 'number' ? `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(2)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
+                    {hasData && typeof xSlope === 'number' ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -842,10 +880,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                     ΔY (Pitch)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
-                    {hasData ? `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(2)}°` : '--'}
+                    {hasData && typeof deltaY === 'number' ? `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(2)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
+                    {hasData && typeof ySlope === 'number' ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -860,10 +898,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                     ΔZ (Yaw)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
-                    {hasData ? `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(2)}°` : '--'}
+                    {hasData && typeof deltaZ === 'number' ? `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(2)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
+                    {hasData && typeof zSlope === 'number' ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -882,7 +920,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   <span>DISPLACEMENT (MM) • L={L}mm</span>
                 </div>
                 <span className="text-[10px] font-mono font-medium text-slate-500">
-                  Total: <strong className="text-slate-800">{hasData ? `${totalDisp.toFixed(2)} mm` : '--'}</strong> ({dispCardinal})
+                  Total: <strong className="text-slate-800">{hasData && typeof totalDisp === 'number' ? `${totalDisp.toFixed(2)} mm` : '--'}</strong> {hasData ? `(${dispCardinal})` : ''}
                 </span>
               </div>
 
@@ -894,7 +932,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 tracking-tight">
-                      {hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(2)}` : '--'}
+                      {hasData && typeof xDisp === 'number' ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(2)}` : '--'}
                     </span>
                     <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
                   </div>
@@ -912,7 +950,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-2xl sm:text-3xl font-extrabold text-amber-600 tracking-tight">
-                      {hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(2)}` : '--'}
+                      {hasData && typeof yDisp === 'number' ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(2)}` : '--'}
                     </span>
                     <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
                   </div>
@@ -925,7 +963,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               </div>
             </div>
 
-            {/* 3. Ambient Temperature Readout matching user mockup */}
+            {/* 3. Ambient Temperature Readout */}
             <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-900 font-sans">
                 <Thermometer className="w-5 h-5 text-amber-500 flex-shrink-0" />
@@ -934,7 +972,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               <div className="px-5 py-1.5 rounded-full bg-amber-100/80 border border-amber-200/90 font-mono text-sm sm:text-base font-bold text-amber-900 shadow-2xs">
                 {hasData && d.temp !== null && d.temp !== undefined
                   ? `${Number(d.temp).toFixed(1)} °C`
-                  : (activeDevice?.temperature ? `${activeDevice.temperature} °C` : '33.2 °C')}
+                  : '--'}
               </div>
             </div>
           </div>
@@ -1004,7 +1042,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <span className="text-xs sm:text-sm font-semibold text-slate-700">Ambient Temperature</span>
               </div>
               <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-bold text-slate-900 text-xs sm:text-sm">
-                {d.temp !== null && d.temp !== undefined ? `${Number(d.temp).toFixed(1)} °C` : (activeDevice?.temperature ? `${activeDevice.temperature} °C` : '--')}
+                {hasData && d.temp !== null && d.temp !== undefined ? `${Number(d.temp).toFixed(1)} °C` : '--'}
               </span>
             </div>
 

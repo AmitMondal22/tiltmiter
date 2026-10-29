@@ -108,20 +108,23 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     if (!telemetryHistory || telemetryHistory.length === 0) return [];
     return telemetryHistory.map(pt => {
       const ts = pt.timestamp || pt.time;
-      const rawX = parseFloat(pt.presentX ?? pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.tilt?.roll ?? 0) || 0;
-      const rawY = parseFloat(pt.presentY ?? pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.tilt?.pitch ?? 0) || 0;
-      const rawYaw = pt.presentZ ?? pt.yaw ?? pt.tilt?.yaw ?? pt.zTilt ?? pt.tiltZ;
-      const rawZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+      // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+      // X-Axis: tilt.roll
+      // Y-Axis: tilt.pitch
+      // Z-Axis: tilt.yaw
+      const rawX = pt.tilt?.roll ?? pt.presentX ?? pt.rawRoll ?? pt.roll ?? pt.xTilt;
+      const rawY = pt.tilt?.pitch ?? pt.presentY ?? pt.rawPitch ?? pt.pitch ?? pt.yTilt;
+      const rawYaw = pt.tilt?.yaw ?? pt.presentZ ?? pt.rawYaw ?? pt.yaw ?? pt.zTilt;
 
-      // Present Values = Pure actual device values (Never subtract reference zero)
-      const presentX = rawX;
-      const presentY = rawY;
-      const presentZ = rawZ;
+      // 2. Present Values = Pure actual device values (Never subtract reference zero)
+      const presentX = (rawX !== undefined && rawX !== null && !isNaN(parseFloat(rawX))) ? parseFloat(rawX) : 0.0;
+      const presentY = (rawY !== undefined && rawY !== null && !isNaN(parseFloat(rawY))) ? parseFloat(rawY) : 0.0;
+      const presentZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
 
-      // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
-      const deltaX = pt.deltaX !== undefined ? parseFloat(pt.deltaX) : (pt.deltaThetaX !== undefined ? parseFloat(pt.deltaThetaX) : (hasRef ? presentX - refX : presentX));
-      const deltaY = pt.deltaY !== undefined ? parseFloat(pt.deltaY) : (pt.deltaThetaY !== undefined ? parseFloat(pt.deltaThetaY) : (hasRef ? presentY - refY : presentY));
-      const deltaZ = pt.deltaZ !== undefined ? parseFloat(pt.deltaZ) : (pt.deltaThetaZ !== undefined ? parseFloat(pt.deltaThetaZ) : (hasRef ? presentZ - refZ : presentZ));
+      // 3. Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
+      const deltaX = pt.deltaX !== undefined ? parseFloat(pt.deltaX) : (presentX - refX);
+      const deltaY = pt.deltaY !== undefined ? parseFloat(pt.deltaY) : (presentY - refY);
+      const deltaZ = pt.deltaZ !== undefined ? parseFloat(pt.deltaZ) : (presentZ - refZ);
 
       const xT = deltaX;
       const yT = deltaY;

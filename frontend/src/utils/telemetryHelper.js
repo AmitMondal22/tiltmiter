@@ -81,32 +81,33 @@ export function format1Dec(val, fallback = '0.0') {
 }
 
 /**
- * Formats signed delta or angle value (e.g. +0.25° or -0.18° or +0.00°).
- * Retains full precision until formatting.
+ * Formats signed delta value (e.g. +1.4° or -0.8° or +0.0°).
+ * Retains full precision until formatting to 1 decimal place for display only.
  */
-export function formatSigned(val, decimals = 2, unit = '°', fallback = '--') {
+export function formatSigned(val, decimals = 1, unit = '°', fallback = '--') {
   if (val === null || val === undefined || val === '' || val === '--') return fallback;
   const num = typeof val === 'number' ? val : parseFloat(val);
   if (isNaN(num)) return fallback;
-  const formattedNum = Math.abs(num).toFixed(decimals);
-  if (num === 0 || formattedNum === (0).toFixed(decimals)) {
-    return `+${formattedNum}${unit}`;
+  const absFormatted = Math.abs(num).toFixed(decimals);
+  if (absFormatted === (0).toFixed(decimals)) {
+    return `+${absFormatted}${unit}`;
   }
-  return `${num > 0 ? '+' : '-'}${formattedNum}${unit}`;
+  return `${num >= 0 ? '+' : '-'}${absFormatted}${unit}`;
 }
 
 /**
- * Formats present actual value without subtracting reference zero.
+ * Formats present actual value without subtracting reference angle.
+ * Displays actual angle rounded to 1 decimal place for display only (e.g. 1.4° or -1.4°).
  */
-export function formatPresent(val, decimals = 2, unit = '°', fallback = '--') {
+export function formatPresent(val, decimals = 1, unit = '°', fallback = '--') {
   if (val === null || val === undefined || val === '' || val === '--') return fallback;
   const num = typeof val === 'number' ? val : parseFloat(val);
   if (isNaN(num)) return fallback;
-  const formattedNum = Math.abs(num).toFixed(decimals);
-  if (num === 0 || formattedNum === (0).toFixed(decimals)) {
-    return `+${formattedNum}${unit}`;
+  const absFormatted = Math.abs(num).toFixed(decimals);
+  if (absFormatted === (0).toFixed(decimals)) {
+    return `${absFormatted}${unit}`;
   }
-  return `${num > 0 ? '+' : '-'}${formattedNum}${unit}`;
+  return `${num < 0 ? '-' : ''}${absFormatted}${unit}`;
 }
 
 /**
@@ -219,37 +220,44 @@ export function parseTelemetry(data) {
   const az = typeof data.acceleration?.az === 'number' ? data.acceleration.az : (parseFloat(data.acceleration?.az) || 9.80665);
   const accMag = typeof data.acceleration?.accMag === 'number' ? data.acceleration.accMag : (parseFloat(data.acceleration?.accMag) || Math.sqrt(ax * ax + ay * ay + az * az));
 
-  const roll = typeof data.tilt?.roll === 'number' ? data.tilt.roll : (typeof data.xTilt === 'number' ? data.xTilt : (typeof data.roll === 'number' ? data.roll : (parseFloat(data.tilt?.roll ?? data.xTilt ?? data.roll) || 0)));
-  const pitch = typeof data.tilt?.pitch === 'number' ? data.tilt.pitch : (typeof data.yTilt === 'number' ? data.yTilt : (typeof data.pitch === 'number' ? data.pitch : (parseFloat(data.tilt?.pitch ?? data.yTilt ?? data.pitch) || 0)));
-  const rawYaw = data.tilt?.yaw ?? data.yaw ?? data.tilt?.zTilt ?? data.zTilt;
+  // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+  // X-Axis: tilt.roll
+  // Y-Axis: tilt.pitch
+  // Z-Axis: tilt.yaw
+  const rawRoll = data.tilt?.roll ?? data.presentX ?? data.rawRoll ?? data.roll ?? data.xTilt;
+  const rawPitch = data.tilt?.pitch ?? data.presentY ?? data.rawPitch ?? data.pitch ?? data.yTilt;
+  const rawYaw = data.tilt?.yaw ?? data.presentZ ?? data.rawYaw ?? data.yaw ?? data.zTilt;
+
+  const roll = (rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll))) ? parseFloat(rawRoll) : 0.0;
+  const pitch = (rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch))) ? parseFloat(rawPitch) : 0.0;
   const yaw = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
-  const tiltVal = typeof data.tilt?.tilt === 'number' ? data.tilt.tilt : (typeof data.resultantTilt === 'number' ? data.resultantTilt : (typeof data.tilt === 'number' ? data.tilt : (parseFloat(data.tilt?.tilt ?? data.resultantTilt ?? data.tilt) || Math.sqrt(roll * roll + pitch * pitch))));
+
+  // Combined tilt value: Math.sqrt(roll^2 + pitch^2)
+  const rawTiltCombined = data.tilt?.tilt ?? data.presentTilt ?? data.resultantTilt ?? data.tilt;
+  const tiltVal = (typeof rawTiltCombined === 'number' && !isNaN(rawTiltCombined)) ? rawTiltCombined : Math.sqrt(roll * roll + pitch * pitch);
   const zTilt = yaw;
   const tiltStatus = data.tilt?.tiltStatus || data.tiltStatus || 'NORMAL';
 
-  // ClinoX Reference Zero and Gauge Length (L)
-  const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0);
-  const refThetaX = parseFloat(data.refThetaX ?? data.baselineRoll ?? 0.0);
-  const refThetaY = parseFloat(data.refThetaY ?? data.baselinePitch ?? 0.0);
-  const refThetaZ = parseFloat(data.refThetaZ ?? data.baselineTilt ?? 0.0);
-  const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)));
-
-  // Core Logic:
-  // Present X (Roll) = Actual device Roll value (Never subtract reference zero)
-  // Present Y (Pitch) = Actual device Pitch value (Never subtract reference zero)
-  // Present Z (Yaw) = Actual device Yaw value (Never subtract reference zero)
+  // 2. Present Values: actual device angle values (Never subtract reference angle)
   const presentX = roll;
   const presentY = pitch;
   const presentZ = yaw;
   const presentTilt = tiltVal;
 
-  // Delta X = Current Roll − Zero Reference Roll
-  // Delta Y = Current Pitch − Zero Reference Pitch
-  // Delta Z = Current Yaw − Zero Reference Yaw
-  // (Full precision calculations)
-  const deltaX = hasReferenceZero ? (roll - refThetaX) : (data.deltaX !== undefined ? parseFloat(data.deltaX) : (roll - refThetaX));
-  const deltaY = hasReferenceZero ? (pitch - refThetaY) : (data.deltaY !== undefined ? parseFloat(data.deltaY) : (pitch - refThetaY));
-  const deltaZ = hasReferenceZero ? (yaw - refThetaZ) : (data.deltaZ !== undefined ? parseFloat(data.deltaZ) : (yaw - refThetaZ));
+  // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
+  const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0);
+  const refThetaX = parseFloat(data.refThetaX ?? data.baselineRoll ?? 0.0) || 0.0;
+  const refThetaY = parseFloat(data.refThetaY ?? data.baselinePitch ?? 0.0) || 0.0;
+  const refThetaZ = parseFloat(data.refThetaZ ?? data.baselineTilt ?? 0.0) || 0.0;
+  const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)));
+
+  // 4. Delta Values: Current − Reference (Calculated with original numeric full precision)
+  // Delta X = Current Roll − Reference Roll
+  // Delta Y = Current Pitch − Reference Pitch
+  // Delta Z = Current Yaw − Reference Yaw
+  const deltaX = presentX - refThetaX;
+  const deltaY = presentY - refThetaY;
+  const deltaZ = presentZ - refThetaZ;
   const deltaThetaX = deltaX;
   const deltaThetaY = deltaY;
   const deltaThetaZ = deltaZ;

@@ -8,7 +8,7 @@ import {
   Bed, Crosshair, Database, Settings, Move
 } from 'lucide-react';
 import { getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
-import { parseTelemetry, hasTelemetryData, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
+import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { telemetryService } from '../services/telemetryManager';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -86,28 +86,35 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   // Map individual history point into structured format
   const mapPointData = (pt) => {
     const ts = pt.timestamp || pt.time;
-    // Core Logic: Present values = Actual device values (Never subtract reference zero)
-    const presentX = parseFloat(pt.presentX ?? pt.rawRoll ?? pt.roll ?? pt.xTilt ?? pt.tiltX ?? pt.tilt?.roll ?? 0) || 0;
-    const presentY = parseFloat(pt.presentY ?? pt.rawPitch ?? pt.pitch ?? pt.yTilt ?? pt.tiltY ?? pt.tilt?.pitch ?? 0) || 0;
-    const rawYaw = pt.presentZ ?? pt.rawYaw ?? pt.yaw ?? pt.zTilt ?? pt.tiltZ ?? pt.tilt?.yaw;
+
+    // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+    // X-Axis: tilt.roll
+    // Y-Axis: tilt.pitch
+    // Z-Axis: tilt.yaw
+    const rawRoll = pt.tilt?.roll ?? pt.presentX ?? pt.rawRoll ?? pt.roll ?? pt.xTilt;
+    const rawPitch = pt.tilt?.pitch ?? pt.presentY ?? pt.rawPitch ?? pt.pitch ?? pt.yTilt;
+    const rawYaw = pt.tilt?.yaw ?? pt.presentZ ?? pt.rawYaw ?? pt.yaw ?? pt.zTilt;
+
+    // 2. Present Values: actual device angle values (Never subtract reference angle)
+    const presentX = (rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll))) ? parseFloat(rawRoll) : 0.0;
+    const presentY = (rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch))) ? parseFloat(rawPitch) : 0.0;
     const presentZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
-    const rawRes = pt.presentTilt ?? pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? pt.tilt?.tilt;
+    const rawRes = pt.tilt?.tilt ?? pt.presentTilt ?? pt.resultantTilt ?? pt.resultant ?? pt.tilt;
     const presentRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY);
 
-    // ClinoX Reference-Zero Delta and Lateral Displacement: D = L * tan(Δθ * π / 180)
+    // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
     const L = parseFloat(activeDevice?.gaugeLength_mm || 1000.0);
-    const refX = parseFloat(activeDevice?.refThetaX ?? 0.0);
-    const refY = parseFloat(activeDevice?.refThetaY ?? 0.0);
-    const refZ = parseFloat(activeDevice?.refThetaZ ?? 0.0);
-    const hasRef = Boolean(activeDevice?.hasReferenceZero === true || (activeDevice?.calibrate === true && (refX !== 0 || refY !== 0)));
+    const refX = parseFloat(activeDevice?.refThetaX ?? pt.refThetaX ?? 0.0) || 0.0;
+    const refY = parseFloat(activeDevice?.refThetaY ?? pt.refThetaY ?? 0.0) || 0.0;
+    const refZ = parseFloat(activeDevice?.refThetaZ ?? pt.refThetaZ ?? 0.0) || 0.0;
 
-    // Core Logic:
-    // Delta X = Current Roll − Zero Reference Roll
-    // Delta Y = Current Pitch − Zero Reference Pitch
-    // Delta Z = Current Yaw − Zero Reference Yaw
-    const deltaX = hasRef ? (presentX - refX) : (pt.deltaX !== undefined ? parseFloat(pt.deltaX) : (pt.deltaThetaX !== undefined ? parseFloat(pt.deltaThetaX) : (presentX - refX)));
-    const deltaY = hasRef ? (presentY - refY) : (pt.deltaY !== undefined ? parseFloat(pt.deltaY) : (pt.deltaThetaY !== undefined ? parseFloat(pt.deltaThetaY) : (presentY - refY)));
-    const deltaZ = hasRef ? (presentZ - refZ) : (pt.deltaZ !== undefined ? parseFloat(pt.deltaZ) : (pt.deltaThetaZ !== undefined ? parseFloat(pt.deltaThetaZ) : (presentZ - refZ)));
+    // 4. Delta Values: Current − Reference (Calculated with original numeric full precision)
+    // Delta X = Current Roll − Reference Roll
+    // Delta Y = Current Pitch − Reference Pitch
+    // Delta Z = Current Yaw − Reference Yaw
+    const deltaX = presentX - refX;
+    const deltaY = presentY - refY;
+    const deltaZ = presentZ - refZ;
 
     const radX = (deltaX * Math.PI) / 180.0;
     const radY = (deltaY * Math.PI) / 180.0;
@@ -517,37 +524,38 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
   const d = latestData || {};
 
-  // Core Logic:
-  // Present X (Roll) = Actual device Roll value (Never subtract zero reference)
-  // Present Y (Pitch) = Actual device Pitch value (Never subtract zero reference)
-  // Present Z (Yaw) = Actual device Yaw value (Never subtract zero reference)
-  const presentX = hasData ? (typeof d.presentX === 'number' ? d.presentX : (typeof d.roll === 'number' ? d.roll : (typeof d.xTilt === 'number' ? d.xTilt : (parseFloat(d.tilt?.roll ?? d.roll) || 0)))) : null;
-  const presentY = hasData ? (typeof d.presentY === 'number' ? d.presentY : (typeof d.pitch === 'number' ? d.pitch : (typeof d.yTilt === 'number' ? d.yTilt : (parseFloat(d.tilt?.pitch ?? d.pitch) || 0)))) : null;
-  const rawYaw = d.presentZ ?? d.yaw ?? d.tilt?.yaw ?? d.zTilt ?? d.tiltZ;
-  const presentZ = hasData ? ((rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0) : null;
-  const rawRes = typeof d.presentTilt === 'number' ? d.presentTilt : (typeof d.resultantTilt === 'number' ? d.resultantTilt : (hasData ? Math.sqrt(presentX * presentX + presentY * presentY) : null));
-  const presentResultant = hasData ? (typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY)) : null;
+  // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+  // X-Axis: tilt.roll
+  // Y-Axis: tilt.pitch
+  // Z-Axis: tilt.yaw
+  const rawRoll = d.tilt?.roll ?? d.presentX ?? d.rawRoll ?? d.roll ?? d.xTilt;
+  const rawPitch = d.tilt?.pitch ?? d.presentY ?? d.rawPitch ?? d.pitch ?? d.yTilt;
+  const rawYaw = d.tilt?.yaw ?? d.presentZ ?? d.rawYaw ?? d.yaw ?? d.zTilt;
+
+  // 2. Present Values: actual device angle values (Never subtract reference angle)
+  const presentX = hasData && rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll)) ? parseFloat(rawRoll) : null;
+  const presentY = hasData && rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch)) ? parseFloat(rawPitch) : null;
+  const presentZ = hasData && rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw)) ? parseFloat(rawYaw) : null;
+
+  const rawRes = typeof d.presentTilt === 'number' ? d.presentTilt : (typeof d.resultantTilt === 'number' ? d.resultantTilt : (typeof d.tilt === 'number' ? d.tilt : null));
+  const presentResultant = hasData && presentX !== null && presentY !== null
+    ? ((rawRes !== null && !isNaN(rawRes)) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY))
+    : null;
 
   const L = parseFloat(activeDevice?.gaugeLength_mm || d.gaugeLength_mm || 1000.0);
-  const refX = parseFloat(activeDevice?.refThetaX ?? d.refThetaX ?? 0.0);
-  const refY = parseFloat(activeDevice?.refThetaY ?? d.refThetaY ?? 0.0);
-  const refZ = parseFloat(activeDevice?.refThetaZ ?? d.refThetaZ ?? 0.0);
-  // hasRef is only true when reference zero was explicitly configured by operator
-  const hasRef = Boolean(
-    activeDevice?.hasReferenceZero === true ||
-    (activeDevice?.calibrate === true && (refX !== 0 || refY !== 0)) ||
-    d.hasReferenceZero === true
-  );
+  // Stored reference angles: initially 0.0° or calibrated reference if configured later
+  const refX = parseFloat(activeDevice?.refThetaX ?? d.refThetaX ?? 0.0) || 0.0;
+  const refY = parseFloat(activeDevice?.refThetaY ?? d.refThetaY ?? 0.0) || 0.0;
+  const refZ = parseFloat(activeDevice?.refThetaZ ?? d.refThetaZ ?? 0.0) || 0.0;
 
-  // Core Logic:
-  // Delta X = Current Roll − Zero Reference Roll
-  // Delta Y = Current Pitch − Zero Reference Pitch
-  // Delta Z = Current Yaw − Zero Reference Yaw
-  // (Full-precision values, never truncate before display)
-  const deltaX = hasData ? (hasRef ? (presentX - refX) : (d.deltaX !== undefined ? parseFloat(d.deltaX) : (presentX - refX))) : null;
-  const deltaY = hasData ? (hasRef ? (presentY - refY) : (d.deltaY !== undefined ? parseFloat(d.deltaY) : (presentY - refY))) : null;
-  const deltaZ = hasData ? (hasRef ? (presentZ - refZ) : (d.deltaZ !== undefined ? parseFloat(d.deltaZ) : (presentZ - refZ))) : null;
-  const deltaResultant = hasData ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
+  // 3. Delta Values: Current − Reference (Calculated with original numeric full precision)
+  // Delta X = Current Roll − Reference Roll
+  // Delta Y = Current Pitch − Reference Pitch
+  // Delta Z = Current Yaw − Reference Yaw
+  const deltaX = hasData && presentX !== null ? (presentX - refX) : null;
+  const deltaY = hasData && presentY !== null ? (presentY - refY) : null;
+  const deltaZ = hasData && presentZ !== null ? (presentZ - refZ) : null;
+  const deltaResultant = hasData && deltaX !== null && deltaY !== null ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
 
   const roll = deltaX;
   const pitch = deltaY;
@@ -818,7 +826,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present X (Roll)</div>
                   <div className="text-lg sm:text-xl font-bold font-mono text-blue-700 mt-1">
-                    {hasData && typeof presentX === 'number' ? `${presentX >= 0 ? '+' : ''}${presentX.toFixed(2)}°` : '--'}
+                    {formatPresent(presentX, 1)}
                   </div>
                 </div>
 
@@ -826,7 +834,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Y (Pitch)</div>
                   <div className="text-lg sm:text-xl font-bold font-mono text-purple-700 mt-1">
-                    {hasData && typeof presentY === 'number' ? `${presentY >= 0 ? '+' : ''}${presentY.toFixed(2)}°` : '--'}
+                    {formatPresent(presentY, 1)}
                   </div>
                 </div>
 
@@ -834,7 +842,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
                   <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Z (Yaw)</div>
                   <div className="text-lg sm:text-xl font-bold font-mono text-emerald-700 mt-1">
-                    {hasData && typeof presentZ === 'number' ? `${presentZ >= 0 ? '+' : ''}${presentZ.toFixed(2)}°` : '--'}
+                    {formatPresent(presentZ, 1)}
                   </div>
                 </div>
               </div>
@@ -849,9 +857,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
                   <span>θ₀ Ref:</span>
-                  <span className="font-semibold text-slate-700">X:{refX >= 0 ? '+' : ''}${refX.toFixed(1)}°</span>
-                  <span className="font-semibold text-slate-700">Y:{refY >= 0 ? '+' : ''}${refY.toFixed(1)}°</span>
-                  <span className="font-semibold text-slate-700">Z:{refZ >= 0 ? '+' : ''}${refZ.toFixed(1)}°</span>
+                  <span className="font-semibold text-slate-700">X:{formatSigned(refX, 1)}</span>
+                  <span className="font-semibold text-slate-700">Y:{formatSigned(refY, 1)}</span>
+                  <span className="font-semibold text-slate-700">Z:{formatSigned(refZ, 1)}</span>
                 </div>
               </div>
 
@@ -862,10 +870,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                     ΔX (Roll)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
-                    {hasData && typeof deltaX === 'number' ? `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(2)}°` : '--'}
+                    {formatSigned(deltaX, 1)}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData && typeof xSlope === 'number' ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
+                    {formatSigned(xSlope, 1, ' mm/m')}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -880,10 +888,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                     ΔY (Pitch)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
-                    {hasData && typeof deltaY === 'number' ? `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(2)}°` : '--'}
+                    {formatSigned(deltaY, 1)}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData && typeof ySlope === 'number' ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
+                    {formatSigned(ySlope, 1, ' mm/m')}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -898,10 +906,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                     ΔZ (Yaw)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
-                    {hasData && typeof deltaZ === 'number' ? `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(2)}°` : '--'}
+                    {formatSigned(deltaZ, 1)}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData && typeof zSlope === 'number' ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
+                    {formatSigned(zSlope, 1, ' mm/m')}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -1149,22 +1157,22 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                       {r.fullTime || r.time}
                     </td>
                     <td className="py-2 px-3 text-blue-700 font-semibold">
-                      {r.presentX !== null && r.presentX !== undefined ? `${r.presentX >= 0 ? '+' : ''}${Number(r.presentX).toFixed(2)}°` : '--'}
+                      {formatPresent(r.presentX, 1)}
                     </td>
                     <td className="py-2 px-3 text-purple-700 font-semibold">
-                      {r.presentY !== null && r.presentY !== undefined ? `${r.presentY >= 0 ? '+' : ''}${Number(r.presentY).toFixed(2)}°` : '--'}
+                      {formatPresent(r.presentY, 1)}
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {r.presentZ !== null && r.presentZ !== undefined ? `${r.presentZ >= 0 ? '+' : ''}${Number(r.presentZ).toFixed(2)}°` : '--'}
+                      {formatPresent(r.presentZ, 1)}
                     </td>
                     <td className="py-2 px-3 text-indigo-700 font-bold">
-                      {r.deltaX !== null && r.deltaX !== undefined ? `${r.deltaX >= 0 ? '+' : ''}${Number(r.deltaX).toFixed(2)}°` : '--'}
+                      {formatSigned(r.deltaX, 1)}
                     </td>
                     <td className="py-2 px-3 text-violet-700 font-bold">
-                      {r.deltaY !== null && r.deltaY !== undefined ? `${r.deltaY >= 0 ? '+' : ''}${Number(r.deltaY).toFixed(2)}°` : '--'}
+                      {formatSigned(r.deltaY, 1)}
                     </td>
                     <td className="py-2 px-3 text-teal-700 font-bold">
-                      {r.deltaZ !== null && r.deltaZ !== undefined ? `${r.deltaZ >= 0 ? '+' : ''}${Number(r.deltaZ).toFixed(2)}°` : '--'}
+                      {formatSigned(r.deltaZ, 1)}
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
                       {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${Number(r.xDisp).toFixed(2)} mm` : '--'}

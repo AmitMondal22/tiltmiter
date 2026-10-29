@@ -78,18 +78,19 @@ export default function DeviceDetailPage() {
 
   const mapPointData = (pt) => {
     const ts = pt.timestamp || pt.time;
-    // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+    // 1. Axis Mapping:
     // X-Axis: tilt.roll
     // Y-Axis: tilt.pitch
     // Z-Axis: tilt.yaw
-    const rawRoll = pt.tilt?.roll ?? pt.presentX ?? pt.rawRoll ?? pt.roll ?? pt.xTilt;
-    const rawPitch = pt.tilt?.pitch ?? pt.presentY ?? pt.rawPitch ?? pt.pitch ?? pt.yTilt;
-    const rawYaw = pt.tilt?.yaw ?? pt.presentZ ?? pt.rawYaw ?? pt.yaw ?? pt.zTilt;
+    // Do not use the combined tilt.tilt value as an individual X, Y, or Z axis value.
+    const currentRoll = pt.tilt?.roll ?? pt.roll;
+    const currentPitch = pt.tilt?.pitch ?? pt.pitch;
+    const currentYaw = pt.tilt?.yaw ?? pt.yaw;
 
-    // 2. Present Values: actual device angle values (Never subtract reference angle)
-    const presentX = (rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll))) ? parseFloat(rawRoll) : 0.0;
-    const presentY = (rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch))) ? parseFloat(rawPitch) : 0.0;
-    const presentZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+    // 2. Present Values: actual device angle values without subtracting reference
+    const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
+    const presentY = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
+    const presentZ = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
     const rawRes = pt.tilt?.tilt ?? pt.presentTilt ?? pt.resultantTilt ?? pt.resultant ?? pt.tilt;
     const presentRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY);
 
@@ -460,18 +461,19 @@ export default function DeviceDetailPage() {
 
   const d = latestData || {};
 
-  // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+  // 1. Axis Mapping:
   // X-Axis: tilt.roll
   // Y-Axis: tilt.pitch
   // Z-Axis: tilt.yaw
-  const rawRoll = d.tilt?.roll ?? d.presentX ?? d.rawRoll ?? d.roll ?? d.xTilt;
-  const rawPitch = d.tilt?.pitch ?? d.presentY ?? d.rawPitch ?? d.pitch ?? d.yTilt;
-  const rawYaw = d.tilt?.yaw ?? d.presentZ ?? d.rawYaw ?? d.yaw ?? d.zTilt;
+  // Do not use the combined tilt.tilt value as an individual X, Y, or Z axis value.
+  const currentRoll = d.tilt?.roll ?? d.roll;
+  const currentPitch = d.tilt?.pitch ?? d.pitch;
+  const currentYaw = d.tilt?.yaw ?? d.yaw;
 
   // 2. Present Values: actual device angle values (Never subtract reference angle)
-  const presentX = hasData && rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll)) ? parseFloat(rawRoll) : null;
-  const presentY = hasData && rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch)) ? parseFloat(rawPitch) : null;
-  const presentZ = hasData && rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw)) ? parseFloat(rawYaw) : null;
+  const presentX = hasData && currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll)) ? parseFloat(currentRoll) : null;
+  const presentY = hasData && currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch)) ? parseFloat(currentPitch) : null;
+  const presentZ = hasData && currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw)) ? parseFloat(currentYaw) : null;
 
   const rawRes = typeof d.presentTilt === 'number' ? d.presentTilt : (typeof d.resultantTilt === 'number' ? d.resultantTilt : (typeof d.tilt === 'number' ? d.tilt : null));
   const presentResultant = hasData && presentX !== null && presentY !== null

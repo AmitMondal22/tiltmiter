@@ -108,23 +108,30 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     if (!telemetryHistory || telemetryHistory.length === 0) return [];
     return telemetryHistory.map(pt => {
       const ts = pt.timestamp || pt.time;
-      // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+      // 1. Axis Mapping:
       // X-Axis: tilt.roll
       // Y-Axis: tilt.pitch
       // Z-Axis: tilt.yaw
-      const rawX = pt.tilt?.roll ?? pt.presentX ?? pt.rawRoll ?? pt.roll ?? pt.xTilt;
-      const rawY = pt.tilt?.pitch ?? pt.presentY ?? pt.rawPitch ?? pt.pitch ?? pt.yTilt;
-      const rawYaw = pt.tilt?.yaw ?? pt.presentZ ?? pt.rawYaw ?? pt.yaw ?? pt.zTilt;
+      // Do not use the combined tilt.tilt value as an individual X, Y, or Z axis value.
+      const currentRoll = pt.tilt?.roll ?? pt.roll;
+      const currentPitch = pt.tilt?.pitch ?? pt.pitch;
+      const currentYaw = pt.tilt?.yaw ?? pt.yaw;
 
-      // 2. Present Values = Pure actual device values (Never subtract reference zero)
-      const presentX = (rawX !== undefined && rawX !== null && !isNaN(parseFloat(rawX))) ? parseFloat(rawX) : 0.0;
-      const presentY = (rawY !== undefined && rawY !== null && !isNaN(parseFloat(rawY))) ? parseFloat(rawY) : 0.0;
-      const presentZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+      // 2. Present Value:
+      // Display the actual angle values received from the device without subtracting the reference angle.
+      const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
+      const presentY = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
+      const presentZ = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
 
-      // 3. Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
-      const deltaX = pt.deltaX !== undefined ? parseFloat(pt.deltaX) : (presentX - refX);
-      const deltaY = pt.deltaY !== undefined ? parseFloat(pt.deltaY) : (presentY - refY);
-      const deltaZ = pt.deltaZ !== undefined ? parseFloat(pt.deltaZ) : (presentZ - refZ);
+      // 3. Delta Value:
+      // Delta represents the change in angle relative to the zero reference angle (0.0°).
+      // Delta X = Current Roll − Reference Roll
+      // Delta Y = Current Pitch − Reference Pitch
+      // Delta Z = Current Yaw − Reference Yaw
+      // Initially, all reference angles are 0.0°. If a calibrated reference is configured later, use that stored reference for the calculation.
+      const deltaX = presentX - refX;
+      const deltaY = presentY - refY;
+      const deltaZ = presentZ - refZ;
 
       const xT = deltaX;
       const yT = deltaY;

@@ -220,17 +220,19 @@ export function parseTelemetry(data) {
   const az = typeof data.acceleration?.az === 'number' ? data.acceleration.az : (parseFloat(data.acceleration?.az) || 9.80665);
   const accMag = typeof data.acceleration?.accMag === 'number' ? data.acceleration.accMag : (parseFloat(data.acceleration?.accMag) || Math.sqrt(ax * ax + ay * ay + az * az));
 
-  // 1. Axis Mapping (Do not use combined tilt.tilt for individual axes):
+  // 1. Axis Mapping:
   // X-Axis: tilt.roll
   // Y-Axis: tilt.pitch
   // Z-Axis: tilt.yaw
-  const rawRoll = data.tilt?.roll ?? data.presentX ?? data.rawRoll ?? data.roll ?? data.xTilt;
-  const rawPitch = data.tilt?.pitch ?? data.presentY ?? data.rawPitch ?? data.pitch ?? data.yTilt;
-  const rawYaw = data.tilt?.yaw ?? data.presentZ ?? data.rawYaw ?? data.yaw ?? data.zTilt;
+  // Do not use the combined tilt.tilt value as an individual X, Y, or Z axis value.
+  const currentRoll = data.tilt?.roll ?? data.roll;
+  const currentPitch = data.tilt?.pitch ?? data.pitch;
+  const currentYaw = data.tilt?.yaw ?? data.yaw;
 
-  const roll = (rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll))) ? parseFloat(rawRoll) : 0.0;
-  const pitch = (rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch))) ? parseFloat(rawPitch) : 0.0;
-  const yaw = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+  // 2. Present Values: actual device angle values without subtracting reference
+  const roll = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
+  const pitch = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
+  const yaw = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
 
   // Combined tilt value: Math.sqrt(roll^2 + pitch^2)
   const rawTiltCombined = data.tilt?.tilt ?? data.presentTilt ?? data.resultantTilt ?? data.tilt;
@@ -246,9 +248,9 @@ export function parseTelemetry(data) {
 
   // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
   const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0);
-  const refThetaX = parseFloat(data.refThetaX ?? data.baselineRoll ?? 0.0) || 0.0;
-  const refThetaY = parseFloat(data.refThetaY ?? data.baselinePitch ?? 0.0) || 0.0;
-  const refThetaZ = parseFloat(data.refThetaZ ?? data.baselineTilt ?? 0.0) || 0.0;
+  const refThetaX = parseFloat(data.refThetaX ?? 0.0) || 0.0;
+  const refThetaY = parseFloat(data.refThetaY ?? 0.0) || 0.0;
+  const refThetaZ = parseFloat(data.refThetaZ ?? 0.0) || 0.0;
   const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)));
 
   // 4. Delta Values: Current − Reference (Calculated with original numeric full precision)

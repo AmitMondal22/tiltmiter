@@ -39,14 +39,18 @@ export default function DeviceDetailPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
-  // 1. Load individual device metadata using getDevice(deviceId)
+  // 1. Load individual device metadata using getDevice(deviceId) strictly for this device
   useEffect(() => {
     if (!deviceId) return;
-    setLiveData(null); // Clear previous device data immediately
+    setDevice(null); // Clear previous device data immediately
+    setLiveData(null);
     setTelemetryHistory([]);
+
+    let isCurrent = true;
 
     getDevice(deviceId)
       .then(res => {
+        if (!isCurrent) return;
         const dev = res?.device || res;
         if (dev && (dev.id || dev.name)) {
           setDevice(dev);
@@ -61,10 +65,15 @@ export default function DeviceDetailPage() {
         }
       })
       .catch(() => {
+        if (!isCurrent) return;
         setDevice({ id: deviceId, name: `Tiltmeter ${deviceId}`, status: 'ONLINE' });
       });
 
-    loadHistory(deviceId, null, null, activeFilter);
+    loadHistory(deviceId, null, null, activeFilter, () => isCurrent);
+
+    return () => {
+      isCurrent = false;
+    };
   }, [deviceId]);
 
   const mapPointData = (pt) => {
@@ -135,22 +144,39 @@ export default function DeviceDetailPage() {
       time: formatHHMM(ts),
       fullTime: formatFullDateTime(ts),
       timestamp: ts,
-      resultant: Number(activeResT.toFixed(1)),
-      xTilt: Number(deltaX.toFixed(1)),
-      yTilt: Number(deltaY.toFixed(1)),
-      zTilt: Number(deltaZ.toFixed(1)),
-      deltaThetaX: Number(deltaX.toFixed(1)),
-      deltaThetaY: Number(deltaY.toFixed(1)),
-      totalDisp: Number(totD.toFixed(1)),
-      xDisp: Number(xD.toFixed(1)),
-      yDisp: Number(yD.toFixed(1)),
-      zDisp: Number(zD.toFixed(1)),
-      axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(1)) : null,
-      ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(1)) : null,
-      azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(1)) : null,
-      accMag: accM !== null && !isNaN(accM) ? Number(accM.toFixed(1)) : null,
-      vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(1)) : null,
-      vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(1)) : null,
+
+      // Present Values = Pure actual device values (Never subtract reference zero)
+      presentX: xT,
+      presentY: yT,
+      presentZ: zT,
+      roll: xT,
+      pitch: yT,
+      yaw: zT,
+      resultant: Number(resT.toFixed(2)),
+
+      // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
+      deltaX,
+      deltaY,
+      deltaZ,
+      deltaThetaX: deltaX,
+      deltaThetaY: deltaY,
+      deltaThetaZ: deltaZ,
+      deltaResultant: Number(activeResT.toFixed(2)),
+
+      xTilt: deltaX,
+      yTilt: deltaY,
+      zTilt: deltaZ,
+
+      totalDisp: Number(totD.toFixed(2)),
+      xDisp: Number(xD.toFixed(2)),
+      yDisp: Number(yD.toFixed(2)),
+      zDisp: Number(zD.toFixed(2)),
+      axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(2)) : null,
+      ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(2)) : null,
+      azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(2)) : null,
+      accMag: accM !== null && !isNaN(accM) ? Number(accM.toFixed(2)) : null,
+      vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(3)) : null,
+      vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(3)) : null,
       temp: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
       battery: pt.battery ?? pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
       batteryVoltage: pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
@@ -162,7 +188,7 @@ export default function DeviceDetailPage() {
     };
   };
 
-  const loadHistory = (id, fromDt = null, toDt = null, rangeKey = activeFilter) => {
+  const loadHistory = (id, fromDt = null, toDt = null, rangeKey = activeFilter, isCurrentCheck = null) => {
     if (!id) return;
     setLoading(true);
 
@@ -171,6 +197,7 @@ export default function DeviceDetailPage() {
 
     getDeviceTelemetry(id, utcFrom, utcTo, rangeKey)
       .then(res => {
+        if (isCurrentCheck && !isCurrentCheck()) return;
         if (res?.history?.length) {
           const seen = new Set();
           const mapped = [];
@@ -196,10 +223,12 @@ export default function DeviceDetailPage() {
         }
       })
       .catch(() => {
+        if (isCurrentCheck && !isCurrentCheck()) return;
         setTelemetryHistory([]);
         setLiveData(null);
       })
       .finally(() => {
+        if (isCurrentCheck && !isCurrentCheck()) return;
         setLoading(false);
       });
   };
@@ -375,9 +404,9 @@ export default function DeviceDetailPage() {
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,XTilt_deg,YTilt_deg,ZTilt_deg,ResultantTilt_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,Present_X_Roll_deg,Present_Y_Pitch_deg,Present_Z_Yaw_deg,Delta_X_Roll_deg,Delta_Y_Pitch_deg,Delta_Z_Yaw_deg,XDisp_mm,YDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
     const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},${r.xTilt?.toFixed(4) ?? ''},${r.yTilt?.toFixed(4) ?? ''},${r.zTilt?.toFixed(4) ?? ''},${r.resultant?.toFixed(4) ?? ''},${r.xDisp?.toFixed(3) ?? ''},${r.yDisp?.toFixed(3) ?? ''},${r.zDisp?.toFixed(3) ?? ''},${r.totalDisp?.toFixed(3) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(4) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(4) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},${r.presentX?.toFixed(4) ?? r.xTilt?.toFixed(4) ?? ''},${r.presentY?.toFixed(4) ?? r.yTilt?.toFixed(4) ?? ''},${r.presentZ?.toFixed(4) ?? r.zTilt?.toFixed(4) ?? ''},${r.deltaX?.toFixed(4) ?? ''},${r.deltaY?.toFixed(4) ?? ''},${r.deltaZ?.toFixed(4) ?? ''},${r.xDisp?.toFixed(3) ?? ''},${r.yDisp?.toFixed(3) ?? ''},${r.totalDisp?.toFixed(3) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(4) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(4) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -391,11 +420,17 @@ export default function DeviceDetailPage() {
 
   const hasData = Boolean(liveData);
   const d = liveData || parseTelemetry({ id: deviceId });
-  const rawRoll = typeof d.xTilt === 'number' ? d.xTilt : (parseFloat(d.tilt?.roll ?? d.roll) || 0);
-  const rawPitch = typeof d.yTilt === 'number' ? d.yTilt : (parseFloat(d.tilt?.pitch ?? d.pitch) || 0);
-  const rawRes = typeof d.resultantTilt === 'number' ? d.resultantTilt : Math.sqrt(rawRoll * rawRoll + rawPitch * rawPitch);
-  const rawYaw = d.yaw ?? d.tilt?.yaw ?? d.zTilt ?? d.tiltZ;
-  const rawZTilt = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+
+  // Core Logic:
+  // Present X (Roll) = Actual device Roll value (Never subtract zero reference)
+  // Present Y (Pitch) = Actual device Pitch value (Never subtract zero reference)
+  // Present Z (Yaw) = Actual device Yaw value (Never subtract zero reference)
+  const presentX = typeof d.presentX === 'number' ? d.presentX : (typeof d.roll === 'number' ? d.roll : (typeof d.xTilt === 'number' ? d.xTilt : (parseFloat(d.tilt?.roll ?? d.roll) || 0)));
+  const presentY = typeof d.presentY === 'number' ? d.presentY : (typeof d.pitch === 'number' ? d.pitch : (typeof d.yTilt === 'number' ? d.yTilt : (parseFloat(d.tilt?.pitch ?? d.pitch) || 0)));
+  const rawYaw = d.presentZ ?? d.yaw ?? d.tilt?.yaw ?? d.zTilt ?? d.tiltZ;
+  const presentZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
+  const rawRes = typeof d.presentTilt === 'number' ? d.presentTilt : (typeof d.resultantTilt === 'number' ? d.resultantTilt : Math.sqrt(presentX * presentX + presentY * presentY));
+  const presentResultant = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY);
 
   const L = parseFloat(device?.gaugeLength_mm || d.gaugeLength_mm || 1000.0);
   const refX = parseFloat(device?.refThetaX ?? d.refThetaX ?? 0.0);
@@ -408,25 +443,34 @@ export default function DeviceDetailPage() {
     d.hasReferenceZero === true
   );
 
-  // ClinoX: ΔθX = θX,current − θX,reference; ΔθY = θY,current − θY,reference
-  const roll = hasRef ? rawRoll - refX : (d.deltaThetaX !== undefined ? d.deltaThetaX : rawRoll);
-  const pitch = hasRef ? rawPitch - refY : (d.deltaThetaY !== undefined ? d.deltaThetaY : rawPitch);
-  const zTilt = hasRef ? rawZTilt - refZ : rawZTilt;
-  const yaw = zTilt;
-  const resultant = Math.sqrt(roll * roll + pitch * pitch);
+  // Core Logic:
+  // Delta X = Current Roll − Zero Reference Roll
+  // Delta Y = Current Pitch − Zero Reference Pitch
+  // Delta Z = Current Yaw − Zero Reference Yaw
+  // (Full-precision values, never truncate before display)
+  const deltaX = hasRef ? (presentX - refX) : (d.deltaX !== undefined ? parseFloat(d.deltaX) : (presentX - refX));
+  const deltaY = hasRef ? (presentY - refY) : (d.deltaY !== undefined ? parseFloat(d.deltaY) : (presentY - refY));
+  const deltaZ = hasRef ? (presentZ - refZ) : (d.deltaZ !== undefined ? parseFloat(d.deltaZ) : (presentZ - refZ));
+  const deltaResultant = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-  const xSlope = Math.sin((roll * Math.PI) / 180) * 1000;
-  const ySlope = Math.sin((pitch * Math.PI) / 180) * 1000;
-  const zSlope = Math.sin((zTilt * Math.PI) / 180) * 1000;
+  const roll = deltaX;
+  const pitch = deltaY;
+  const zTilt = deltaZ;
+  const yaw = deltaZ;
+  const resultant = deltaResultant;
+
+  const xSlope = Math.sin((deltaX * Math.PI) / 180) * 1000;
+  const ySlope = Math.sin((deltaY * Math.PI) / 180) * 1000;
+  const zSlope = Math.sin((deltaZ * Math.PI) / 180) * 1000;
 
   // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
-  const radX = (roll * Math.PI) / 180.0;
-  const radY = (pitch * Math.PI) / 180.0;
+  const radX = (deltaX * Math.PI) / 180.0;
+  const radY = (deltaY * Math.PI) / 180.0;
   const clinoDx = L * Math.tan(radX);
   const clinoDy = L * Math.tan(radY);
 
-  const xDisp = hasRef ? clinoDx : (typeof d.xDisplacement === 'number' ? d.xDisplacement : clinoDx);
-  const yDisp = hasRef ? clinoDy : (typeof d.yDisplacement === 'number' ? d.yDisplacement : clinoDy);
+  const xDisp = clinoDx;
+  const yDisp = clinoDy;
   const zDisp = typeof d.zDisplacement === 'number' ? d.zDisplacement : (d.displacement?.zDisplacement_mm ?? 0);
   const totalDisp = Math.sqrt(xDisp * xDisp + yDisp * yDisp);
 
@@ -627,26 +671,72 @@ export default function DeviceDetailPage() {
           </div>
 
           <div className="space-y-4">
-            {/* 1. Tilt Change per Axis X, Y, Z */}
+            {/* 1. PRESENT SENSOR VALUES (ACTUAL ROLL, PITCH, YAW - NEVER SUBTRACTED) */}
+            <div className="rounded-xl p-3 bg-slate-50/80 border border-slate-200/80">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 uppercase tracking-wide">
+                  <Radio className="w-3.5 h-3.5 text-blue-600" />
+                  <span>PRESENT VALUES (ACTUAL DEVICE SENSOR)</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100/70 text-blue-800 font-semibold">
+                  Pure Readout • Never Subtracted
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {/* Present X (Roll) */}
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present X (Roll)</div>
+                  <div className="text-lg sm:text-xl font-bold font-mono text-blue-700 mt-1">
+                    {hasData ? `${presentX >= 0 ? '+' : ''}${presentX.toFixed(2)}°` : '--'}
+                  </div>
+                </div>
+
+                {/* Present Y (Pitch) */}
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Y (Pitch)</div>
+                  <div className="text-lg sm:text-xl font-bold font-mono text-purple-700 mt-1">
+                    {hasData ? `${presentY >= 0 ? '+' : ''}${presentY.toFixed(2)}°` : '--'}
+                  </div>
+                </div>
+
+                {/* Present Z (Yaw) */}
+                <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
+                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Z (Yaw)</div>
+                  <div className="text-lg sm:text-xl font-bold font-mono text-emerald-700 mt-1">
+                    {hasData ? `${presentZ >= 0 ? '+' : ''}${presentZ.toFixed(2)}°` : '--'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. DELTA VALUES (CURRENT − ZERO REFERENCE) */}
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide mb-2.5">
-                <Layers className="w-4 h-4 text-slate-800" />
-                <span>TILT CHANGE (°)</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide">
+                  <Layers className="w-4 h-4 text-slate-800" />
+                  <span>DELTA TILT (CURRENT − ZERO REFERENCE)</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
+                  <span>θ₀ Ref:</span>
+                  <span className="font-semibold text-slate-700">X:{refX >= 0 ? '+' : ''}${refX.toFixed(1)}°</span>
+                  <span className="font-semibold text-slate-700">Y:{refY >= 0 ? '+' : ''}${refY.toFixed(1)}°</span>
+                  <span className="font-semibold text-slate-700">Z:{refZ >= 0 ? '+' : ''}${refZ.toFixed(1)}°</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3 text-center">
-                {/* ΔθX */}
+                {/* ΔX */}
                 <div className="relative overflow-hidden p-3.5 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center">
                   <span className="px-3.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
-                    ΔθX
+                    ΔX (Roll)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
-                    {hasData ? `${roll >= 0 ? '+' : ''}${roll.toFixed(1)}°` : '--'}
+                    {hasData ? `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(2)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(1)} mm/m` : '--'}
+                    {hasData ? `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m` : '--'}
                   </div>
-                  {/* Soft bottom-right corner wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
@@ -654,18 +744,17 @@ export default function DeviceDetailPage() {
                   </div>
                 </div>
 
-                {/* ΔθY */}
+                {/* ΔY */}
                 <div className="relative overflow-hidden p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100/80 flex flex-col items-center justify-center">
                   <span className="px-3.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs tracking-tight">
-                    ΔθY
+                    ΔY (Pitch)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
-                    {hasData ? `${pitch >= 0 ? '+' : ''}${pitch.toFixed(1)}°` : '--'}
+                    {hasData ? `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(2)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(1)} mm/m` : '--'}
+                    {hasData ? `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m` : '--'}
                   </div>
-                  {/* Soft bottom-right corner wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#d8b4fe" />
@@ -673,18 +762,17 @@ export default function DeviceDetailPage() {
                   </div>
                 </div>
 
-                {/* ΔθZ */}
+                {/* ΔZ */}
                 <div className="relative overflow-hidden p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 flex flex-col items-center justify-center">
                   <span className="px-3.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs tracking-tight">
-                    ΔθZ
+                    ΔZ (Yaw)
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
-                    {hasData ? `${zTilt >= 0 ? '+' : ''}${zTilt.toFixed(1)}°` : '--'}
+                    {hasData ? `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(2)}°` : '--'}
                   </div>
                   <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(1)} mm/m` : '--'}
+                    {hasData ? `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m` : '--'}
                   </div>
-                  {/* Soft bottom-right corner wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#86efac" />
@@ -694,26 +782,30 @@ export default function DeviceDetailPage() {
               </div>
             </div>
 
-            {/* 2. Estimated Lateral Displacement in MM */}
+            {/* 3. ESTIMATED LATERAL DISPLACEMENT IN MM */}
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide mb-2.5">
-                <Move className="w-4 h-4 text-slate-800" />
-                <span>DISPLACEMENT (MM)</span>
+              <div className="flex items-center justify-between text-xs font-bold text-slate-900 tracking-wide mb-2.5">
+                <div className="flex items-center gap-2">
+                  <Move className="w-4 h-4 text-slate-800" />
+                  <span>DISPLACEMENT (MM) • L={L}mm</span>
+                </div>
+                <span className="text-[10px] font-mono font-medium text-slate-500">
+                  Total: <strong className="text-slate-800">{hasData ? `${totalDisp.toFixed(2)} mm` : '--'}</strong> ({dispCardinal})
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 {/* DX */}
-                <div className="relative overflow-hidden p-4 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex items-center justify-center min-h-[94px]">
+                <div className="relative overflow-hidden p-4 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex items-center justify-center min-h-[90px]">
                   <span className="absolute top-3 left-3.5 px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
                     DX
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 tracking-tight">
-                      {hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(1)}` : '--'}
+                      {hasData ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(2)}` : '--'}
                     </span>
                     <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
                   </div>
-                  {/* Subtle soft bottom-right wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
@@ -722,17 +814,16 @@ export default function DeviceDetailPage() {
                 </div>
 
                 {/* DY */}
-                <div className="relative overflow-hidden p-4 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex items-center justify-center min-h-[94px]">
+                <div className="relative overflow-hidden p-4 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex items-center justify-center min-h-[90px]">
                   <span className="absolute top-3 left-3.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
                     DY
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-2xl sm:text-3xl font-extrabold text-amber-600 tracking-tight">
-                      {hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(1)}` : '--'}
+                      {hasData ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(2)}` : '--'}
                     </span>
                     <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
                   </div>
-                  {/* Subtle soft bottom-right wave */}
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#fcd34d" />
@@ -900,10 +991,12 @@ export default function DeviceDetailPage() {
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 font-mono">
               <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
                 <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3 text-blue-700">X Tilt (°)</th>
-                <th className="py-2.5 px-3 text-purple-700">Y Tilt (°)</th>
-                <th className="py-2.5 px-3 text-emerald-700">Z Tilt (°)</th>
-                <th className="py-2.5 px-3 text-purple-900">Resultant (°)</th>
+                <th className="py-2.5 px-3 text-blue-700" title="Actual device Roll (never subtracted)">Present X (Roll)</th>
+                <th className="py-2.5 px-3 text-purple-700" title="Actual device Pitch (never subtracted)">Present Y (Pitch)</th>
+                <th className="py-2.5 px-3 text-emerald-700" title="Actual device Yaw (never subtracted)">Present Z (Yaw)</th>
+                <th className="py-2.5 px-3 text-indigo-700" title="Current Roll − Zero Reference Roll">ΔX (Roll)</th>
+                <th className="py-2.5 px-3 text-violet-700" title="Current Pitch − Zero Reference Pitch">ΔY (Pitch)</th>
+                <th className="py-2.5 px-3 text-teal-700" title="Current Yaw − Zero Reference Yaw">ΔZ (Yaw)</th>
                 <th className="py-2.5 px-3 text-cyan-700">X Disp (mm)</th>
                 <th className="py-2.5 px-3 text-amber-700">Y Disp (mm)</th>
                 <th className="py-2.5 px-3 text-pink-700">Total Disp (mm)</th>
@@ -915,7 +1008,7 @@ export default function DeviceDetailPage() {
             <tbody className="divide-y divide-slate-100 font-mono">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs font-mono">
                     {loading ? 'Fetching telemetry logs for this device...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -926,28 +1019,34 @@ export default function DeviceDetailPage() {
                       {r.fullTime || r.time}
                     </td>
                     <td className="py-2 px-3 text-blue-700 font-semibold">
-                      {r.xTilt >= 0 ? '+' : ''}{r.xTilt.toFixed(1)}°
+                      {r.presentX !== null && r.presentX !== undefined ? `${r.presentX >= 0 ? '+' : ''}${Number(r.presentX).toFixed(2)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 text-purple-700 font-semibold">
-                      {r.yTilt >= 0 ? '+' : ''}{r.yTilt.toFixed(1)}°
+                      {r.presentY !== null && r.presentY !== undefined ? `${r.presentY >= 0 ? '+' : ''}${Number(r.presentY).toFixed(2)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {r.zTilt >= 0 ? '+' : ''}{r.zTilt.toFixed(1)}°
+                      {r.presentZ !== null && r.presentZ !== undefined ? `${r.presentZ >= 0 ? '+' : ''}${Number(r.presentZ).toFixed(2)}°` : '--'}
                     </td>
-                    <td className="py-2 px-3 text-purple-900 font-bold">
-                      {r.resultant.toFixed(1)}°
+                    <td className="py-2 px-3 text-indigo-700 font-bold">
+                      {r.deltaX !== null && r.deltaX !== undefined ? `${r.deltaX >= 0 ? '+' : ''}${Number(r.deltaX).toFixed(2)}°` : '--'}
+                    </td>
+                    <td className="py-2 px-3 text-violet-700 font-bold">
+                      {r.deltaY !== null && r.deltaY !== undefined ? `${r.deltaY >= 0 ? '+' : ''}${Number(r.deltaY).toFixed(2)}°` : '--'}
+                    </td>
+                    <td className="py-2 px-3 text-teal-700 font-bold">
+                      {r.deltaZ !== null && r.deltaZ !== undefined ? `${r.deltaZ >= 0 ? '+' : ''}${Number(r.deltaZ).toFixed(2)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
-                      {r.xDisp >= 0 ? '+' : ''}{r.xDisp.toFixed(1)} mm
+                      {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${Number(r.xDisp).toFixed(2)} mm` : '--'}
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.yDisp >= 0 ? '+' : ''}{r.yDisp.toFixed(1)} mm
+                      {r.yDisp !== null && r.yDisp !== undefined ? `${r.yDisp >= 0 ? '+' : ''}${Number(r.yDisp).toFixed(2)} mm` : '--'}
                     </td>
                     <td className="py-2 px-3 text-pink-700 font-bold">
-                      {r.totalDisp.toFixed(1)} mm
+                      {r.totalDisp !== null && r.totalDisp !== undefined ? `${Number(r.totalDisp).toFixed(2)} mm` : '--'}
                     </td>
                     <td className="py-2 px-3 text-amber-800">
-                      {r.vibPeak !== null && r.vibPeak !== undefined ? `${Number(r.vibPeak).toFixed(1)} g` : '--'}
+                      {r.vibPeak !== null && r.vibPeak !== undefined ? `${Number(r.vibPeak).toFixed(2)} g` : '--'}
                     </td>
                     <td className="py-2 px-3 text-orange-700">
                       {r.temp !== null && r.temp !== undefined ? `${Number(r.temp).toFixed(1)} °C` : '--'}

@@ -439,22 +439,40 @@ export async function alarmsRoutes(fastify) {
   // 3. ALARMS FEED & MANUAL ALERT DISPATCH API
   // ─────────────────────────────────────────────────────────────
 
-  // 3.1 Query Alarms List & Severity Summary
+  // 3.1 Query Alarms List & Severity Summary (supports ?deviceId= filtering)
   fastify.get('/api/alarms', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
     try {
+      const { deviceId } = req.query || {};
       let dbAlarms = [];
       try {
-        dbAlarms = await Alarm.findAll({ order: [['createdAt', 'DESC']] });
+        const where = {};
+        if (deviceId) {
+          const cleanDevId = String(deviceId).trim();
+          where[Op.or] = [
+            { deviceId: cleanDevId },
+            { deviceId: cleanDevId.toUpperCase() },
+            { deviceId: cleanDevId.toLowerCase() },
+          ];
+        }
+        dbAlarms = await Alarm.findAll({ where, order: [['createdAt', 'DESC']] });
       } catch (dbErr) {
-        dbAlarms = [...memoryAlarms].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        let mem = [...memoryAlarms];
+        if (deviceId) {
+          const lowerId = String(deviceId).trim().toLowerCase();
+          mem = mem.filter(a => (a.deviceId || '').toLowerCase() === lowerId);
+        }
+        dbAlarms = mem.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       }
 
       const alarmMap = new Map();
+      const targetDevLower = deviceId ? String(deviceId).trim().toLowerCase() : null;
       for (const a of memoryAlarms) {
+        if (targetDevLower && (a.deviceId || '').toLowerCase() !== targetDevLower) continue;
         alarmMap.set(a.id, a);
       }
       for (const a of dbAlarms) {
         const item = a.toJSON ? a.toJSON() : a;
+        if (targetDevLower && (item.deviceId || '').toLowerCase() !== targetDevLower) continue;
         alarmMap.set(item.id, item);
       }
 

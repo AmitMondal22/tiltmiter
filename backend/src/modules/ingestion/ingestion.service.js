@@ -76,42 +76,27 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const deltaThetaY = isHardwareCalibrated ? pitch : (pitch - refY);
   const deltaThetaZ = isHardwareCalibrated ? yaw : (yaw - refZ);
 
-  // If device is tare zero calibrated or hardware calibrated, report tilt relative to zero reference baseline
-  let activeXTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaX : roll;
-  let activeYTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaY : pitch;
-  let activeZTilt = (hasRefZero || isHardwareCalibrated) ? deltaThetaZ : yaw;
-  let activeResultant = (hasRefZero || isHardwareCalibrated) ? Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) : tiltVal;
+  // Present Values = Pure actual device values (NEVER subtracted by reference zero)
+  const presentX = roll;
+  const presentY = pitch;
+  const presentZ = yaw;
+  const presentResultant = tiltVal;
 
-  // Clean zero rounding for noise near zero
-  if ((isHardwareCalibrated || hasRefZero) && Math.abs(activeXTilt) < 0.0001 && Math.abs(activeYTilt) < 0.0001 && Math.abs(activeZTilt) < 0.0001) {
-    activeXTilt = 0.0;
-    activeYTilt = 0.0;
-    activeZTilt = 0.0;
-    activeResultant = 0.0;
-  }
+  // Slopes in mm/m (1000 * sin(angle))
+  const xSlope = Math.sin((deltaThetaX * Math.PI) / 180) * 1000;
+  const ySlope = Math.sin((deltaThetaY * Math.PI) / 180) * 1000;
+  const zSlope = Math.sin((deltaThetaZ * Math.PI) / 180) * 1000;
+  const resultantSlope = Math.sin((Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) * Math.PI) / 180) * 1000;
 
-  // Calculate Slopes in mm/m (1000 * sin(angle)) based on the active reported delta angles
-  const xSlope = Math.sin((activeXTilt * Math.PI) / 180) * 1000;
-  const ySlope = Math.sin((activeYTilt * Math.PI) / 180) * 1000;
-  const zSlope = Math.sin((activeZTilt * Math.PI) / 180) * 1000;
-  const resultantSlope = Math.sin((activeResultant * Math.PI) / 180) * 1000;
+  // ClinoX lateral displacement D = L * tan(Δθ * π / 180) using full precision delta angles
+  let xDisp = L * Math.tan((deltaThetaX * Math.PI) / 180);
+  let yDisp = L * Math.tan((deltaThetaY * Math.PI) / 180);
+  const zDisp = parseFloat(rawPayload.displacement?.zDisplacement_mm ?? rawPayload.zDisplacement ?? 0) || 0;
 
-  // Calculate estimated lateral displacement using ClinoX formula
-  let xDisp = (activeXTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (rawPayload.displacement?.xDisplacement_mm !== undefined
-    ? parseFloat(rawPayload.displacement.xDisplacement_mm)
-    : (rawPayload.xDisplacement !== undefined ? parseFloat(rawPayload.xDisplacement) : L * Math.tan((deltaThetaX * Math.PI) / 180)));
-  let yDisp = (activeYTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (rawPayload.displacement?.yDisplacement_mm !== undefined
-    ? parseFloat(rawPayload.displacement.yDisplacement_mm)
-    : (rawPayload.yDisplacement !== undefined ? parseFloat(rawPayload.yDisplacement) : L * Math.tan((deltaThetaY * Math.PI) / 180)));
-  const zDisp = (activeXTilt === 0.0 && activeYTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (parseFloat(rawPayload.displacement?.zDisplacement_mm ?? rawPayload.zDisplacement ?? 0) || 0);
+  if (isNaN(xDisp)) xDisp = 0.0;
+  if (isNaN(yDisp)) yDisp = 0.0;
 
-  if (isNaN(xDisp)) xDisp = L * Math.tan((deltaThetaX * Math.PI) / 180);
-  if (isNaN(yDisp)) yDisp = L * Math.tan((deltaThetaY * Math.PI) / 180);
-
-  const rawTotalDisp = rawPayload.displacement?.totalDisplacement_mm ?? rawPayload.totalDisplacement;
-  const totalDisp = (activeXTilt === 0.0 && activeYTilt === 0.0 && (isHardwareCalibrated || hasRefZero)) ? 0.0 : (typeof rawTotalDisp === 'number' && !isNaN(rawTotalDisp)
-    ? rawTotalDisp
-    : Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp));
+  const totalDisp = Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp);
 
   // 4. Parse environment, battery voltage & cellular CSQ
   const temp = parseFloat(rawPayload.environment?.temperature ?? rawPayload.temperature ?? rawPayload.tempVal ?? 25.0) || 25.0;
@@ -126,7 +111,7 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     utcTimestamp = new Date().toISOString();
   }
 
-  // Ensure rawPayload.tilt has standard format with roll, pitch, yaw, tilt, tiltStatus
+  // Ensure rawPayload.tilt has standard format with pure device roll, pitch, yaw
   if (!rawPayload.tilt || typeof rawPayload.tilt !== 'object') {
     rawPayload.tilt = {};
   }
@@ -134,27 +119,49 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     roll,
     pitch,
     yaw,
-    tilt: rawPayload.tilt.tilt ?? activeResultant,
+    tilt: rawPayload.tilt.tilt ?? tiltVal,
     tiltStatus: rawPayload.tilt.tiltStatus || 'NORMAL',
   };
 
   const telemetryData = {
-    // Preserve raw nested payload
+    // Preserve raw nested payload intact
     rawPayload,
     deviceId,
 
-    // Mapped flat fields for UI component binding
-    xTilt: activeXTilt,
-    yTilt: activeYTilt,
-    zTilt: activeZTilt,
-    resultantTilt: activeResultant,
-    roll: activeXTilt,
-    pitch: activeYTilt,
-    yaw: activeZTilt,
+    // Pure actual device values stored into PostgreSQL without any subtraction
+    xTilt: presentX,
+    yTilt: presentY,
+    zTilt: presentZ,
+    resultantTilt: presentResultant,
+    roll: presentX,
+    pitch: presentY,
+    yaw: presentZ,
     rawRoll: roll,
     rawPitch: pitch,
     rawYaw: yaw,
-    tilt: activeResultant,
+
+    // Core Logic fields for UI and WebSocket subscribers
+    presentX,
+    presentY,
+    presentZ,
+    presentRoll: presentX,
+    presentPitch: presentY,
+    presentYaw: presentZ,
+
+    // Delta angles (Current − Zero Reference) in full precision
+    deltaX: deltaThetaX,
+    deltaY: deltaThetaY,
+    deltaZ: deltaThetaZ,
+    deltaThetaX,
+    deltaThetaY,
+    deltaThetaZ,
+
+    refThetaX: refX,
+    refThetaY: refY,
+    refThetaZ: refZ,
+    hasReferenceZero: hasRefZero,
+
+    tilt: presentResultant,
     tiltStatus: rawPayload.tilt?.tiltStatus || 'NORMAL',
 
     // Calculated slopes in mm/m
@@ -187,11 +194,11 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     network: rawPayload.network || { csq },
     csq,
 
-    calibration: rawPayload.calibration || { calibrated: false },
+    calibration: rawPayload.calibration || { calibrated: hasRefZero },
     timestamp: utcTimestamp,
   };
 
-  // 1. Save to Time-Series PostgreSQL
+  // 1. Save to Time-Series PostgreSQL - values stored purely without zero reference subtraction
   saveTelemetryPoint(telemetryData);
   console.log(`💾 [POSTGRESQL SAVED] Device: ${deviceId} | Time: ${utcTimestamp} | θX: ${activeXTilt.toFixed(3)}° | θY: ${activeYTilt.toFixed(3)}° | TotDisp: ${totalDisp.toFixed(3)}mm`);
 

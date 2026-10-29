@@ -108,15 +108,24 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     if (!telemetryHistory || telemetryHistory.length === 0) return [];
     return telemetryHistory.map(pt => {
       const ts = pt.timestamp || pt.time;
-      const rawX = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.tilt?.roll ?? 0) || 0;
-      const rawY = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.tilt?.pitch ?? 0) || 0;
-      const rawYaw = pt.yaw ?? pt.tilt?.yaw ?? pt.zTilt ?? pt.tiltZ;
+      const rawX = parseFloat(pt.presentX ?? pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.tilt?.roll ?? 0) || 0;
+      const rawY = parseFloat(pt.presentY ?? pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.tilt?.pitch ?? 0) || 0;
+      const rawYaw = pt.presentZ ?? pt.yaw ?? pt.tilt?.yaw ?? pt.zTilt ?? pt.tiltZ;
       const rawZ = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : 0.0;
 
-      // Relative tilt change: If pt.xTilt is defined (stored from DB or ingestion), it is already relative to reference zero or zeroed!
-      const xT = (pt.deltaThetaX !== undefined) ? pt.deltaThetaX : (pt.xTilt !== undefined ? rawX : (hasRef ? rawX - refX : rawX));
-      const yT = (pt.deltaThetaY !== undefined) ? pt.deltaThetaY : (pt.yTilt !== undefined ? rawY : (hasRef ? rawY - refY : rawY));
-      const zT = (pt.deltaThetaZ !== undefined) ? pt.deltaThetaZ : (pt.zTilt !== undefined ? rawZ : (hasRef ? rawZ - refZ : rawZ));
+      // Present Values = Pure actual device values (Never subtract reference zero)
+      const presentX = rawX;
+      const presentY = rawY;
+      const presentZ = rawZ;
+
+      // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
+      const deltaX = pt.deltaX !== undefined ? parseFloat(pt.deltaX) : (pt.deltaThetaX !== undefined ? parseFloat(pt.deltaThetaX) : (hasRef ? presentX - refX : presentX));
+      const deltaY = pt.deltaY !== undefined ? parseFloat(pt.deltaY) : (pt.deltaThetaY !== undefined ? parseFloat(pt.deltaThetaY) : (hasRef ? presentY - refY : presentY));
+      const deltaZ = pt.deltaZ !== undefined ? parseFloat(pt.deltaZ) : (pt.deltaThetaZ !== undefined ? parseFloat(pt.deltaThetaZ) : (hasRef ? presentZ - refZ : presentZ));
+
+      const xT = deltaX;
+      const yT = deltaY;
+      const zT = deltaZ;
 
       // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
       const radX = (xT * Math.PI) / 180.0;
@@ -148,14 +157,20 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
         ...pt,
         time: pt.time && pt.time.length <= 5 ? pt.time : formatHHMM(ts),
         fullTime: pt.fullTime || formatFullDateTime(ts),
-        xTilt: Number(xT.toFixed(1)),
-        yTilt: Number(yT.toFixed(1)),
-        zTilt: Number(zT.toFixed(1)),
-        xDisp: Number(xD.toFixed(1)),
-        yDisp: Number(yD.toFixed(1)),
-        axG: axG !== null ? Number(axG.toFixed(1)) : null,
-        ayG: ayG !== null ? Number(ayG.toFixed(1)) : null,
-        azG: azG !== null ? Number(azG.toFixed(1)) : null,
+        presentX,
+        presentY,
+        presentZ,
+        deltaX,
+        deltaY,
+        deltaZ,
+        xTilt: Number(xT.toFixed(2)),
+        yTilt: Number(yT.toFixed(2)),
+        zTilt: Number(zT.toFixed(2)),
+        xDisp: Number(xD.toFixed(2)),
+        yDisp: Number(yD.toFixed(2)),
+        axG: axG !== null ? Number(axG.toFixed(2)) : null,
+        ayG: ayG !== null ? Number(ayG.toFixed(2)) : null,
+        azG: azG !== null ? Number(azG.toFixed(2)) : null,
         temp: tempVal !== null ? Number(tempVal.toFixed(1)) : null,
       };
     });

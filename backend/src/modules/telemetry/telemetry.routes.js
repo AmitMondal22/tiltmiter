@@ -135,24 +135,24 @@ export async function telemetryRoutes(fastify) {
       // Check if hardware already performed zero tare (calibration flag in rawPayload)
       const isHwCalibrated = Boolean(pt.rawPayload?.calibration?.calibrated || pt.calibration?.calibrated);
 
-      let finalXTilt = rawX;
-      let finalYTilt = rawY;
-      let finalZTilt = rawZ;
-      let finalResultant = calcRes;
-      let finalXDisp = parseFloat(pt.xDisp ?? pt.xDisplacement ?? 0) || 0;
-      let finalYDisp = parseFloat(pt.yDisp ?? pt.yDisplacement ?? 0) || 0;
-      let finalZDisp = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
-      let finalTotalDisp = parseFloat(pt.totalDisp ?? pt.totalDisplacement ?? 0) || 0;
+      // Present Values = Pure actual device values (NEVER subtracted by reference zero)
+      const presentX = rawX;
+      const presentY = rawY;
+      const presentZ = rawZ;
+      const presentResultant = calcRes;
 
-      if (hasReferenceZero) {
-        finalXTilt = rawX - refX;
-        finalYTilt = rawY - refY;
-        finalZTilt = rawZ - refZ;
-        finalResultant = Math.sqrt(finalXTilt * finalXTilt + finalYTilt * finalYTilt);
-        finalXDisp = L * Math.tan((finalXTilt * Math.PI) / 180.0);
-        finalYDisp = L * Math.tan((finalYTilt * Math.PI) / 180.0);
-        finalTotalDisp = Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp);
-      }
+      // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
+      const deltaThetaX = hasReferenceZero ? (rawX - refX) : (pt.deltaThetaX !== undefined ? parseFloat(pt.deltaThetaX) : (rawX - refX));
+      const deltaThetaY = hasReferenceZero ? (rawY - refY) : (pt.deltaThetaY !== undefined ? parseFloat(pt.deltaThetaY) : (rawY - refY));
+      const deltaThetaZ = hasReferenceZero ? (rawZ - refZ) : (pt.deltaThetaZ !== undefined ? parseFloat(pt.deltaThetaZ) : (rawZ - refZ));
+
+      // ClinoX lateral displacement D = L * tan(Δθ * π / 180) based on delta angles
+      const clinoDx = L * Math.tan((deltaThetaX * Math.PI) / 180.0);
+      const clinoDy = L * Math.tan((deltaThetaY * Math.PI) / 180.0);
+      const finalXDisp = !isNaN(clinoDx) ? clinoDx : 0.0;
+      const finalYDisp = !isNaN(clinoDy) ? clinoDy : 0.0;
+      const finalZDisp = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
+      const finalTotalDisp = Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp);
 
       // Use extracted sensor values (no dummy fallbacks - null means no data)
       const sensors = extracted || {};
@@ -168,18 +168,40 @@ export async function telemetryRoutes(fastify) {
         time: new Date(pt.timestamp || pt.time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
         timestamp: new Date(pt.timestamp || pt.time).toISOString(),
         deviceId: pt.deviceId || deviceId,
-        xTilt: Number(finalXTilt.toFixed(4)),
-        tiltX: Number(finalXTilt.toFixed(4)),
-        roll: Number(finalXTilt.toFixed(4)),
-        yTilt: Number(finalYTilt.toFixed(4)),
-        tiltY: Number(finalYTilt.toFixed(4)),
-        pitch: Number(finalYTilt.toFixed(4)),
-        zTilt: Number(finalZTilt.toFixed(4)),
-        tiltZ: Number(finalZTilt.toFixed(4)),
-        yaw: Number(finalZTilt.toFixed(4)),
-        resultant: Number(finalResultant.toFixed(4)),
-        resultantTilt: Number(finalResultant.toFixed(4)),
-        tilt: Number(finalResultant.toFixed(4)),
+
+        // Present Values = Pure actual device values (Never subtracted by reference zero)
+        presentX,
+        presentY,
+        presentZ,
+        presentRoll: presentX,
+        presentPitch: presentY,
+        presentYaw: presentZ,
+        xTilt: presentX,
+        tiltX: presentX,
+        roll: presentX,
+        yTilt: presentY,
+        tiltY: presentY,
+        pitch: presentY,
+        zTilt: presentZ,
+        tiltZ: presentZ,
+        yaw: presentZ,
+        resultant: presentResultant,
+        resultantTilt: presentResultant,
+        tilt: presentResultant,
+
+        // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
+        deltaX: deltaThetaX,
+        deltaY: deltaThetaY,
+        deltaZ: deltaThetaZ,
+        deltaThetaX,
+        deltaThetaY,
+        deltaThetaZ,
+
+        refThetaX: refX,
+        refThetaY: refY,
+        refThetaZ: refZ,
+        hasReferenceZero,
+
         xDisp: Number(finalXDisp.toFixed(3)),
         xDisplacement: Number(finalXDisp.toFixed(3)),
         yDisp: Number(finalYDisp.toFixed(3)),
@@ -188,9 +210,6 @@ export async function telemetryRoutes(fastify) {
         zDisplacement: Number(finalZDisp.toFixed(3)),
         totalDisp: Number(finalTotalDisp.toFixed(3)),
         totalDisplacement: Number(finalTotalDisp.toFixed(3)),
-        deltaThetaX: hasReferenceZero ? Number(finalXTilt.toFixed(4)) : (pt.deltaThetaX ?? 0.0),
-        deltaThetaY: hasReferenceZero ? Number(finalYTilt.toFixed(4)) : (pt.deltaThetaY ?? 0.0),
-        deltaThetaZ: hasReferenceZero ? Number(finalZTilt.toFixed(4)) : (pt.deltaThetaZ ?? 0.0),
         // Sensor data - null if not available in DB record
         axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(4)) : null,
         ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(4)) : null,

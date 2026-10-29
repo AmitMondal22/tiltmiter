@@ -455,8 +455,9 @@ export async function getReportsAnalytics(filters = {}) {
 }
 
 // Alarms API
-export async function getAlarms() {
-  return await request('/alarms');
+export async function getAlarms(deviceId = null) {
+  const query = deviceId ? `/alarms?deviceId=${encodeURIComponent(deviceId)}` : '/alarms';
+  return await request(query);
 }
 
 // Users Management API

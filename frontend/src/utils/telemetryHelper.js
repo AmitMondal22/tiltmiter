@@ -81,6 +81,35 @@ export function format1Dec(val, fallback = '0.0') {
 }
 
 /**
+ * Formats signed delta or angle value (e.g. +0.25° or -0.18° or +0.00°).
+ * Retains full precision until formatting.
+ */
+export function formatSigned(val, decimals = 2, unit = '°', fallback = '--') {
+  if (val === null || val === undefined || val === '' || val === '--') return fallback;
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return fallback;
+  const formattedNum = Math.abs(num).toFixed(decimals);
+  if (num === 0 || formattedNum === (0).toFixed(decimals)) {
+    return `+${formattedNum}${unit}`;
+  }
+  return `${num > 0 ? '+' : '-'}${formattedNum}${unit}`;
+}
+
+/**
+ * Formats present actual value without subtracting reference zero.
+ */
+export function formatPresent(val, decimals = 2, unit = '°', fallback = '--') {
+  if (val === null || val === undefined || val === '' || val === '--') return fallback;
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  if (isNaN(num)) return fallback;
+  const formattedNum = Math.abs(num).toFixed(decimals);
+  if (num === 0 || formattedNum === (0).toFixed(decimals)) {
+    return `+${formattedNum}${unit}`;
+  }
+  return `${num > 0 ? '+' : '-'}${formattedNum}${unit}`;
+}
+
+/**
  * Converts battery voltage in 0 to 13 range (0V = 0%, 13V = 100%) to a clean 0% to 100% string.
  */
 export function formatBatteryPercentage(val, fallback = '100%') {
@@ -184,25 +213,53 @@ export function parseTelemetry(data) {
   const refThetaZ = parseFloat(data.refThetaZ ?? data.baselineTilt ?? 0.0);
   const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)));
 
-  const activeRoll = hasReferenceZero ? (roll - refThetaX) : roll;
-  const activePitch = hasReferenceZero ? (pitch - refThetaY) : pitch;
-  const activeZTilt = hasReferenceZero ? (zTilt - refThetaZ) : zTilt;
-  const activeTilt = hasReferenceZero ? Math.sqrt(activeRoll * activeRoll + activePitch * activePitch) : tiltVal;
+  // Core Logic:
+  // Present X (Roll) = Actual device Roll value (Never subtract reference zero)
+  // Present Y (Pitch) = Actual device Pitch value (Never subtract reference zero)
+  // Present Z (Yaw) = Actual device Yaw value (Never subtract reference zero)
+  const presentX = roll;
+  const presentY = pitch;
+  const presentZ = yaw;
+  const presentTilt = tiltVal;
 
-  // Slope in mm/m (1000 * sin(angle * π / 180))
-  const xSlope = Math.sin((activeRoll * Math.PI) / 180) * 1000;
-  const ySlope = Math.sin((activePitch * Math.PI) / 180) * 1000;
-  const zSlope = Math.sin((activeZTilt * Math.PI) / 180) * 1000;
-  const resultantSlope = Math.sin((activeTilt * Math.PI) / 180) * 1000;
+  // Delta X = Current Roll − Zero Reference Roll
+  // Delta Y = Current Pitch − Zero Reference Pitch
+  // Delta Z = Current Yaw − Zero Reference Yaw
+  // (Full precision calculations)
+  const deltaX = hasReferenceZero ? (roll - refThetaX) : (data.deltaX !== undefined ? parseFloat(data.deltaX) : (roll - refThetaX));
+  const deltaY = hasReferenceZero ? (pitch - refThetaY) : (data.deltaY !== undefined ? parseFloat(data.deltaY) : (pitch - refThetaY));
+  const deltaZ = hasReferenceZero ? (yaw - refThetaZ) : (data.deltaZ !== undefined ? parseFloat(data.deltaZ) : (yaw - refThetaZ));
+  const deltaThetaX = deltaX;
+  const deltaThetaY = deltaY;
+  const deltaThetaZ = deltaZ;
+  const deltaResultantTilt = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-  // ClinoX D = L * tan(Δθ * π / 180)
-  const clinoX = calculateTiltToDisplacement({
-    roll,
-    pitch,
-    refThetaX: hasReferenceZero ? refThetaX : 0,
-    refThetaY: hasReferenceZero ? refThetaY : 0,
-    gaugeLength_mm,
-  });
+  // Slope in mm/m (1000 * sin(angle * π / 180)) based on delta angle
+  const xSlope = Math.sin((deltaX * Math.PI) / 180) * 1000;
+  const ySlope = Math.sin((deltaY * Math.PI) / 180) * 1000;
+  const zSlope = Math.sin((deltaZ * Math.PI) / 180) * 1000;
+  const resultantSlope = Math.sin((deltaResultantTilt * Math.PI) / 180) * 1000;
+
+  // ClinoX D = L * tan(Δθ * π / 180) using full precision delta angles
+  const radX = (deltaX * Math.PI) / 180.0;
+  const radY = (deltaY * Math.PI) / 180.0;
+  const clinoXDisp = gaugeLength_mm * Math.tan(radX);
+  const clinoYDisp = gaugeLength_mm * Math.tan(radY);
+  const clinoTotalDisp = Math.sqrt(clinoXDisp * clinoXDisp + clinoYDisp * clinoYDisp);
+
+  const clinoX = {
+    L: gaugeLength_mm,
+    deltaThetaX,
+    deltaThetaY,
+    xDisp: clinoXDisp,
+    yDisp: clinoYDisp,
+    totalDisp: clinoTotalDisp,
+    formattedDeltaX: formatSigned(deltaX),
+    formattedDeltaY: formatSigned(deltaY),
+    formattedDispX: formatSigned(clinoXDisp, 2, ' mm'),
+    formattedDispY: formatSigned(clinoYDisp, 2, ' mm'),
+    formattedTotalDisp: `${clinoTotalDisp.toFixed(2)} mm`,
+  };
 
   // Gyroscope
   const gx = typeof data.gyroscope?.gx === 'number' ? data.gyroscope.gx : (parseFloat(data.gyroscope?.gx) || 0);
@@ -370,14 +427,36 @@ export function parseTelemetry(data) {
     calibration: { calibrated },
     timestamp: data.timestamp || new Date().toISOString(),
 
-    // ClinoX Reference Zero and Delta Angles
+    // ClinoX Reference Zero and Delta Angles (Core Logic: Present values never subtract reference zero)
     gaugeLength_mm,
     refThetaX,
     refThetaY,
     refThetaZ,
     hasReferenceZero,
-    deltaThetaX: clinoX.deltaThetaX,
-    deltaThetaY: clinoX.deltaThetaY,
+
+    // Core Logic Properties:
+    presentX,
+    presentY,
+    presentZ,
+    presentRoll: presentX,
+    presentPitch: presentY,
+    presentYaw: presentZ,
+    presentTilt,
+
+    deltaX,
+    deltaY,
+    deltaZ,
+    deltaThetaX,
+    deltaThetaY,
+    deltaThetaZ,
+
+    formattedPresentX: formatPresent(presentX),
+    formattedPresentY: formatPresent(presentY),
+    formattedPresentZ: formatPresent(presentZ),
+    formattedDeltaX: formatSigned(deltaX),
+    formattedDeltaY: formatSigned(deltaY),
+    formattedDeltaZ: formatSigned(deltaZ),
+
     clinoX,
   };
 }

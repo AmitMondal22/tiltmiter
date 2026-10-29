@@ -8,21 +8,45 @@ const TYPES = [
   { key: 'warnings', label: 'Warnings', dot: 'bg-blue-500', badge: 'bg-blue-50 text-blue-500 font-bold' },
 ];
 
-export default function AlarmSummaryWidget() {
-  const [summary, setSummary] = useState({ critical: 0, major: 0, minor: 0, warnings: 0, total: 5 });
+export default function AlarmSummaryWidget({ deviceId = null }) {
+  const [summary, setSummary] = useState({ critical: 0, major: 0, minor: 0, warnings: 0, total: 0 });
 
   useEffect(() => {
-    getAlarms()
+    let isCurrent = true;
+
+    // Reset summary to 0 on device switch
+    setSummary({ critical: 0, major: 0, minor: 0, warnings: 0, total: 0 });
+
+    getAlarms(deviceId)
       .then(res => {
-        if (res?.summary) setSummary(res.summary);
+        if (!isCurrent) return;
+        if (res?.summary) {
+          setSummary(res.summary);
+        } else {
+          setSummary({ critical: 0, major: 0, minor: 0, warnings: 0, total: 0 });
+        }
       })
-      .catch(() => {});
-  }, []);
+      .catch(() => {
+        if (!isCurrent) return;
+        setSummary({ critical: 0, major: 0, minor: 0, warnings: 0, total: 0 });
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [deviceId]);
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 flex flex-col justify-between shadow-xs">
-      <div className="text-[10px] font-black uppercase tracking-wider font-mono text-slate-800">
-        ALARM CONSOLE SUMMARY
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-black uppercase tracking-wider font-mono text-slate-800">
+          ALARM CONSOLE SUMMARY
+        </div>
+        {deviceId && (
+          <span className="text-[10px] font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+            {deviceId}
+          </span>
+        )}
       </div>
 
       <div className="space-y-1.5 flex-1 my-2">
@@ -40,8 +64,8 @@ export default function AlarmSummaryWidget() {
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] font-semibold text-slate-600">
-        <span>Total System Alarms</span>
-        <span className="font-mono font-bold text-sm text-emerald-600">{summary.total || 5}</span>
+        <span>{deviceId ? `Device Alarms (${deviceId})` : 'Total System Alarms'}</span>
+        <span className="font-mono font-bold text-sm text-emerald-600">{summary.total || 0}</span>
       </div>
     </div>
   );

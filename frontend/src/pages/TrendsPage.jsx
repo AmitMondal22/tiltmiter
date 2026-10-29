@@ -72,15 +72,17 @@ export default function TrendsPage() {
     const deltaY = presentY - refY;
     const deltaZ = presentZ - refZ;
 
-    const radX = (deltaX * Math.PI) / 180.0;
-    const radY = (deltaY * Math.PI) / 180.0;
-    const clinoDx = L * Math.tan(radX);
-    const clinoDy = L * Math.tan(radY);
+    // Device-provided displacement data:
+    const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
+    const rawXDisp = rawDisp.xDisplacement_mm ?? pt.xDisplacement_mm ?? pt.xDisp ?? pt.xDisplacement;
+    const rawYDisp = rawDisp.yDisplacement_mm ?? pt.yDisplacement_mm ?? pt.yDisp ?? pt.yDisplacement;
+    const rawZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisp ?? pt.zDisplacement;
+    const rawTotalDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisp ?? pt.totalDisplacement;
 
-    const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx;
-    const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy;
-    const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
-    const totD = Math.sqrt(xD * xD + yD * yD);
+    const xD = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
+    const yD = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
+    const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
+    const totD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
     const deltaRes = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
     const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;

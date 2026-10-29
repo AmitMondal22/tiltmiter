@@ -88,15 +88,23 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const zSlope = Math.sin((deltaThetaZ * Math.PI) / 180) * 1000;
   const resultantSlope = Math.sin((Math.sqrt(deltaThetaX * deltaThetaX + deltaThetaY * deltaThetaY) * Math.PI) / 180) * 1000;
 
-  // ClinoX lateral displacement D = L * tan(Δθ * π / 180) using full precision delta angles
-  let xDisp = L * Math.tan((deltaThetaX * Math.PI) / 180);
-  let yDisp = L * Math.tan((deltaThetaY * Math.PI) / 180);
-  const zDisp = parseFloat(rawPayload.displacement?.zDisplacement_mm ?? rawPayload.zDisplacement ?? 0) || 0;
+  // 3. Device-provided displacement data:
+  const rawDisp = rawPayload.displacement || {};
+  const hasDevXDisp = rawDisp.xDisplacement_mm !== undefined && rawDisp.xDisplacement_mm !== null && !isNaN(parseFloat(rawDisp.xDisplacement_mm));
+  const hasDevYDisp = rawDisp.yDisplacement_mm !== undefined && rawDisp.yDisplacement_mm !== null && !isNaN(parseFloat(rawDisp.yDisplacement_mm));
+  const hasDevZDisp = rawDisp.zDisplacement_mm !== undefined && rawDisp.zDisplacement_mm !== null && !isNaN(parseFloat(rawDisp.zDisplacement_mm));
+  const hasDevTotDisp = rawDisp.totalDisplacement_mm !== undefined && rawDisp.totalDisplacement_mm !== null && !isNaN(parseFloat(rawDisp.totalDisplacement_mm));
+
+  let xDisp = hasDevXDisp ? parseFloat(rawDisp.xDisplacement_mm) : (L * Math.tan((deltaThetaX * Math.PI) / 180));
+  let yDisp = hasDevYDisp ? parseFloat(rawDisp.yDisplacement_mm) : (L * Math.tan((deltaThetaY * Math.PI) / 180));
+  let zDisp = hasDevZDisp ? parseFloat(rawDisp.zDisplacement_mm) : (parseFloat(rawPayload.zDisplacement ?? 0) || 0.0);
 
   if (isNaN(xDisp)) xDisp = 0.0;
   if (isNaN(yDisp)) yDisp = 0.0;
+  if (isNaN(zDisp)) zDisp = 0.0;
 
-  const totalDisp = Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp);
+  let totalDisp = hasDevTotDisp ? parseFloat(rawDisp.totalDisplacement_mm) : Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp);
+  if (isNaN(totalDisp)) totalDisp = 0.0;
 
   // 4. Parse environment, battery voltage & cellular CSQ
   const temp = parseFloat(rawPayload.environment?.temperature ?? rawPayload.temperature ?? rawPayload.tempVal ?? 25.0) || 25.0;
@@ -177,12 +185,22 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     gyroMag: rawPayload.gyroscope?.gyroMag || 0.008,
 
     vibration: rawPayload.vibration || {},
-    displacement: rawPayload.displacement || {},
+    displacement: {
+      xDisplacement_mm: xDisp,
+      yDisplacement_mm: yDisp,
+      zDisplacement_mm: zDisp,
+      totalDisplacement_mm: totalDisp,
+      ...(rawPayload.displacement || {}),
+    },
 
     xDisplacement: xDisp,
     yDisplacement: yDisp,
     zDisplacement: zDisp,
     totalDisplacement: totalDisp,
+    xDisplacement_mm: xDisp,
+    yDisplacement_mm: yDisp,
+    zDisplacement_mm: zDisp,
+    totalDisplacement_mm: totalDisp,
 
     environment: rawPayload.environment || {},
     temperature: `${temp} °C`,

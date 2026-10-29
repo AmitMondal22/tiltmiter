@@ -307,27 +307,16 @@ export function parseTelemetry(data) {
   const vibRaw = typeof data.vibration?.vibration === 'number' ? data.vibration.vibration : (parseFloat(data.vibration?.vibration) || 0);
   const vibStatus = data.vibration?.vibrationStatus || 'NORMAL';
 
-  // Displacement: prioritize hardware / database measurement if valid, otherwise compute via ClinoX D = L * tan(Δθ * π / 180)
-  const rawXDisp = data.displacement?.xDisplacement_mm ?? data.xDisplacement;
-  const rawYDisp = data.displacement?.yDisplacement_mm ?? data.yDisplacement;
-  const rawZDisp = data.displacement?.zDisplacement_mm ?? data.zDisplacement;
+  // Displacement: use device telemetry data directly (displacement.xDisplacement_mm, etc.)
+  const rawXDisp = data.displacement?.xDisplacement_mm ?? data.xDisplacement_mm ?? data.xDisplacement ?? data.xDisp;
+  const rawYDisp = data.displacement?.yDisplacement_mm ?? data.yDisplacement_mm ?? data.yDisplacement ?? data.yDisp;
+  const rawZDisp = data.displacement?.zDisplacement_mm ?? data.zDisplacement_mm ?? data.zDisplacement ?? data.zDisp;
+  const rawTotalDisp = data.displacement?.totalDisplacement_mm ?? data.totalDisplacement_mm ?? data.totalDisplacement ?? data.totalDisp;
 
-  const xDisp = typeof rawXDisp === 'number' && !isNaN(rawXDisp)
-    ? rawXDisp
-    : (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp)) ? parseFloat(rawXDisp) : clinoX.xDisp);
-
-  const yDisp = typeof rawYDisp === 'number' && !isNaN(rawYDisp)
-    ? rawYDisp
-    : (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp)) ? parseFloat(rawYDisp) : clinoX.yDisp);
-
-  const zDisp = typeof rawZDisp === 'number' && !isNaN(rawZDisp)
-    ? rawZDisp
-    : (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp)) ? parseFloat(rawZDisp) : 0);
-
-  const rawTotalDisp = data.displacement?.totalDisplacement_mm ?? data.totalDisplacement;
-  const totalDisp = typeof rawTotalDisp === 'number' && !isNaN(rawTotalDisp)
-    ? rawTotalDisp
-    : (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : Math.sqrt(xDisp * xDisp + yDisp * yDisp));
+  const xDisp = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
+  const yDisp = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
+  const zDisp = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
+  const totalDisp = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
 
   // Environment & Calibration - no dummy values
   const rawTemp = data.environment?.temperature ?? data.temperature ?? data.temp;

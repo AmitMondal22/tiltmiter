@@ -25,71 +25,61 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
 
   const xT = n(d.xTilt, 0);
   const yT = n(d.yTilt, 0);
-  const resT = n(d.resultantTilt, Math.sqrt(xT * xT + yT * yT));
-  const zT = n(d.zTilt, resT);
-  const dirC = d.tiltDirectionCardinal || 'N';
-  const totD = n(d.totalDisplacement, Math.sqrt(n(d.xDisplacement, 0) ** 2 + n(d.yDisplacement, 0) ** 2 + n(d.zDisplacement, 0) ** 2));
-
-  const xSlope = Math.sin((xT * Math.PI) / 180) * 1000;
-  const ySlope = Math.sin((yT * Math.PI) / 180) * 1000;
-  const zSlope = Math.sin((zT * Math.PI) / 180) * 1000;
-  const resSlope = Math.sin((resT * Math.PI) / 180) * 1000;
+  const zT = n(d.zTilt, 0);
+  const resT = n(d.resultantTilt, 0);
+  const xDisp = n(d.xDisplacement ?? d.displacement?.xDisplacement_mm, 0);
+  const yDisp = n(d.yDisplacement ?? d.displacement?.yDisplacement_mm, 0);
+  const zDisp = n(d.zDisplacement ?? d.displacement?.zDisplacement_mm, 0);
+  const totD = n(d.totalDisplacement ?? d.displacement?.totalDisplacement_mm, 0);
 
   const lastFullDateTime = formatFullDateTime(d.timestamp);
 
-  // Primary 8 Stat Cards (Row 1): 4 Tilt (X, Y, Z, Direction) + 4 Displacement (X, Y, Z, Total)
+  // Primary Stat Cards: Tilt Change (X, Y, Z) + Device Displacement (X, Y, Z, Total)
   const primary = [
     {
-      label: 'ΔθX Tilt Change',
-      value: `${xT >= 0 ? '+' : ''}${xT.toFixed(3)}°`,
-      unit: `${xSlope >= 0 ? '+' : ''}${xSlope.toFixed(2)} mm/m`,
+      label: 'ΔX (Roll)',
+      value: `${xT >= 0 ? '+' : ''}${xT.toFixed(1)}°`,
+      unit: 'Delta Tilt',
       color: '#3b82f6',
       spark: d.sparklineXTilt || null,
     },
     {
-      label: 'ΔθY Tilt Change',
-      value: `${yT >= 0 ? '+' : ''}${yT.toFixed(3)}°`,
-      unit: `${ySlope >= 0 ? '+' : ''}${ySlope.toFixed(2)} mm/m`,
+      label: 'ΔY (Pitch)',
+      value: `${yT >= 0 ? '+' : ''}${yT.toFixed(1)}°`,
+      unit: 'Delta Tilt',
       color: '#0d9488',
       spark: d.sparklineYTilt || null,
     },
     {
-      label: 'ΔθZ Tilt Change',
-      value: `${zT >= 0 ? '+' : ''}${zT.toFixed(3)}°`,
-      unit: `${zSlope >= 0 ? '+' : ''}${zSlope.toFixed(2)} mm/m`,
+      label: 'ΔZ (Yaw)',
+      value: `${zT >= 0 ? '+' : ''}${zT.toFixed(1)}°`,
+      unit: 'Delta Tilt',
       color: '#ea580c',
       spark: d.sparklineResultant || null,
     },
     {
-      label: 'Tilt Direction',
-      value: `${dirC}`,
-      unit: `${(d.tiltDirectionAngle ?? 0).toFixed(1)}° Bearing`,
-      iconCircle: 'bg-orange-50 text-orange-500 border-orange-200',
-      icon: Compass,
-    },
-    {
       label: 'DX',
-      value: `${n(d.xDisplacement, 0) >= 0 ? '+' : ''}${n(d.xDisplacement, 0).toFixed(2)}`,
+      value: `${xDisp.toFixed(2)}`,
       unit: 'mm',
       iconCircle: 'bg-cyan-50 text-cyan-500 border-cyan-200',
       icon: Layers,
     },
     {
       label: 'DY',
-      value: `${n(d.yDisplacement, 0) >= 0 ? '+' : ''}${n(d.yDisplacement, 0).toFixed(2)}`,
+      value: `${yDisp.toFixed(2)}`,
       unit: 'mm',
       iconCircle: 'bg-purple-50 text-purple-500 border-purple-200',
       icon: Radio,
     },
     {
       label: 'DZ',
-      value: 'N/A',
-      unit: 'Not measured',
-      iconCircle: 'bg-slate-50 text-slate-400 border-slate-200',
+      value: `${zDisp.toFixed(2)}`,
+      unit: 'mm',
+      iconCircle: 'bg-emerald-50 text-emerald-500 border-emerald-200',
       icon: Layers,
     },
     {
-      label: 'Total Lateral D',
+      label: 'Total Displacement',
       value: `${totD.toFixed(2)}`,
       unit: 'mm',
       iconCircle: 'bg-pink-50 text-pink-500 border-pink-200',

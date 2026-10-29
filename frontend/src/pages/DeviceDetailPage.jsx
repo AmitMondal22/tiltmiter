@@ -113,10 +113,17 @@ export default function DeviceDetailPage() {
     const clinoDx = L * Math.tan(radX);
     const clinoDy = L * Math.tan(radY);
 
-    const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : clinoDx;
-    const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : clinoDy;
-    const zD = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
-    const totD = Math.sqrt(xD * xD + yD * yD);
+    // Device-provided displacement data:
+    const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
+    const rawXDisp = rawDisp.xDisplacement_mm ?? pt.xDisplacement_mm ?? pt.xDisp ?? pt.xDisplacement;
+    const rawYDisp = rawDisp.yDisplacement_mm ?? pt.yDisplacement_mm ?? pt.yDisp ?? pt.yDisplacement;
+    const rawZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisp ?? pt.zDisplacement;
+    const rawTotalDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisp ?? pt.totalDisplacement;
+
+    const xD = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
+    const yD = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
+    const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
+    const totD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
     const deltaRes = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
     // Sensor data - use actual values from DB, no dummy fallbacks
@@ -502,26 +509,17 @@ export default function DeviceDetailPage() {
   const yaw = deltaZ;
   const resultant = deltaResultant;
 
-  const xSlope = hasData ? (Math.sin((deltaX * Math.PI) / 180) * 1000) : null;
-  const ySlope = hasData ? (Math.sin((deltaY * Math.PI) / 180) * 1000) : null;
-  const zSlope = hasData ? (Math.sin((deltaZ * Math.PI) / 180) * 1000) : null;
+  // Device-provided displacement data:
+  const rawDisp = d.displacement || d.rawPayload?.displacement || {};
+  const rawXDisp = rawDisp.xDisplacement_mm ?? d.xDisplacement_mm ?? d.xDisp ?? d.xDisplacement;
+  const rawYDisp = rawDisp.yDisplacement_mm ?? d.yDisplacement_mm ?? d.yDisp ?? d.yDisplacement;
+  const rawZDisp = rawDisp.zDisplacement_mm ?? d.zDisplacement_mm ?? d.zDisp ?? d.zDisplacement;
+  const rawTotalDisp = rawDisp.totalDisplacement_mm ?? d.totalDisplacement_mm ?? d.totalDisp ?? d.totalDisplacement;
 
-  // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
-  const radX = hasData ? ((deltaX * Math.PI) / 180.0) : 0;
-  const radY = hasData ? ((deltaY * Math.PI) / 180.0) : 0;
-  const clinoDx = hasData ? (L * Math.tan(radX)) : null;
-  const clinoDy = hasData ? (L * Math.tan(radY)) : null;
-
-  const xDisp = clinoDx;
-  const yDisp = clinoDy;
-  const zDisp = hasData ? (typeof d.zDisplacement === 'number' ? d.zDisplacement : (d.displacement?.zDisplacement_mm ?? 0)) : null;
-  const totalDisp = hasData ? Math.sqrt(xDisp * xDisp + yDisp * yDisp) : null;
-
-  let dispAngleRad = hasData ? Math.atan2(yDisp, xDisp) : 0;
-  let dispAngleDeg = hasData ? ((dispAngleRad * 180) / Math.PI) : 0;
-  if (dispAngleDeg < 0) dispAngleDeg += 360;
-  const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  const dispCardinal = cardinals[Math.round(dispAngleDeg / 45) % 8];
+  const xDisp = hasData && rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp)) ? parseFloat(rawXDisp) : null;
+  const yDisp = hasData && rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp)) ? parseFloat(rawYDisp) : null;
+  const zDisp = hasData && rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp)) ? parseFloat(rawZDisp) : null;
+  const totalDisp = hasData && rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : null;
 
   // Filtered rows for the table
   const filteredRows = useMemo(() => {
@@ -783,9 +781,6 @@ export default function DeviceDetailPage() {
                   <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
                     {formatSigned(deltaX, 1)}
                   </div>
-                  <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {formatSigned(xSlope, 1, ' mm/m')}
-                  </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
@@ -800,9 +795,6 @@ export default function DeviceDetailPage() {
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
                     {formatSigned(deltaY, 1)}
-                  </div>
-                  <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {formatSigned(ySlope, 1, ' mm/m')}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
@@ -819,9 +811,6 @@ export default function DeviceDetailPage() {
                   <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
                     {formatSigned(deltaZ, 1)}
                   </div>
-                  <div className="text-xs text-slate-500 font-medium mt-1 font-mono">
-                    {formatSigned(zSlope, 1, ' mm/m')}
-                  </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#86efac" />
@@ -831,52 +820,55 @@ export default function DeviceDetailPage() {
               </div>
             </div>
 
-            {/* 3. ESTIMATED LATERAL DISPLACEMENT IN MM */}
+            {/* 3. DISPLACEMENT IN MM FROM DEVICE TELEMETRY */}
             <div>
               <div className="flex items-center justify-between text-xs font-bold text-slate-900 tracking-wide mb-2.5">
                 <div className="flex items-center gap-2">
                   <Move className="w-4 h-4 text-slate-800" />
-                  <span>DISPLACEMENT (MM) • L={L}mm</span>
+                  <span>DISPLACEMENT (MM)</span>
                 </div>
                 <span className="text-[10px] font-mono font-medium text-slate-500">
-                  Total: <strong className="text-slate-800">{hasData && typeof totalDisp === 'number' ? `${totalDisp.toFixed(2)} mm` : '--'}</strong> {hasData ? `(${dispCardinal})` : ''}
+                  Total: <strong className="text-slate-800">{hasData && typeof totalDisp === 'number' ? `${totalDisp.toFixed(2)} mm` : '--'}</strong>
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-2.5 text-center">
                 {/* DX */}
-                <div className="relative overflow-hidden p-4 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex items-center justify-center min-h-[90px]">
-                  <span className="absolute top-3 left-3.5 px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center min-h-[80px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
                     DX
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-blue-600 tracking-tight">
-                      {hasData && typeof xDisp === 'number' ? `${xDisp >= 0 ? '+' : ''}${xDisp.toFixed(2)}` : '--'}
+                    <span className="text-lg sm:text-xl font-extrabold text-blue-600 tracking-tight">
+                      {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
                     </span>
-                    <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
-                  </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
-                    </svg>
+                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
                   </div>
                 </div>
 
                 {/* DY */}
-                <div className="relative overflow-hidden p-4 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex items-center justify-center min-h-[90px]">
-                  <span className="absolute top-3 left-3.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex flex-col items-center justify-center min-h-[80px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
                     DY
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
-                    <span className="text-2xl sm:text-3xl font-extrabold text-amber-600 tracking-tight">
-                      {hasData && typeof yDisp === 'number' ? `${yDisp >= 0 ? '+' : ''}${yDisp.toFixed(2)}` : '--'}
+                    <span className="text-lg sm:text-xl font-extrabold text-amber-600 tracking-tight">
+                      {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
                     </span>
-                    <span className="text-sm font-semibold text-slate-500 ml-1.5 font-sans">mm</span>
+                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
                   </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#fcd34d" />
-                    </svg>
+                </div>
+
+                {/* DZ */}
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 flex flex-col items-center justify-center min-h-[80px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs">
+                    DZ
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-lg sm:text-xl font-extrabold text-emerald-600 tracking-tight">
+                      {hasData && typeof zDisp === 'number' ? Number(zDisp).toFixed(2) : '--'}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
                   </div>
                 </div>
               </div>

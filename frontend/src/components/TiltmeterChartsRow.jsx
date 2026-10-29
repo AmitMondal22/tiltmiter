@@ -137,15 +137,17 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       const yT = deltaY;
       const zT = deltaZ;
 
-      // ClinoX Primary conversion formula: D = L * tan(Δθ * π / 180)
-      const radX = (xT * Math.PI) / 180.0;
-      const radY = (yT * Math.PI) / 180.0;
-      const clinoDx = L * Math.tan(radX);
-      const clinoDy = L * Math.tan(radY);
+      // Device-provided displacement data:
+      const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
+      const rawXDisp = rawDisp.xDisplacement_mm ?? pt.xDisplacement_mm ?? pt.xDisp ?? pt.xDisplacement;
+      const rawYDisp = rawDisp.yDisplacement_mm ?? pt.yDisplacement_mm ?? pt.yDisp ?? pt.yDisplacement;
+      const rawZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisp ?? pt.zDisplacement;
+      const rawTotalDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisp ?? pt.totalDisplacement;
 
-      // Estimated lateral displacement (mm): use stored displacement directly when present
-      const xD = (pt.xDisp !== undefined && pt.xDisp !== null) ? parseFloat(pt.xDisp) : (pt.xDisplacement !== undefined && pt.xDisplacement !== null ? parseFloat(pt.xDisplacement) : clinoDx);
-      const yD = (pt.yDisp !== undefined && pt.yDisp !== null) ? parseFloat(pt.yDisp) : (pt.yDisplacement !== undefined && pt.yDisplacement !== null ? parseFloat(pt.yDisplacement) : clinoDy);
+      const xD = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
+      const yD = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
+      const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
+      const totalD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
 
       // Acceleration: convert to g if > 3 (no dummy fallbacks)
       const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
@@ -178,6 +180,8 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
         zTilt: Number(zT.toFixed(2)),
         xDisp: Number(xD.toFixed(2)),
         yDisp: Number(yD.toFixed(2)),
+        zDisp: Number(zD.toFixed(2)),
+        totalDisp: Number(totalD.toFixed(2)),
         axG: axG !== null ? Number(axG.toFixed(2)) : null,
         ayG: ayG !== null ? Number(ayG.toFixed(2)) : null,
         azG: azG !== null ? Number(azG.toFixed(2)) : null,
@@ -219,14 +223,26 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     return offsets;
   }, [lastPt]);
 
-  // Chart 2: Dynamic smart vertical offsets for Displacement (X, Y)
+  // Chart 2: Dynamic smart vertical offsets for Displacement (X, Y, Z)
   const dispOffsets = useMemo(() => {
-    if (!lastPt) return { x: 0, y: 0 };
-    const diff = lastPt.xDisp - lastPt.yDisp;
-    if (Math.abs(diff) < 0.8) {
-      return diff >= 0 ? { x: -5, y: 7 } : { x: 7, y: -5 };
+    if (!lastPt) return { x: 0, y: 0, z: 0 };
+    const items = [
+      { key: 'x', val: lastPt.xDisp || 0 },
+      { key: 'y', val: lastPt.yDisp || 0 },
+      { key: 'z', val: lastPt.zDisp || 0 },
+    ].sort((a, b) => b.val - a.val);
+
+    const offsets = { x: 0, y: 0, z: 0 };
+    if (Math.abs(items[0].val - items[1].val) < 0.5 || Math.abs(items[1].val - items[2].val) < 0.5) {
+      offsets[items[0].key] = -7;
+      offsets[items[1].key] = 0;
+      offsets[items[2].key] = 8;
+    } else {
+      offsets.x = -2;
+      offsets.y = 2;
+      offsets.z = 0;
     }
-    return { x: 0, y: 0 };
+    return offsets;
   }, [lastPt]);
 
   // Chart 3: Dynamic smart vertical offsets for Acceleration (X, Y, Z)
@@ -357,20 +373,29 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
           <div className="flex items-center gap-2">
             <DisplacementIcon />
             <h3 className="font-bold text-slate-800 text-[13px] tracking-tight">
-              X / Y Displacement (mm)
+              X / Y / Z Displacement (mm)
             </h3>
           </div>
+          {lastPt && typeof lastPt.totalDisp === 'number' && (
+            <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
+              Total: {lastPt.totalDisp.toFixed(2)} mm
+            </span>
+          )}
         </div>
 
-        {/* Top Centered Legend (Only X and Y as in screenshot) */}
+        {/* Top Centered Legend */}
         <div className="flex items-center justify-center gap-4 py-1.5 text-xs font-semibold">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7]" />
-            <span className="text-slate-700">X</span>
+            <span className="text-slate-700">DX</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#0d9488]" />
-            <span className="text-slate-700">Y</span>
+            <span className="text-slate-700">DY</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#ea580c]" />
+            <span className="text-slate-700">DZ</span>
           </span>
         </div>
 
@@ -402,27 +427,36 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   content={
                     <CustomTooltip
                       unit="mm"
-                      formatVal={(v) => `${v >= 0 ? '+' : ''}${Number(v).toFixed(1)} mm`}
+                      formatVal={(v) => `${Number(v).toFixed(2)} mm`}
                     />
                   }
                 />
                 <Line
                   type="monotone"
                   dataKey="xDisp"
-                  name="X"
+                  name="DX"
                   stroke="#0284c7"
                   strokeWidth={2}
                   isAnimationActive={false}
-                  dot={renderCalloutDot('xDisp', totalPoints, '#0284c7', (v) => `${v >= 0 ? '+' : ''}${Number(v).toFixed(1)} mm`, dispOffsets.x)}
+                  dot={renderCalloutDot('xDisp', totalPoints, '#0284c7', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.x)}
                 />
                 <Line
                   type="monotone"
                   dataKey="yDisp"
-                  name="Y"
+                  name="DY"
                   stroke="#0d9488"
                   strokeWidth={2}
                   isAnimationActive={false}
-                  dot={renderCalloutDot('yDisp', totalPoints, '#0d9488', (v) => `${v >= 0 ? '+' : ''}${Number(v).toFixed(1)} mm`, dispOffsets.y)}
+                  dot={renderCalloutDot('yDisp', totalPoints, '#0d9488', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.y)}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="zDisp"
+                  name="DZ"
+                  stroke="#ea580c"
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                  dot={renderCalloutDot('zDisp', totalPoints, '#ea580c', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.z)}
                 />
               </LineChart>
             </ResponsiveContainer>

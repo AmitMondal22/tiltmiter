@@ -119,7 +119,10 @@ export async function telemetryRoutes(fastify) {
       const vibPeak = parseFloat(raw.vibration?.vibrationPeak ?? r.vibration?.vibrationPeak ?? null);
 
       // Temperature - stored as number in DB
-      const temperature = parseFloat(r.temperature ?? raw.environment?.temperature ?? null);
+      const rawEnvTemp = r.temperature ?? raw.environment?.temperature;
+      const temperature = (rawEnvTemp !== undefined && rawEnvTemp !== null && !isNaN(parseFloat(rawEnvTemp)))
+        ? parseFloat(rawEnvTemp)
+        : null;
 
       return { ax, ay, az, axG, ayG, azG, accMag, vibRMS, vibPeak, temperature };
     };
@@ -173,8 +176,10 @@ export async function telemetryRoutes(fastify) {
       const azG = sensors.azG ?? parseFloat(pt.azG ?? pt.az ?? null);
       const accMag = sensors.accMag ?? parseFloat(pt.accMag ?? null);
       const vibRMS = sensors.vibRMS ?? parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? null);
-      const vibPeak = sensors.vibPeak ?? parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? null);
-      const temperature = sensors.temperature ?? parseFloat(pt.temp ?? pt.temperature ?? null);
+      const rawPtTemp = sensors.temperature ?? pt.temp ?? pt.temperature ?? pt.rawPayload?.environment?.temperature;
+      const temperature = (rawPtTemp !== undefined && rawPtTemp !== null && !isNaN(parseFloat(rawPtTemp)))
+        ? parseFloat(rawPtTemp)
+        : null;
 
       return {
         time: new Date(pt.timestamp || pt.time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),

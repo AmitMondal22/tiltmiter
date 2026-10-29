@@ -129,10 +129,21 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   let totalDisp = hasDevTotDisp ? parseFloat(rawDisp.totalDisplacement_mm) : Math.sqrt(xDisp * xDisp + yDisp * yDisp + zDisp * zDisp);
   if (isNaN(totalDisp)) totalDisp = 0.0;
 
-  // 4. Parse environment, battery voltage & cellular CSQ
-  const temp = parseFloat(rawPayload.environment?.temperature ?? rawPayload.temperature ?? rawPayload.tempVal ?? 25.0) || 25.0;
-  const batteryVoltage = parseFloat(rawPayload.power?.batteryVoltage ?? rawPayload.batteryVoltage ?? 13.03) || 13.03;
-  const csq = parseInt(rawPayload.network?.csq ?? rawPayload.csq ?? 19, 10) || 19;
+  // 4. Parse environment, battery voltage & cellular CSQ safely without replacing 0.0 with fallbacks
+  const rawEnvTemp = rawPayload.environment?.temperature ?? rawPayload.temperature ?? rawPayload.tempVal;
+  const temp = (rawEnvTemp !== undefined && rawEnvTemp !== null && !isNaN(parseFloat(rawEnvTemp)))
+    ? parseFloat(rawEnvTemp)
+    : 0.0;
+
+  const rawPowerBat = rawPayload.power?.batteryVoltage ?? rawPayload.batteryVoltage;
+  const batteryVoltage = (rawPowerBat !== undefined && rawPowerBat !== null && !isNaN(parseFloat(rawPowerBat)))
+    ? parseFloat(rawPowerBat)
+    : 0.0;
+
+  const rawNetCsq = rawPayload.network?.csq ?? rawPayload.csq;
+  const csq = (rawNetCsq !== undefined && rawNetCsq !== null && !isNaN(parseInt(rawNetCsq, 10)))
+    ? parseInt(rawNetCsq, 10)
+    : 0;
 
   let utcTimestamp;
   if (rawPayload.timestamp) {
@@ -202,10 +213,14 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     resultantSlope,
 
     acceleration: rawPayload.acceleration || {},
-    accMag: rawPayload.acceleration?.accMag || (!isNaN(ax) && !isNaN(ay) ? Math.sqrt(ax * ax + ay * ay + (az || 9.8) * (az || 9.8)) : 9.82),
+    accMag: (rawPayload.acceleration?.accMag !== undefined && rawPayload.acceleration?.accMag !== null && !isNaN(parseFloat(rawPayload.acceleration.accMag)))
+      ? parseFloat(rawPayload.acceleration.accMag)
+      : (!isNaN(ax) && !isNaN(ay) ? Math.sqrt(ax * ax + ay * ay + (!isNaN(az) ? az * az : 0)) : 0.0),
 
     gyroscope: rawPayload.gyroscope || {},
-    gyroMag: rawPayload.gyroscope?.gyroMag || 0.008,
+    gyroMag: (rawPayload.gyroscope?.gyroMag !== undefined && rawPayload.gyroscope?.gyroMag !== null && !isNaN(parseFloat(rawPayload.gyroscope.gyroMag)))
+      ? parseFloat(rawPayload.gyroscope.gyroMag)
+      : 0.0,
 
     vibration: rawPayload.vibration || {},
     displacement: {

@@ -44,7 +44,7 @@ export const Device = sequelize.define('Device', {
   },
   temperature: {
     type: DataTypes.FLOAT,
-    defaultValue: 25.0,
+    defaultValue: null,
   },
   xTilt: {
     type: DataTypes.FLOAT,

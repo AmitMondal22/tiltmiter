@@ -30,7 +30,7 @@ export function calculateDeviceHealth(device, recentTelemetry = []) {
   else if (vibVal > 0.2) vibrationScore = 80;
 
   // 6. Temperature Score
-  const temp = device.temperature || 25;
+  const temp = (typeof device.temperature === 'number' && !isNaN(device.temperature)) ? device.temperature : 25;
   let tempScore = 100;
   if (temp > 50 || temp < -10) tempScore = 60;
   else if (temp > 40 || temp < 0) tempScore = 85;

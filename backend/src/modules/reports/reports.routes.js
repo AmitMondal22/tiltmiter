@@ -99,7 +99,10 @@ export async function reportsRoutes(fastify) {
         const accMag = parseFloat(raw.acceleration?.accMag ?? r.acceleration?.accMag ?? null);
         const vibRMS = parseFloat(raw.vibration?.vibrationRMS ?? raw.vibration?.vibration ?? r.vibration?.vibrationRMS ?? r.vibration?.vibration ?? null);
         const vibPeak = parseFloat(raw.vibration?.vibrationPeak ?? r.vibration?.vibrationPeak ?? null);
-        const temperature = parseFloat(r.temperature ?? raw.environment?.temperature ?? null);
+        const rawEnvTemp = r.temperature ?? raw.environment?.temperature;
+        const temperature = (rawEnvTemp !== undefined && rawEnvTemp !== null && !isNaN(parseFloat(rawEnvTemp)))
+          ? parseFloat(rawEnvTemp)
+          : null;
         return {
           axG: !isNaN(axG) ? axG : null,
           ayG: !isNaN(ayG) ? ayG : null,
@@ -107,7 +110,7 @@ export async function reportsRoutes(fastify) {
           accMag: !isNaN(accMag) ? accMag : null,
           vibRMS: !isNaN(vibRMS) ? vibRMS : null,
           vibPeak: !isNaN(vibPeak) ? vibPeak : null,
-          temperature: !isNaN(temperature) ? temperature : null,
+          temperature,
         };
       };
 

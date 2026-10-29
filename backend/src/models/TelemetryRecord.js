@@ -55,7 +55,7 @@ export const TelemetryRecord = sequelize.define('TelemetryRecord', {
   },
   temperature: {
     type: DataTypes.FLOAT,
-    defaultValue: 25.0,
+    defaultValue: null,
   },
   acceleration: {
     type: DataTypes.JSONB,

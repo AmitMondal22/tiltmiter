@@ -134,7 +134,7 @@ export default function TrendsPage() {
       vibRMS: vibR !== null && !isNaN(vibR) ? Number(vibR.toFixed(1)) : null,
       vibPeak: vibP !== null && !isNaN(vibP) ? Number(vibP.toFixed(1)) : null,
       temp: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
-      temperature: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : 25.0,
+      temperature: tempC !== null && !isNaN(tempC) ? Number(tempC.toFixed(1)) : null,
       battery: pt.battery ?? pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
       batteryVoltage: pt.batteryVoltage ?? pt.power?.batteryVoltage ?? null,
       power: pt.power || null,

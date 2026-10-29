@@ -16,7 +16,11 @@ function Spark({ data, color, width = 64, height = 20 }) {
   );
 }
 
-const n = (val, def = 0) => (typeof val === 'number' && !isNaN(val) ? val : (parseFloat(val) || def));
+const n = (val, def = 0) => {
+  if (val === null || val === undefined || val === '' || val === '--') return def;
+  const num = typeof val === 'number' ? val : parseFloat(val);
+  return !isNaN(num) ? num : def;
+};
 
 import { formatFullDateTime } from '../utils/dateHelper';
 
@@ -91,8 +95,8 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const secondary = [
     { label: 'Vibration Peak', val: `${n(d.vibPeak, 0).toFixed(4)} g`, icon: Zap, iconColor: 'text-amber-500 bg-amber-50' },
     { label: 'Vibration RMS', val: `${n(d.vibRMS, 0).toFixed(4)} g`, icon: Activity, iconColor: 'text-purple-500 bg-purple-50' },
-    { label: 'Acceleration Mag', val: `${n(d.accMag, 9.81).toFixed(3)} m/s²`, icon: Activity, iconColor: 'text-blue-500 bg-blue-50' },
-    { label: 'Ambient Temp.', val: `${n(d.temp, 25.0).toFixed(1)} °C`, icon: Thermometer, iconColor: 'text-orange-500 bg-orange-50' },
+    { label: 'Acceleration Mag', val: `${n(d.accMag, 0).toFixed(3)} m/s²`, icon: Activity, iconColor: 'text-blue-500 bg-blue-50' },
+    { label: 'Ambient Temp.', val: `${n(d.temp, 0).toFixed(1)} °C`, icon: Thermometer, iconColor: 'text-orange-500 bg-orange-50' },
     { label: 'Last Sync Date & Time', val: lastFullDateTime, icon: Clock, iconColor: 'text-blue-500 bg-blue-50' },
   ];
 

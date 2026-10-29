@@ -38,9 +38,18 @@ export async function saveTelemetryPoint(data) {
   const totalDisplacement = typeof data.totalDisplacement === 'number'
     ? data.totalDisplacement
     : (data.displacement?.totalDisplacement_mm ?? Math.sqrt(xDisplacement * xDisplacement + yDisplacement * yDisplacement + zDisplacement * zDisplacement));
-  const tempVal = parseFloat(data.tempVal ?? data.environment?.temperature ?? 25.0);
-  const batteryVoltage = parseFloat(data.batteryVoltage ?? data.power?.batteryVoltage ?? 13.03);
-  const csq = parseInt(data.csq ?? data.network?.csq ?? 19);
+  const rawEnvTemp = data.tempVal ?? data.environment?.temperature ?? data.temperature;
+  const tempVal = (rawEnvTemp !== undefined && rawEnvTemp !== null && !isNaN(parseFloat(rawEnvTemp)))
+    ? parseFloat(rawEnvTemp)
+    : 0.0;
+  const rawPowerBat = data.batteryVoltage ?? data.power?.batteryVoltage;
+  const batteryVoltage = (rawPowerBat !== undefined && rawPowerBat !== null && !isNaN(parseFloat(rawPowerBat)))
+    ? parseFloat(rawPowerBat)
+    : 0.0;
+  const rawNetCsq = data.csq ?? data.network?.csq;
+  const csq = (rawNetCsq !== undefined && rawNetCsq !== null && !isNaN(parseInt(rawNetCsq, 10)))
+    ? parseInt(rawNetCsq, 10)
+    : 0;
 
   const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
   const validTimestamp = !isNaN(timestamp.getTime()) ? timestamp : new Date();

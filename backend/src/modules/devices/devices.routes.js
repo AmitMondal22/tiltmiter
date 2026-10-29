@@ -482,7 +482,7 @@ export async function devicesRoutes(fastify) {
               yDisplacement: 0.0,
               zDisplacement: 0.0,
               totalDisplacement: 0.0,
-              temperature: parseFloat(device.temperature) || 25.0,
+              temperature: (device.temperature !== undefined && device.temperature !== null && !isNaN(parseFloat(device.temperature))) ? parseFloat(device.temperature) : 0.0,
             });
             recordsUpdatedCount = 1;
           }
@@ -565,10 +565,10 @@ export async function devicesRoutes(fastify) {
           roll: 0.0,
           pitch: 0.0,
           tilt: 0.0,
-          tempVal: device.temperature || 25.0,
-          temperature: device.temperature ? `${device.temperature} °C` : null,
-          batteryVoltage: parseFloat(device.battery) || 13.0,
-          csq: parseInt(device.signalStrength) || 19,
+          tempVal: (device.temperature !== undefined && device.temperature !== null && !isNaN(parseFloat(device.temperature))) ? parseFloat(device.temperature) : 0.0,
+          temperature: (device.temperature !== undefined && device.temperature !== null) ? `${device.temperature} °C` : null,
+          batteryVoltage: (device.battery !== undefined && device.battery !== null && !isNaN(parseFloat(device.battery))) ? parseFloat(device.battery) : 0.0,
+          csq: (device.signalStrength !== undefined && device.signalStrength !== null && !isNaN(parseInt(device.signalStrength))) ? parseInt(device.signalStrength) : 0,
           timestamp: originalTime,
           status: device.status,
         });
@@ -752,10 +752,10 @@ export async function devicesRoutes(fastify) {
             roll: 0.0,
             pitch: 0.0,
             tilt: 0.0,
-            tempVal: dev.temperature || 25.0,
-            temperature: dev.temperature ? `${dev.temperature} °C` : null,
-            batteryVoltage: parseFloat(dev.battery) || 13.0,
-            csq: parseInt(dev.signalStrength) || 19,
+            tempVal: (dev.temperature !== undefined && dev.temperature !== null && !isNaN(parseFloat(dev.temperature))) ? parseFloat(dev.temperature) : 0.0,
+            temperature: (dev.temperature !== undefined && dev.temperature !== null) ? `${dev.temperature} °C` : null,
+            batteryVoltage: (dev.battery !== undefined && dev.battery !== null && !isNaN(parseFloat(dev.battery))) ? parseFloat(dev.battery) : 0.0,
+            csq: (dev.signalStrength !== undefined && dev.signalStrength !== null && !isNaN(parseInt(dev.signalStrength))) ? parseInt(dev.signalStrength) : 0,
             timestamp: originalTime,
             status: dev.status,
           });

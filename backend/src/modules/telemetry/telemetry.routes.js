@@ -95,10 +95,10 @@ export async function telemetryRoutes(fastify) {
       }
     } catch (devLookupErr) {}
 
-    const hasReferenceZero = Boolean(devRecord?.hasReferenceZero || devRecord?.calibrate);
     const refX = parseFloat(devRecord?.refThetaX ?? 0.0) || 0.0;
     const refY = parseFloat(devRecord?.refThetaY ?? 0.0) || 0.0;
     const refZ = parseFloat(devRecord?.refThetaZ ?? 0.0) || 0.0;
+    const hasReferenceZero = Boolean(devRecord?.hasReferenceZero || devRecord?.calibrate || (refX !== 0 || refY !== 0 || refZ !== 0));
     const L = parseFloat(devRecord?.gaugeLength_mm ?? 1000.0) || 1000.0;
 
     // Helper to extract sensor values from rawPayload nested structure or flat fields
@@ -132,9 +132,6 @@ export async function telemetryRoutes(fastify) {
       const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? pt.rawPayload?.tilt?.tilt;
       const calcRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(rawX * rawX + rawY * rawY);
 
-      // Check if hardware already performed zero tare (calibration flag in rawPayload)
-      const isHwCalibrated = Boolean(pt.rawPayload?.calibration?.calibrated || pt.calibration?.calibrated);
-
       // Present Values = Pure actual device values (NEVER subtracted by reference zero)
       const presentX = rawX;
       const presentY = rawY;
@@ -142,17 +139,32 @@ export async function telemetryRoutes(fastify) {
       const presentResultant = calcRes;
 
       // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
-      const deltaThetaX = hasReferenceZero ? (rawX - refX) : (pt.deltaThetaX !== undefined ? parseFloat(pt.deltaThetaX) : (rawX - refX));
-      const deltaThetaY = hasReferenceZero ? (rawY - refY) : (pt.deltaThetaY !== undefined ? parseFloat(pt.deltaThetaY) : (rawY - refY));
-      const deltaThetaZ = hasReferenceZero ? (rawZ - refZ) : (pt.deltaThetaZ !== undefined ? parseFloat(pt.deltaThetaZ) : (rawZ - refZ));
+      // Formula: Delta = Current - Reference
+      const deltaThetaX = rawX - refX;
+      const deltaThetaY = rawY - refY;
+      const deltaThetaZ = rawZ - refZ;
 
-      // ClinoX lateral displacement D = L * tan(Δθ * π / 180) based on delta angles
+      // Device-provided displacement data (fallback to clino formula only if device displacement not sent)
+      const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
+      const devXDisp = rawDisp.xDisplacement_mm ?? pt.xDisplacement_mm ?? pt.xDisplacement ?? pt.xDisp;
+      const devYDisp = rawDisp.yDisplacement_mm ?? pt.yDisplacement_mm ?? pt.yDisplacement ?? pt.yDisp;
+      const devZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisplacement ?? pt.zDisp;
+      const devTotDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisplacement ?? pt.totalDisp;
+
       const clinoDx = L * Math.tan((deltaThetaX * Math.PI) / 180.0);
       const clinoDy = L * Math.tan((deltaThetaY * Math.PI) / 180.0);
-      const finalXDisp = !isNaN(clinoDx) ? clinoDx : 0.0;
-      const finalYDisp = !isNaN(clinoDy) ? clinoDy : 0.0;
-      const finalZDisp = parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0;
-      const finalTotalDisp = Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp);
+      const finalXDisp = (devXDisp !== undefined && devXDisp !== null && !isNaN(parseFloat(devXDisp)))
+        ? parseFloat(devXDisp)
+        : (!isNaN(clinoDx) ? clinoDx : 0.0);
+      const finalYDisp = (devYDisp !== undefined && devYDisp !== null && !isNaN(parseFloat(devYDisp)))
+        ? parseFloat(devYDisp)
+        : (!isNaN(clinoDy) ? clinoDy : 0.0);
+      const finalZDisp = (devZDisp !== undefined && devZDisp !== null && !isNaN(parseFloat(devZDisp)))
+        ? parseFloat(devZDisp)
+        : (parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0.0);
+      const finalTotalDisp = (devTotDisp !== undefined && devTotDisp !== null && !isNaN(parseFloat(devTotDisp)))
+        ? parseFloat(devTotDisp)
+        : Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp + finalZDisp * finalZDisp);
 
       // Use extracted sensor values (no dummy fallbacks - null means no data)
       const sensors = extracted || {};
@@ -210,6 +222,16 @@ export async function telemetryRoutes(fastify) {
         zDisplacement: Number(finalZDisp.toFixed(3)),
         totalDisp: Number(finalTotalDisp.toFixed(3)),
         totalDisplacement: Number(finalTotalDisp.toFixed(3)),
+        xDisplacement_mm: Number(finalXDisp.toFixed(4)),
+        yDisplacement_mm: Number(finalYDisp.toFixed(4)),
+        zDisplacement_mm: Number(finalZDisp.toFixed(4)),
+        totalDisplacement_mm: Number(finalTotalDisp.toFixed(4)),
+        displacement: {
+          xDisplacement_mm: Number(finalXDisp.toFixed(4)),
+          yDisplacement_mm: Number(finalYDisp.toFixed(4)),
+          zDisplacement_mm: Number(finalZDisp.toFixed(4)),
+          totalDisplacement_mm: Number(finalTotalDisp.toFixed(4)),
+        },
         // Sensor data - null if not available in DB record
         axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(4)) : null,
         ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(4)) : null,

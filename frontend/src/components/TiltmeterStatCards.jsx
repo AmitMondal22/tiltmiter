@@ -23,9 +23,9 @@ import { formatFullDateTime } from '../utils/dateHelper';
 export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const d = parseTelemetry(rawDevice);
 
-  const xT = n(d.xTilt, 0);
-  const yT = n(d.yTilt, 0);
-  const zT = n(d.zTilt, 0);
+  const deltaX = typeof d.deltaX === 'number' ? d.deltaX : (typeof d.deltaThetaX === 'number' ? d.deltaThetaX : (n(d.presentX ?? d.xTilt, 0) - (d.refThetaX || 0)));
+  const deltaY = typeof d.deltaY === 'number' ? d.deltaY : (typeof d.deltaThetaY === 'number' ? d.deltaThetaY : (n(d.presentY ?? d.yTilt, 0) - (d.refThetaY || 0)));
+  const deltaZ = typeof d.deltaZ === 'number' ? d.deltaZ : (typeof d.deltaThetaZ === 'number' ? d.deltaThetaZ : (n(d.presentZ ?? d.zTilt, 0) - (d.refThetaZ || 0)));
   const resT = n(d.resultantTilt, 0);
   const xDisp = n(d.xDisplacement ?? d.displacement?.xDisplacement_mm, 0);
   const yDisp = n(d.yDisplacement ?? d.displacement?.yDisplacement_mm, 0);
@@ -38,21 +38,21 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const primary = [
     {
       label: 'ΔX (Roll)',
-      value: `${xT >= 0 ? '+' : ''}${xT.toFixed(1)}°`,
+      value: `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(1)}°`,
       unit: 'Delta Tilt',
       color: '#3b82f6',
       spark: d.sparklineXTilt || null,
     },
     {
       label: 'ΔY (Pitch)',
-      value: `${yT >= 0 ? '+' : ''}${yT.toFixed(1)}°`,
+      value: `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(1)}°`,
       unit: 'Delta Tilt',
       color: '#0d9488',
       spark: d.sparklineYTilt || null,
     },
     {
       label: 'ΔZ (Yaw)',
-      value: `${zT >= 0 ? '+' : ''}${zT.toFixed(1)}°`,
+      value: `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(1)}°`,
       unit: 'Delta Tilt',
       color: '#ea580c',
       spark: d.sparklineResultant || null,

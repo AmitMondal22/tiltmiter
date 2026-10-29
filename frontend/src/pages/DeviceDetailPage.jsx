@@ -492,7 +492,7 @@ export default function DeviceDetailPage() {
   const refX = parseFloat(device?.refThetaX ?? d.refThetaX ?? 0.0) || 0.0;
   const refY = parseFloat(device?.refThetaY ?? d.refThetaY ?? 0.0) || 0.0;
   const refZ = parseFloat(device?.refThetaZ ?? d.refThetaZ ?? 0.0) || 0.0;
-  const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate || (refX !== 0 || refY !== 0));
+  const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate || (refX !== 0 || refY !== 0 || refZ !== 0));
 
   // 3. Delta Values: Current − Reference (Calculated with original numeric full precision)
   // Delta X = Current Roll − Reference Roll

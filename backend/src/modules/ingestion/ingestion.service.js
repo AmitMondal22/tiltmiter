@@ -60,21 +60,44 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
     }
   } catch (e) {}
 
-  const isHardwareCalibrated = Boolean(rawPayload.calibration?.calibrated);
-  const hasRefZero = Boolean(deviceRecord?.calibrate ?? deviceRecord?.hasReferenceZero ?? false);
-  const dbRefX = deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null ? parseFloat(deviceRecord.refThetaX) : 0.0;
-  const dbRefY = deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null ? parseFloat(deviceRecord.refThetaY) : 0.0;
-  const dbRefZ = deviceRecord?.refThetaZ !== undefined && deviceRecord?.refThetaZ !== null ? parseFloat(deviceRecord.refThetaZ) : 0.0;
-  const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;
+  // 1. Reference Angles: Use stored device reference baseline if configured, else payload reference, else 0.0°
+  let refX = 0.0;
+  let refY = 0.0;
+  let refZ = 0.0;
 
+  if (deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null && !isNaN(parseFloat(deviceRecord.refThetaX))) {
+    refX = parseFloat(deviceRecord.refThetaX);
+  } else if (rawPayload.refThetaX !== undefined && !isNaN(parseFloat(rawPayload.refThetaX))) {
+    refX = parseFloat(rawPayload.refThetaX);
+  } else if (rawPayload.baselineRoll !== undefined && !isNaN(parseFloat(rawPayload.baselineRoll))) {
+    refX = parseFloat(rawPayload.baselineRoll);
+  }
+
+  if (deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null && !isNaN(parseFloat(deviceRecord.refThetaY))) {
+    refY = parseFloat(deviceRecord.refThetaY);
+  } else if (rawPayload.refThetaY !== undefined && !isNaN(parseFloat(rawPayload.refThetaY))) {
+    refY = parseFloat(rawPayload.refThetaY);
+  } else if (rawPayload.baselinePitch !== undefined && !isNaN(parseFloat(rawPayload.baselinePitch))) {
+    refY = parseFloat(rawPayload.baselinePitch);
+  }
+
+  if (deviceRecord?.refThetaZ !== undefined && deviceRecord?.refThetaZ !== null && !isNaN(parseFloat(deviceRecord.refThetaZ))) {
+    refZ = parseFloat(deviceRecord.refThetaZ);
+  } else if (rawPayload.refThetaZ !== undefined && !isNaN(parseFloat(rawPayload.refThetaZ))) {
+    refZ = parseFloat(rawPayload.refThetaZ);
+  }
+
+  const hasRefZero = Boolean(deviceRecord?.calibrate ?? deviceRecord?.hasReferenceZero ?? (refX !== 0 || refY !== 0 || refZ !== 0));
+  const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;
   const L = parseFloat(rawPayload.gaugeLength_mm || rawPayload.L || dbGaugeL);
-  // When hardware already reports calibrated: true, it sends delta angles directly relative to tare baseline
-  const refX = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaX ?? rawPayload.baselineRoll ?? (hasRefZero ? dbRefX : 0.0));
-  const refY = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaY ?? rawPayload.baselinePitch ?? (hasRefZero ? dbRefY : 0.0));
-  const refZ = isHardwareCalibrated ? 0.0 : parseFloat(rawPayload.refThetaZ ?? (hasRefZero ? dbRefZ : 0.0));
-  const deltaThetaX = isHardwareCalibrated ? roll : (roll - refX);
-  const deltaThetaY = isHardwareCalibrated ? pitch : (pitch - refY);
-  const deltaThetaZ = isHardwareCalibrated ? yaw : (yaw - refZ);
+
+  // 2. Delta Angles: Current − Reference (Calculated with original numeric full precision)
+  // Delta X = Current Roll − Reference Roll
+  // Delta Y = Current Pitch − Reference Pitch
+  // Delta Z = Current Yaw − Reference Yaw
+  const deltaThetaX = roll - refX;
+  const deltaThetaY = pitch - refY;
+  const deltaThetaZ = yaw - refZ;
 
   // Present Values = Pure actual device values (NEVER subtracted by reference zero)
   const presentX = roll;

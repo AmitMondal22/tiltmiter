@@ -551,7 +551,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const refX = parseFloat(activeDevice?.refThetaX ?? d.refThetaX ?? 0.0) || 0.0;
   const refY = parseFloat(activeDevice?.refThetaY ?? d.refThetaY ?? 0.0) || 0.0;
   const refZ = parseFloat(activeDevice?.refThetaZ ?? d.refThetaZ ?? 0.0) || 0.0;
-  const hasRef = Boolean(activeDevice?.hasReferenceZero || activeDevice?.calibrate || (refX !== 0 || refY !== 0));
+  const hasRef = Boolean(activeDevice?.hasReferenceZero || activeDevice?.calibrate || (refX !== 0 || refY !== 0 || refZ !== 0));
 
   // 3. Delta Values: Current − Reference (Calculated with original numeric full precision)
   // Delta X = Current Roll − Reference Roll

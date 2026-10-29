@@ -248,10 +248,10 @@ export function parseTelemetry(data) {
 
   // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
   const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0);
-  const refThetaX = parseFloat(data.refThetaX ?? 0.0) || 0.0;
-  const refThetaY = parseFloat(data.refThetaY ?? 0.0) || 0.0;
-  const refThetaZ = parseFloat(data.refThetaZ ?? 0.0) || 0.0;
-  const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)));
+  const refThetaX = parseFloat(data.device?.refThetaX ?? data.activeDevice?.refThetaX ?? data.refThetaX ?? 0.0) || 0.0;
+  const refThetaY = parseFloat(data.device?.refThetaY ?? data.activeDevice?.refThetaY ?? data.refThetaY ?? 0.0) || 0.0;
+  const refThetaZ = parseFloat(data.device?.refThetaZ ?? data.activeDevice?.refThetaZ ?? data.refThetaZ ?? 0.0) || 0.0;
+  const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)) || (refThetaX !== 0 || refThetaY !== 0 || refThetaZ !== 0));
 
   // 4. Delta Values: Current − Reference (Calculated with original numeric full precision)
   // Delta X = Current Roll − Reference Roll

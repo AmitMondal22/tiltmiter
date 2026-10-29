@@ -67,15 +67,17 @@ export async function telemetryRoutes(fastify) {
         }
       } catch (err) {}
 
-      stopDate = refDate;
+      const anchorTime = Math.max(Date.now(), refDate.getTime());
       const rLower = String(range).toLowerCase();
-      if (rLower === '1h') startDate = new Date(refDate.getTime() - 60 * 60 * 1000);
-      else if (rLower === '6h') startDate = new Date(refDate.getTime() - 6 * 60 * 60 * 1000);
-      else if (rLower === '12h') startDate = new Date(refDate.getTime() - 12 * 60 * 60 * 1000);
-      else if (rLower === '24h' || rLower === '1d') startDate = new Date(refDate.getTime() - 24 * 60 * 60 * 1000);
-      else if (rLower === '7d' || rLower === '1w') startDate = new Date(refDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-      else if (rLower === '30d' || rLower === '1m') startDate = new Date(refDate.getTime() - 30 * 24 * 60 * 60 * 1000);
-      else startDate = new Date(refDate.getTime() - 24 * 60 * 60 * 1000);
+      let durationMs = 24 * 60 * 60 * 1000;
+      if (rLower === '1h') durationMs = 60 * 60 * 1000;
+      else if (rLower === '6h') durationMs = 6 * 60 * 60 * 1000;
+      else if (rLower === '12h') durationMs = 12 * 60 * 60 * 1000;
+      else if (rLower === '24h' || rLower === '1d') durationMs = 24 * 60 * 60 * 1000;
+      else if (rLower === '7d' || rLower === '1w') durationMs = 7 * 24 * 60 * 60 * 1000;
+      else if (rLower === '30d' || rLower === '1m') durationMs = 30 * 24 * 60 * 60 * 1000;
+      startDate = new Date(anchorTime - durationMs);
+      stopDate = null; // Do not cap upper bound so newly ingested points are never filtered out
     }
 
     // Check device zero calibration status from database
@@ -95,10 +97,10 @@ export async function telemetryRoutes(fastify) {
       }
     } catch (devLookupErr) {}
 
-    const refX = parseFloat(devRecord?.refThetaX ?? 0.0) || 0.0;
-    const refY = parseFloat(devRecord?.refThetaY ?? 0.0) || 0.0;
-    const refZ = parseFloat(devRecord?.refThetaZ ?? 0.0) || 0.0;
-    const hasReferenceZero = Boolean(devRecord?.hasReferenceZero || devRecord?.calibrate || (refX !== 0 || refY !== 0 || refZ !== 0));
+    const hasReferenceZero = Boolean(devRecord?.hasReferenceZero || devRecord?.calibrate);
+    const refX = hasReferenceZero ? (parseFloat(devRecord?.refThetaX ?? 0.0) || 0.0) : 0.0;
+    const refY = hasReferenceZero ? (parseFloat(devRecord?.refThetaY ?? 0.0) || 0.0) : 0.0;
+    const refZ = hasReferenceZero ? (parseFloat(devRecord?.refThetaZ ?? 0.0) || 0.0) : 0.0;
     const L = parseFloat(devRecord?.gaugeLength_mm ?? 1000.0) || 1000.0;
 
     // Helper to extract sensor values from rawPayload nested structure or flat fields
@@ -268,11 +270,13 @@ export async function telemetryRoutes(fastify) {
 
       const dbRecords = await TelemetryRecord.findAll({
         where: whereClause,
-        order: [['timestamp', 'ASC']],
+        order: [['timestamp', 'DESC']],
         limit: 2000,
       });
 
       if (dbRecords && dbRecords.length > 0) {
+        // Chronological order for time-series charts & tables
+        dbRecords.reverse();
         const history = dbRecords.map(r => {
           const extracted = extractFromRecord(r);
           return formatPoint({

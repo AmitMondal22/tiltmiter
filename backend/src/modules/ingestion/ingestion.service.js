@@ -64,30 +64,29 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   let refX = 0.0;
   let refY = 0.0;
   let refZ = 0.0;
+  const isCalibrated = Boolean(deviceRecord?.hasReferenceZero || deviceRecord?.calibrate);
 
-  if (deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null && !isNaN(parseFloat(deviceRecord.refThetaX))) {
-    refX = parseFloat(deviceRecord.refThetaX);
+  if (isCalibrated) {
+    if (deviceRecord?.refThetaX !== undefined && deviceRecord?.refThetaX !== null && !isNaN(parseFloat(deviceRecord.refThetaX))) {
+      refX = parseFloat(deviceRecord.refThetaX);
+    }
+    if (deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null && !isNaN(parseFloat(deviceRecord.refThetaY))) {
+      refY = parseFloat(deviceRecord.refThetaY);
+    }
+    if (deviceRecord?.refThetaZ !== undefined && deviceRecord?.refThetaZ !== null && !isNaN(parseFloat(deviceRecord.refThetaZ))) {
+      refZ = parseFloat(deviceRecord.refThetaZ);
+    }
   } else if (rawPayload.refThetaX !== undefined && !isNaN(parseFloat(rawPayload.refThetaX))) {
     refX = parseFloat(rawPayload.refThetaX);
-  } else if (rawPayload.baselineRoll !== undefined && !isNaN(parseFloat(rawPayload.baselineRoll))) {
-    refX = parseFloat(rawPayload.baselineRoll);
+    if (rawPayload.refThetaY !== undefined && !isNaN(parseFloat(rawPayload.refThetaY))) {
+      refY = parseFloat(rawPayload.refThetaY);
+    }
+    if (rawPayload.refThetaZ !== undefined && !isNaN(parseFloat(rawPayload.refThetaZ))) {
+      refZ = parseFloat(rawPayload.refThetaZ);
+    }
   }
 
-  if (deviceRecord?.refThetaY !== undefined && deviceRecord?.refThetaY !== null && !isNaN(parseFloat(deviceRecord.refThetaY))) {
-    refY = parseFloat(deviceRecord.refThetaY);
-  } else if (rawPayload.refThetaY !== undefined && !isNaN(parseFloat(rawPayload.refThetaY))) {
-    refY = parseFloat(rawPayload.refThetaY);
-  } else if (rawPayload.baselinePitch !== undefined && !isNaN(parseFloat(rawPayload.baselinePitch))) {
-    refY = parseFloat(rawPayload.baselinePitch);
-  }
-
-  if (deviceRecord?.refThetaZ !== undefined && deviceRecord?.refThetaZ !== null && !isNaN(parseFloat(deviceRecord.refThetaZ))) {
-    refZ = parseFloat(deviceRecord.refThetaZ);
-  } else if (rawPayload.refThetaZ !== undefined && !isNaN(parseFloat(rawPayload.refThetaZ))) {
-    refZ = parseFloat(rawPayload.refThetaZ);
-  }
-
-  const hasRefZero = Boolean(deviceRecord?.calibrate ?? deviceRecord?.hasReferenceZero ?? (refX !== 0 || refY !== 0 || refZ !== 0));
+  const hasRefZero = Boolean(isCalibrated || (refX !== 0 || refY !== 0 || refZ !== 0));
   const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;
   const L = parseFloat(rawPayload.gaugeLength_mm || rawPayload.L || dbGaugeL);
 

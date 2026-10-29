@@ -96,9 +96,10 @@ export default function DeviceDetailPage() {
 
     // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
     const L = parseFloat(device?.gaugeLength_mm || 1000.0);
-    const refX = parseFloat(device?.refThetaX ?? pt.refThetaX ?? 0.0) || 0.0;
-    const refY = parseFloat(device?.refThetaY ?? pt.refThetaY ?? 0.0) || 0.0;
-    const refZ = parseFloat(device?.refThetaZ ?? pt.refThetaZ ?? 0.0) || 0.0;
+    const hasCalibratedRef = Boolean(device?.hasReferenceZero || device?.calibrate || pt.hasReferenceZero);
+    const refX = hasCalibratedRef ? (parseFloat(device?.refThetaX ?? pt.refThetaX ?? 0.0) || 0.0) : 0.0;
+    const refY = hasCalibratedRef ? (parseFloat(device?.refThetaY ?? pt.refThetaY ?? 0.0) || 0.0) : 0.0;
+    const refZ = hasCalibratedRef ? (parseFloat(device?.refThetaZ ?? pt.refThetaZ ?? 0.0) || 0.0) : 0.0;
 
     // 4. Delta Values: Current − Reference (Calculated with original numeric full precision)
     // Delta X = Current Roll − Reference Roll
@@ -267,10 +268,10 @@ export default function DeviceDetailPage() {
         setLiveData(parsed);
         const newPoint = mapPointData(parsed);
 
-        // Do NOT inject live packets into historical logs if the device/range has no history in database
+        // Append live packets into telemetry history smoothly
         setTelemetryHistory(prev => {
           if (!prev || prev.length === 0) {
-            return prev;
+            return [newPoint];
           }
           if (prev.some(p => p.timestamp === newPoint.timestamp)) {
             return prev;
@@ -489,10 +490,10 @@ export default function DeviceDetailPage() {
 
   const L = parseFloat(device?.gaugeLength_mm || d.gaugeLength_mm || 1000.0);
   // Stored reference angles: initially 0.0° or calibrated reference if configured later
-  const refX = parseFloat(device?.refThetaX ?? d.refThetaX ?? 0.0) || 0.0;
-  const refY = parseFloat(device?.refThetaY ?? d.refThetaY ?? 0.0) || 0.0;
-  const refZ = parseFloat(device?.refThetaZ ?? d.refThetaZ ?? 0.0) || 0.0;
-  const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate || (refX !== 0 || refY !== 0 || refZ !== 0));
+  const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate || d.hasReferenceZero);
+  const refX = hasRef ? (parseFloat(device?.refThetaX ?? d.refThetaX ?? 0.0) || 0.0) : 0.0;
+  const refY = hasRef ? (parseFloat(device?.refThetaY ?? d.refThetaY ?? 0.0) || 0.0) : 0.0;
+  const refZ = hasRef ? (parseFloat(device?.refThetaZ ?? d.refThetaZ ?? 0.0) || 0.0) : 0.0;
 
   // 3. Delta Values: Current − Reference (Calculated with original numeric full precision)
   // Delta X = Current Roll − Reference Roll

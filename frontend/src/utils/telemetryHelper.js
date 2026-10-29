@@ -196,7 +196,7 @@ export function formatCSQPercentage(val, fallback = '85%') {
  */
 export function hasTelemetryData(data) {
   if (!data || typeof data !== 'object') return false;
-  const hasTs = Boolean(data.timestamp || data.time);
+  const hasTs = Boolean(data.timestamp || data.time || data.deviceId || data.id);
   const hasSensor = (
     (typeof data.xTilt === 'number' && !isNaN(data.xTilt)) ||
     (typeof data.roll === 'number' && !isNaN(data.roll)) ||
@@ -204,9 +204,20 @@ export function hasTelemetryData(data) {
     (typeof data.deltaX === 'number' && !isNaN(data.deltaX)) ||
     (typeof data.yTilt === 'number' && !isNaN(data.yTilt)) ||
     (typeof data.pitch === 'number' && !isNaN(data.pitch)) ||
+    (typeof data.presentY === 'number' && !isNaN(data.presentY)) ||
+    (typeof data.deltaY === 'number' && !isNaN(data.deltaY)) ||
+    (typeof data.zTilt === 'number' && !isNaN(data.zTilt)) ||
+    (typeof data.yaw === 'number' && !isNaN(data.yaw)) ||
+    (typeof data.presentZ === 'number' && !isNaN(data.presentZ)) ||
+    (typeof data.deltaZ === 'number' && !isNaN(data.deltaZ)) ||
     (typeof data.tilt?.roll === 'number' && !isNaN(data.tilt.roll)) ||
     (typeof data.tilt?.pitch === 'number' && !isNaN(data.tilt.pitch)) ||
-    (data.rawPayload && (data.rawPayload.tilt || data.rawPayload.acceleration))
+    (typeof data.tilt?.yaw === 'number' && !isNaN(data.tilt.yaw)) ||
+    (typeof data.acceleration?.ax === 'number' && !isNaN(data.acceleration.ax)) ||
+    (typeof data.displacement?.xDisplacement_mm === 'number' && !isNaN(data.displacement.xDisplacement_mm)) ||
+    (typeof data.displacement?.totalDisplacement_mm === 'number' && !isNaN(data.displacement.totalDisplacement_mm)) ||
+    (typeof data.vibration?.vibrationRMS === 'number' && !isNaN(data.vibration.vibrationRMS)) ||
+    (data.rawPayload && (data.rawPayload.tilt || data.rawPayload.acceleration || data.rawPayload.displacement))
   );
   return hasTs && hasSensor;
 }
@@ -248,10 +259,10 @@ export function parseTelemetry(data) {
 
   // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
   const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0);
-  const refThetaX = parseFloat(data.device?.refThetaX ?? data.activeDevice?.refThetaX ?? data.refThetaX ?? 0.0) || 0.0;
-  const refThetaY = parseFloat(data.device?.refThetaY ?? data.activeDevice?.refThetaY ?? data.refThetaY ?? 0.0) || 0.0;
-  const refThetaZ = parseFloat(data.device?.refThetaZ ?? data.activeDevice?.refThetaZ ?? data.refThetaZ ?? 0.0) || 0.0;
-  const hasReferenceZero = Boolean(data.hasReferenceZero === true || (data.calibrate === true && (refThetaX !== 0 || refThetaY !== 0)) || (refThetaX !== 0 || refThetaY !== 0 || refThetaZ !== 0));
+  const hasReferenceZero = Boolean(data.hasReferenceZero === true || data.calibrate === true);
+  const refThetaX = hasReferenceZero ? (parseFloat(data.device?.refThetaX ?? data.activeDevice?.refThetaX ?? data.refThetaX ?? 0.0) || 0.0) : 0.0;
+  const refThetaY = hasReferenceZero ? (parseFloat(data.device?.refThetaY ?? data.activeDevice?.refThetaY ?? data.refThetaY ?? 0.0) || 0.0) : 0.0;
+  const refThetaZ = hasReferenceZero ? (parseFloat(data.device?.refThetaZ ?? data.activeDevice?.refThetaZ ?? data.refThetaZ ?? 0.0) || 0.0) : 0.0;
 
   // 4. Delta Values: Current − Reference (Calculated with original numeric full precision)
   // Delta X = Current Roll − Reference Roll

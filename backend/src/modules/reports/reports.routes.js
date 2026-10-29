@@ -121,9 +121,9 @@ export async function reportsRoutes(fastify) {
         // Check hardware zero tare from rawPayload calibration flag
         const isHwCalibrated = Boolean(r.rawPayload?.calibration?.calibrated);
         const hasRefZero = Boolean(dev?.hasReferenceZero || dev?.calibrate);
-        const refX = parseFloat(dev?.refThetaX ?? 0.0) || 0.0;
-        const refY = parseFloat(dev?.refThetaY ?? 0.0) || 0.0;
-        const refZ = parseFloat(dev?.refThetaZ ?? 0.0) || 0.0;
+        const refX = hasRefZero ? (parseFloat(dev?.refThetaX ?? 0.0) || 0.0) : 0.0;
+        const refY = hasRefZero ? (parseFloat(dev?.refThetaY ?? 0.0) || 0.0) : 0.0;
+        const refZ = hasRefZero ? (parseFloat(dev?.refThetaZ ?? 0.0) || 0.0) : 0.0;
         const L = parseFloat(dev?.gaugeLength_mm ?? 1000.0) || 1000.0;
 
         let finalXTilt = parseFloat(r.xTilt || 0);

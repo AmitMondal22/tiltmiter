@@ -131,19 +131,19 @@ export const Device = sequelize.define('Device', {
   },
   baselineTilt: {
     type: DataTypes.FLOAT,
-    defaultValue: 0.15,
+    defaultValue: 0.0,
   },
   baselineRoll: {
     type: DataTypes.FLOAT,
-    defaultValue: 0.05,
+    defaultValue: 0.0,
   },
   baselinePitch: {
     type: DataTypes.FLOAT,
-    defaultValue: 0.02,
+    defaultValue: 0.0,
   },
   baselineVibration: {
     type: DataTypes.FLOAT,
-    defaultValue: 0.01,
+    defaultValue: 0.0,
   },
   lastSeen: {
     type: DataTypes.DATE,

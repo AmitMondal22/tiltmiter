@@ -18,10 +18,10 @@ export default function TrendsPage() {
 
   const [devices, setDevices] = useState([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState(queryDevId);
-  
+
   // Time presets: '1h', '6h', '24h', '7d', 'custom'
   const [activePreset, setActivePreset] = useState('24h');
-  
+
   const now = new Date();
   const initFrom = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const [fromDateTime, setFromDateTime] = useState(formatISTDatetimeLocal(initFrom));
@@ -51,13 +51,13 @@ export default function TrendsPage() {
           }
         }
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, [queryDevId]);
 
   const selectedDevice = useMemo(() => {
     return devices.find(d => d.id?.toLowerCase() === selectedDeviceId?.toLowerCase()) ||
-           devices.find(d => d.id === selectedDeviceId) ||
-           { id: selectedDeviceId || 'TILT000055', name: selectedDeviceId || 'Device Node' };
+      devices.find(d => d.id === selectedDeviceId) ||
+      { id: selectedDeviceId || 'TILT000055', name: selectedDeviceId || 'Device Node' };
   }, [devices, selectedDeviceId]);
 
   // Standard point mapper identical to device dashboard
@@ -181,8 +181,8 @@ export default function TrendsPage() {
     setLoading(true);
 
     const targetDev = devices.find(d => d.id?.toLowerCase() === devId?.toLowerCase()) ||
-                     devices.find(d => d.id === devId) ||
-                     selectedDevice;
+      devices.find(d => d.id === devId) ||
+      selectedDevice;
 
     const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
     const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
@@ -333,11 +333,10 @@ export default function TrendsPage() {
                 <button
                   key={p.id}
                   onClick={() => handlePresetSelect(p.id, p.hours)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                    activePreset === p.id
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${activePreset === p.id
                       ? 'bg-blue-600 text-white shadow-2xs'
                       : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                    }`}
                 >
                   {p.label}
                 </button>
@@ -388,7 +387,7 @@ export default function TrendsPage() {
           </div>
           <div className="flex items-center gap-1.5 text-xs text-blue-600 font-semibold font-mono">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>AUTO SYNC (1m)</span>
+            {/* <span>AUTO SYNC (1m)</span> */}
           </div>
         </div>
 

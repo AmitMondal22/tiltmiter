@@ -1045,7 +1045,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             </span>
             <div className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold font-mono">
               <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-              <span>AUTO SYNC (1m)</span>
+              {/* <span>AUTO SYNC (1m)</span> */}
             </div>
           </div>
 

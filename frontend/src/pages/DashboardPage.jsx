@@ -805,51 +805,12 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           </div>
 
           <div className="space-y-4">
-            {/* 1. PRESENT SENSOR VALUES (ACTUAL ROLL, PITCH, YAW - NEVER SUBTRACTED) */}
-            <div className="rounded-xl p-3 bg-slate-50/80 border border-slate-200/80">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 uppercase tracking-wide">
-                  <Radio className="w-3.5 h-3.5 text-blue-600" />
-                  <span>PRESENT VALUES (ACTUAL DEVICE SENSOR)</span>
-                </div>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-100/70 text-blue-800 font-semibold">
-                  Pure Readout • Never Subtracted
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 text-center">
-                {/* Present X (Roll) */}
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present X (Roll)</div>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-blue-700 mt-1">
-                    {formatPresent(presentX, 1)}
-                  </div>
-                </div>
-
-                {/* Present Y (Pitch) */}
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Y (Pitch)</div>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-purple-700 mt-1">
-                    {formatPresent(presentY, 1)}
-                  </div>
-                </div>
-
-                {/* Present Z (Yaw) */}
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-2xs">
-                  <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Present Z (Yaw)</div>
-                  <div className="text-lg sm:text-xl font-bold font-mono text-emerald-700 mt-1">
-                    {formatPresent(presentZ, 1)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 2. DELTA VALUES (CURRENT − ZERO REFERENCE) */}
+            {/* TILT ANGLE */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
                   <Layers className="w-4 h-4 text-slate-800" />
-                  <span>DELTA TILT (CURRENT − ZERO REFERENCE)</span>
+                  <span>TILT ANGLE</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
                   <span>θ₀ Ref:</span>

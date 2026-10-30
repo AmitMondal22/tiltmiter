@@ -135,10 +135,10 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
         ? parseFloat(pt.deltaZ)
         : (presentZ - refZ);
 
-      // Round to 1 decimal place as requested
-      const xT = Number(deltaX.toFixed(1));
-      const yT = Number(deltaY.toFixed(1));
-      const zT = Number(deltaZ.toFixed(1));
+      // Direct device angles without logic modification
+      const xT = Number(presentX.toFixed(1));
+      const yT = Number(presentY.toFixed(1));
+      const zT = Number(presentZ.toFixed(1));
 
       // Device-provided displacement data:
       const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
@@ -152,18 +152,14 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
       const totalD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
 
-      // Acceleration: convert to g if > 3 (no dummy fallbacks)
+      // Raw acceleration directly from device without division
       const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
       const rawAyRaw = pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? null;
       const rawAzRaw = pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? null;
 
-      const rawAx = rawAxRaw !== null && !isNaN(parseFloat(rawAxRaw)) ? parseFloat(rawAxRaw) : null;
-      const rawAy = rawAyRaw !== null && !isNaN(parseFloat(rawAyRaw)) ? parseFloat(rawAyRaw) : null;
-      const rawAz = rawAzRaw !== null && !isNaN(parseFloat(rawAzRaw)) ? parseFloat(rawAzRaw) : null;
-
-      const axG = rawAx !== null ? (Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx) : null;
-      const ayG = rawAy !== null ? (Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy) : null;
-      const azG = rawAz !== null ? (Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz) : null;
+      const axG = rawAxRaw !== null && !isNaN(parseFloat(rawAxRaw)) ? parseFloat(rawAxRaw) : null;
+      const ayG = rawAyRaw !== null && !isNaN(parseFloat(rawAyRaw)) ? parseFloat(rawAyRaw) : null;
+      const azG = rawAzRaw !== null && !isNaN(parseFloat(rawAzRaw)) ? parseFloat(rawAzRaw) : null;
 
       const rawTemp = pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? null;
       const tempVal = rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
@@ -399,7 +395,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
           <div className="flex items-center gap-2">
             <DisplacementIcon />
             <h3 className="font-bold text-slate-800 text-[13px] tracking-tight">
-              X / Y / Z Displacement (mm)
+              X / Y Displacement (mm)
             </h3>
           </div>
           {lastPt && typeof lastPt.totalDisp === 'number' && (
@@ -418,10 +414,6 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#0d9488]" />
             <span className="text-slate-700">DY</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ea580c]" />
-            <span className="text-slate-700">DZ</span>
           </span>
         </div>
 
@@ -474,15 +466,6 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   strokeWidth={2}
                   isAnimationActive={false}
                   dot={renderCalloutDot('yDisp', totalPoints, '#0d9488', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.y)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="zDisp"
-                  name="DZ"
-                  stroke="#ea580c"
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                  dot={renderCalloutDot('zDisp', totalPoints, '#ea580c', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.z)}
                 />
               </LineChart>
             </ResponsiveContainer>

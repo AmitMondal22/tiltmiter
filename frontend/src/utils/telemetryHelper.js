@@ -264,13 +264,10 @@ export function parseTelemetry(data) {
   const refThetaY = hasReferenceZero ? (parseFloat(data.device?.refThetaY ?? data.activeDevice?.refThetaY ?? data.refThetaY ?? 0.0) || 0.0) : 0.0;
   const refThetaZ = hasReferenceZero ? (parseFloat(data.device?.refThetaZ ?? data.activeDevice?.refThetaZ ?? data.refThetaZ ?? 0.0) || 0.0) : 0.0;
 
-  // 4. Delta Values: Current − Reference (Calculated with original numeric full precision)
-  // Delta X = Current Roll − Reference Roll
-  // Delta Y = Current Pitch − Reference Pitch
-  // Delta Z = Current Yaw − Reference Yaw
-  const deltaX = presentX - refThetaX;
-  const deltaY = presentY - refThetaY;
-  const deltaZ = presentZ - refThetaZ;
+  // 4. Device angle values directly without logic modifications
+  const deltaX = presentX;
+  const deltaY = presentY;
+  const deltaZ = presentZ;
   const deltaThetaX = deltaX;
   const deltaThetaY = deltaY;
   const deltaThetaZ = deltaZ;
@@ -393,17 +390,17 @@ export function parseTelemetry(data) {
     ax,
     ay,
     az,
-    axG: Math.abs(ax) > 3.0 ? ax / 9.80665 : ax,
-    ayG: Math.abs(ay) > 3.0 ? ay / 9.80665 : ay,
-    azG: Math.abs(az) > 3.0 ? az / 9.80665 : az,
+    axG: ax,
+    ayG: ay,
+    azG: az,
     accMag,
     acceleration: {
       ax,
       ay,
       az,
-      axG: Math.abs(ax) > 3.0 ? ax / 9.80665 : ax,
-      ayG: Math.abs(ay) > 3.0 ? ay / 9.80665 : ay,
-      azG: Math.abs(az) > 3.0 ? az / 9.80665 : az,
+      axG: ax,
+      ayG: ay,
+      azG: az,
       accMag,
     },
 
@@ -424,16 +421,16 @@ export function parseTelemetry(data) {
     vibStatus,
     vibration: { vibration: vibRaw, vibrationRMS: vibRMS, vibrationPeak: vibPeak, xVibrationRMS: xVib, yVibrationRMS: yVib, zVibrationRMS: zVib, vibrationStatus: vibStatus },
 
-    // Displacement
+    // Displacement: X / Y only, no Z value
     xDisp,
     yDisp,
-    zDisp,
+    zDisp: 0.0,
     totalDisp,
     xDisplacement: xDisp,
     yDisplacement: yDisp,
-    zDisplacement: zDisp,
+    zDisplacement: 0.0,
     totalDisplacement: totalDisp,
-    displacement: { xDisplacement_mm: xDisp, yDisplacement_mm: yDisp, zDisplacement_mm: zDisp, totalDisplacement_mm: totalDisp },
+    displacement: { xDisplacement_mm: xDisp, yDisplacement_mm: yDisp, totalDisplacement_mm: totalDisp },
 
     // Environment & Power & Network & Calibration
     temp,

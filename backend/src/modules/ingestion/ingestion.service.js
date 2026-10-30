@@ -90,13 +90,10 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   const dbGaugeL = deviceRecord?.gaugeLength_mm ? parseFloat(deviceRecord.gaugeLength_mm) : 1000.0;
   const L = parseFloat(rawPayload.gaugeLength_mm || rawPayload.L || dbGaugeL);
 
-  // 2. Delta Angles: Current − Reference (Calculated with original numeric full precision)
-  // Delta X = Current Roll − Reference Roll
-  // Delta Y = Current Pitch − Reference Pitch
-  // Delta Z = Current Yaw − Reference Yaw
-  const deltaThetaX = roll - refX;
-  const deltaThetaY = pitch - refY;
-  const deltaThetaZ = yaw - refZ;
+  // 2. Direct device angles without logic modification
+  const deltaThetaX = roll;
+  const deltaThetaY = pitch;
+  const deltaThetaZ = yaw;
 
   // Present Values = Pure actual device values (NEVER subtracted by reference zero)
   const presentX = roll;

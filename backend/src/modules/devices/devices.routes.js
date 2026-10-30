@@ -207,6 +207,12 @@ export async function devicesRoutes(fastify) {
           presentX: xTilt,
           presentY: yTilt,
           presentZ: zTilt,
+          deltaX: xTilt,
+          deltaY: yTilt,
+          deltaZ: zTilt,
+          deltaThetaX: xTilt,
+          deltaThetaY: yTilt,
+          deltaThetaZ: zTilt,
           resultantTilt,
           displacement: {
             xDisplacement_mm: xD,

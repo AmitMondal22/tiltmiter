@@ -27,37 +27,36 @@ import { formatFullDateTime } from '../utils/dateHelper';
 export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const d = parseTelemetry(rawDevice);
 
-  const deltaX = typeof d.deltaX === 'number' ? d.deltaX : (typeof d.deltaThetaX === 'number' ? d.deltaThetaX : (n(d.presentX ?? d.xTilt, 0) - (d.refThetaX || 0)));
-  const deltaY = typeof d.deltaY === 'number' ? d.deltaY : (typeof d.deltaThetaY === 'number' ? d.deltaThetaY : (n(d.presentY ?? d.yTilt, 0) - (d.refThetaY || 0)));
-  const deltaZ = typeof d.deltaZ === 'number' ? d.deltaZ : (typeof d.deltaThetaZ === 'number' ? d.deltaThetaZ : (n(d.presentZ ?? d.zTilt, 0) - (d.refThetaZ || 0)));
+  const deltaX = typeof d.presentX === 'number' ? d.presentX : n(d.tilt?.roll ?? d.roll ?? d.xTilt, 0);
+  const deltaY = typeof d.presentY === 'number' ? d.presentY : n(d.tilt?.pitch ?? d.pitch ?? d.yTilt, 0);
+  const deltaZ = typeof d.presentZ === 'number' ? d.presentZ : n(d.tilt?.yaw ?? d.yaw ?? d.zTilt, 0);
   const resT = n(d.resultantTilt, 0);
   const xDisp = n(d.xDisplacement ?? d.displacement?.xDisplacement_mm, 0);
   const yDisp = n(d.yDisplacement ?? d.displacement?.yDisplacement_mm, 0);
-  const zDisp = n(d.zDisplacement ?? d.displacement?.zDisplacement_mm, 0);
   const totD = n(d.totalDisplacement ?? d.displacement?.totalDisplacement_mm, 0);
 
   const lastFullDateTime = formatFullDateTime(d.timestamp);
 
-  // Primary Stat Cards: Tilt Change (X, Y, Z) + Device Displacement (X, Y, Z, Total)
+  // Primary Stat Cards: Tilt Angle (X, Y, Z) + Device Displacement (X, Y, Total)
   const primary = [
     {
       label: 'Tilt X',
       value: `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(1)}°`,
-      unit: 'Delta Tilt',
+      unit: 'Tilt Angle',
       color: '#3b82f6',
       spark: d.sparklineXTilt || null,
     },
     {
       label: 'Tilt Y',
       value: `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(1)}°`,
-      unit: 'Delta Tilt',
+      unit: 'Tilt Angle',
       color: '#0d9488',
       spark: d.sparklineYTilt || null,
     },
     {
       label: 'Tilt Z',
       value: `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(1)}°`,
-      unit: 'Delta Tilt',
+      unit: 'Tilt Angle',
       color: '#ea580c',
       spark: d.sparklineResultant || null,
     },
@@ -76,13 +75,6 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
       icon: Radio,
     },
     {
-      label: 'DZ',
-      value: `${zDisp.toFixed(2)}`,
-      unit: 'mm',
-      iconCircle: 'bg-emerald-50 text-emerald-500 border-emerald-200',
-      icon: Layers,
-    },
-    {
       label: 'Total Displacement',
       value: `${totD.toFixed(2)}`,
       unit: 'mm',
@@ -95,7 +87,7 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const secondary = [
     { label: 'Vibration Peak', val: `${n(d.vibPeak, 0).toFixed(4)} g`, icon: Zap, iconColor: 'text-amber-500 bg-amber-50' },
     { label: 'Vibration RMS', val: `${n(d.vibRMS, 0).toFixed(4)} g`, icon: Activity, iconColor: 'text-purple-500 bg-purple-50' },
-    { label: 'Acceleration Mag', val: `${n(d.accMag, 0).toFixed(3)} m/s²`, icon: Activity, iconColor: 'text-blue-500 bg-blue-50' },
+    { label: 'Acceleration Mag', val: `${n(d.accMag, 0).toFixed(3)} g`, icon: Activity, iconColor: 'text-blue-500 bg-blue-50' },
     { label: 'Ambient Temp.', val: `${n(d.temp, 0).toFixed(1)} °C`, icon: Thermometer, iconColor: 'text-orange-500 bg-orange-50' },
     { label: 'Last Sync Date & Time', val: lastFullDateTime, icon: Clock, iconColor: 'text-blue-500 bg-blue-50' },
   ];
@@ -103,7 +95,7 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   return (
     <div className="space-y-2.5">
       {/* Row 1: Primary Stat Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
         {primary.map((item, idx) => {
           const IconCircle = item.icon;
           return (

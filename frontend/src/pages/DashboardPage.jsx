@@ -142,9 +142,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     const rawAx = rawAxRaw !== null ? parseFloat(rawAxRaw) : null;
     const rawAy = rawAyRaw !== null ? parseFloat(rawAyRaw) : null;
     const rawAz = rawAzRaw !== null ? parseFloat(rawAzRaw) : null;
-    const axG = rawAx !== null && !isNaN(rawAx) ? (Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx) : null;
-    const ayG = rawAy !== null && !isNaN(rawAy) ? (Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy) : null;
-    const azG = rawAz !== null && !isNaN(rawAz) ? (Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz) : null;
+    const axG = rawAx !== null && !isNaN(rawAx) ? rawAx : null;
+    const ayG = rawAy !== null && !isNaN(rawAy) ? rawAy : null;
+    const azG = rawAz !== null && !isNaN(rawAz) ? rawAz : null;
 
     const accMRaw = pt.accMag ?? pt.acceleration?.accMag ?? null;
     const accM = accMRaw !== null ? parseFloat(accMRaw) : null;
@@ -171,26 +171,25 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       fullTime: formatFullDateTime(ts),
       timestamp: ts,
 
-      // Present Values = Pure actual device values (Never subtract reference zero)
+      // Pure actual device values directly from device without logic modifications
       presentX: Number(presentX.toFixed(1)),
       presentY: Number(presentY.toFixed(1)),
       presentZ: Number(presentZ.toFixed(1)),
       roll: Number(presentX.toFixed(1)),
       pitch: Number(presentY.toFixed(1)),
       yaw: Number(presentZ.toFixed(1)),
-      xTilt: Number(deltaX.toFixed(1)),
-      yTilt: Number(deltaY.toFixed(1)),
-      zTilt: Number(deltaZ.toFixed(1)),
+      xTilt: Number(presentX.toFixed(1)),
+      yTilt: Number(presentY.toFixed(1)),
+      zTilt: Number(presentZ.toFixed(1)),
       resultant: Number(presentRes.toFixed(1)),
 
-      // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
-      deltaX: Number(deltaX.toFixed(1)),
-      deltaY: Number(deltaY.toFixed(1)),
-      deltaZ: Number(deltaZ.toFixed(1)),
-      deltaThetaX: Number(deltaX.toFixed(1)),
-      deltaThetaY: Number(deltaY.toFixed(1)),
-      deltaThetaZ: Number(deltaZ.toFixed(1)),
-      deltaResultant: Number(deltaRes.toFixed(1)),
+      deltaX: Number(presentX.toFixed(1)),
+      deltaY: Number(presentY.toFixed(1)),
+      deltaZ: Number(presentZ.toFixed(1)),
+      deltaThetaX: Number(presentX.toFixed(1)),
+      deltaThetaY: Number(presentY.toFixed(1)),
+      deltaThetaZ: Number(presentZ.toFixed(1)),
+      deltaResultant: Number(presentRes.toFixed(1)),
 
       refX,
       refY,
@@ -557,13 +556,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const refY = hasRef ? (parseFloat(activeDevice?.refThetaY ?? d.refThetaY ?? 0.0) || 0.0) : 0.0;
   const refZ = hasRef ? (parseFloat(activeDevice?.refThetaZ ?? d.refThetaZ ?? 0.0) || 0.0) : 0.0;
 
-  // 3. Delta Values: Current − Reference (Calculated with original numeric full precision)
-  // Delta X = Current Roll − Reference Roll
-  // Delta Y = Current Pitch − Reference Pitch
-  // Delta Z = Current Yaw − Reference Yaw
-  const deltaX = hasData && presentX !== null ? (presentX - refX) : null;
-  const deltaY = hasData && presentY !== null ? (presentY - refY) : null;
-  const deltaZ = hasData && presentZ !== null ? (presentZ - refZ) : null;
+  // Pure actual device values directly from device without logic modifications
+  const deltaX = hasData && presentX !== null ? presentX : null;
+  const deltaY = hasData && presentY !== null ? presentY : null;
+  const deltaZ = hasData && presentZ !== null ? presentZ : null;
   const deltaResultant = hasData && deltaX !== null && deltaY !== null ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
 
   const roll = deltaX;
@@ -872,19 +868,19 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               </div>
             </div>
 
-            {/* 3. DISPLACEMENT IN MM FROM DEVICE TELEMETRY */}
+            {/* 3. X / Y DISPLACEMENT IN MM FROM DEVICE TELEMETRY */}
             <div>
               <div className="flex items-center justify-between text-xs font-bold text-slate-900 tracking-wide mb-2.5">
                 <div className="flex items-center gap-2">
                   <Move className="w-4 h-4 text-slate-800" />
-                  <span>DISPLACEMENT (MM)</span>
+                  <span>X / Y DISPLACEMENT (MM)</span>
                 </div>
                 <span className="text-[10px] font-mono font-medium text-slate-500">
                   Total: <strong className="text-slate-800">{hasData && typeof totalDisp === 'number' ? `${totalDisp.toFixed(2)} mm` : '--'}</strong>
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5 text-center">
+              <div className="grid grid-cols-2 gap-2.5 text-center">
                 {/* DX */}
                 <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center min-h-[80px]">
                   <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
@@ -906,19 +902,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-lg sm:text-xl font-extrabold text-amber-600 tracking-tight">
                       {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
-                  </div>
-                </div>
-
-                {/* DZ */}
-                <div className="relative overflow-hidden p-3 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 flex flex-col items-center justify-center min-h-[80px]">
-                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs">
-                    DZ
-                  </span>
-                  <div className="flex items-baseline font-mono mt-1">
-                    <span className="text-lg sm:text-xl font-extrabold text-emerald-600 tracking-tight">
-                      {hasData && typeof zDisp === 'number' ? Number(zDisp).toFixed(2) : '--'}
                     </span>
                     <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
                   </div>

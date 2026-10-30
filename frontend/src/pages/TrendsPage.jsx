@@ -115,9 +115,9 @@ export default function TrendsPage() {
     const rawAx = rawAxRaw !== null ? parseFloat(rawAxRaw) : null;
     const rawAy = rawAyRaw !== null ? parseFloat(rawAyRaw) : null;
     const rawAz = rawAzRaw !== null ? parseFloat(rawAzRaw) : null;
-    const axG = rawAx !== null && !isNaN(rawAx) ? (Math.abs(rawAx) > 3.0 ? rawAx / 9.80665 : rawAx) : null;
-    const ayG = rawAy !== null && !isNaN(rawAy) ? (Math.abs(rawAy) > 3.0 ? rawAy / 9.80665 : rawAy) : null;
-    const azG = rawAz !== null && !isNaN(rawAz) ? (Math.abs(rawAz) > 3.0 ? rawAz / 9.80665 : rawAz) : null;
+    const axG = rawAx !== null && !isNaN(rawAx) ? rawAx : null;
+    const ayG = rawAy !== null && !isNaN(rawAy) ? rawAy : null;
+    const azG = rawAz !== null && !isNaN(rawAz) ? rawAz : null;
 
     const accMRaw = pt.accMag ?? pt.acceleration?.accMag ?? null;
     const accM = accMRaw !== null ? parseFloat(accMRaw) : null;
@@ -146,12 +146,12 @@ export default function TrendsPage() {
       presentX: Number(presentX.toFixed(1)),
       presentY: Number(presentY.toFixed(1)),
       presentZ: Number(presentZ.toFixed(1)),
-      deltaX: Number(deltaX.toFixed(1)),
-      deltaY: Number(deltaY.toFixed(1)),
-      deltaZ: Number(deltaZ.toFixed(1)),
-      xTilt: Number(deltaX.toFixed(1)),
-      yTilt: Number(deltaY.toFixed(1)),
-      zTilt: Number(deltaZ.toFixed(1)),
+      deltaX: Number(presentX.toFixed(1)),
+      deltaY: Number(presentY.toFixed(1)),
+      deltaZ: Number(presentZ.toFixed(1)),
+      xTilt: Number(presentX.toFixed(1)),
+      yTilt: Number(presentY.toFixed(1)),
+      zTilt: Number(presentZ.toFixed(1)),
       resultant: Number(deltaRes.toFixed(1)),
       totalDisp: Number(totD.toFixed(1)),
       xDisp: Number(xD.toFixed(1)),

@@ -121,10 +121,10 @@ export async function telemetryRoutes(fastify) {
       const ax = parseFloat(raw.acceleration?.ax ?? raw.acceleration?.axG ?? r.acceleration?.ax ?? 0) || 0;
       const ay = parseFloat(raw.acceleration?.ay ?? raw.acceleration?.ayG ?? r.acceleration?.ay ?? 0) || 0;
       const az = parseFloat(raw.acceleration?.az ?? raw.acceleration?.azG ?? r.acceleration?.az ?? 0) || 0;
-      // Convert m/s² to g if values > 3 (hardware sends m/s²)
-      const axG = Math.abs(ax) > 3.0 ? ax / 9.80665 : ax;
-      const ayG = Math.abs(ay) > 3.0 ? ay / 9.80665 : ay;
-      const azG = Math.abs(az) > 3.0 ? az / 9.80665 : az;
+      // Acceleration directly from device without division or logic modification
+      const axG = ax;
+      const ayG = ay;
+      const azG = az;
       const accMag = parseFloat(raw.acceleration?.accMag ?? r.acceleration?.accMag ?? Math.sqrt(axG*axG + ayG*ayG + azG*azG)) || null;
 
       // Vibration
@@ -154,11 +154,10 @@ export async function telemetryRoutes(fastify) {
       const presentZ = rawZ;
       const presentResultant = calcRes;
 
-      // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
-      // Formula: Delta = Current - Reference
-      const deltaThetaX = rawX - refX;
-      const deltaThetaY = rawY - refY;
-      const deltaThetaZ = rawZ - refZ;
+      // Pure device angles directly without reference logic change
+      const deltaThetaX = rawX;
+      const deltaThetaY = rawY;
+      const deltaThetaZ = rawZ;
 
       // Device-provided displacement data (fallback to clino formula only if device displacement not sent)
       const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
@@ -440,15 +439,16 @@ export async function telemetryRoutes(fastify) {
       const rawZ = parseFloat(latestDbRec.zTilt ?? latestDbRec.yaw ?? raw.tilt?.yaw ?? 0) || 0;
       const calcRes = Math.sqrt(rawX * rawX + rawY * rawY);
 
-      const deltaX = rawX - refX;
-      const deltaY = rawY - refY;
-      const deltaZ = rawZ - refZ;
+      // Pure device angle values directly without logic change
+      const deltaX = rawX;
+      const deltaY = rawY;
+      const deltaZ = rawZ;
 
       const rawDisp = latestDbRec.displacement || raw.displacement || {};
       const xD = parseFloat(rawDisp.xDisplacement_mm ?? latestDbRec.xDisplacement ?? 0.0) || 0.0;
       const yD = parseFloat(rawDisp.yDisplacement_mm ?? latestDbRec.yDisplacement ?? 0.0) || 0.0;
-      const zD = parseFloat(rawDisp.zDisplacement_mm ?? latestDbRec.zDisplacement ?? 0.0) || 0.0;
-      const totD = parseFloat(rawDisp.totalDisplacement_mm ?? latestDbRec.totalDisplacement ?? 0.0) || Math.sqrt(xD * xD + yD * yD + zD * zD);
+      const zD = 0.0;
+      const totD = parseFloat(rawDisp.totalDisplacement_mm ?? latestDbRec.totalDisplacement ?? 0.0) || Math.sqrt(xD * xD + yD * yD);
 
       const rawTemp = latestDbRec.temperature ?? raw.environment?.temperature;
       const temp = rawTemp !== undefined && rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;

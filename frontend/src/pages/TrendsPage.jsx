@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   Download, Calendar, Filter, RefreshCw, Radio,
   Activity, Layers, BarChart2, TrendingUp, Thermometer, Zap, Clock
@@ -11,8 +12,12 @@ import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 export default function TrendsPage() {
   const cardCls = 'rounded-2xl border border-slate-200/80 bg-white p-4 text-slate-800 shadow-xs';
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const queryDevId = searchParams.get('deviceId') || location.state?.deviceId || '';
+
   const [devices, setDevices] = useState([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState(queryDevId);
   
   // Time presets: '1h', '6h', '24h', '7d', 'custom'
   const [activePreset, setActivePreset] = useState('24h');
@@ -25,32 +30,46 @@ export default function TrendsPage() {
   const [telemetryLogs, setTelemetryLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 1. Fetch available devices
+  // 1. Fetch available devices, initializing to query device or most recently active device
   useEffect(() => {
     getDevices().then(res => {
-      if (res?.devices?.length) {
-        setDevices(res.devices);
-        if (!selectedDeviceId) setSelectedDeviceId(res.devices[0].id);
+      const list = res?.devices || [];
+      if (list.length) {
+        setDevices(list);
+        if (!selectedDeviceId) {
+          if (queryDevId && list.some(d => d.id?.toLowerCase() === queryDevId.toLowerCase())) {
+            const matched = list.find(d => d.id?.toLowerCase() === queryDevId.toLowerCase());
+            setSelectedDeviceId(matched.id);
+          } else {
+            // Prioritize device with most recent telemetry / activity so live graphs load immediately
+            const sortedByActivity = [...list].sort((a, b) => {
+              const tA = new Date(a.latestTelemetry?.timestamp || a.lastSeen || 0).getTime();
+              const tB = new Date(b.latestTelemetry?.timestamp || b.lastSeen || 0).getTime();
+              return tB - tA;
+            });
+            setSelectedDeviceId(sortedByActivity[0]?.id || list[0].id);
+          }
+        }
       }
     }).catch(() => {});
-  }, []);
+  }, [queryDevId]);
 
   const selectedDevice = useMemo(() => {
     return devices.find(d => d.id?.toLowerCase() === selectedDeviceId?.toLowerCase()) ||
            devices.find(d => d.id === selectedDeviceId) ||
-           { id: selectedDeviceId || 'ABCDEF0002', name: selectedDeviceId || 'Device Node' };
+           { id: selectedDeviceId || 'TILT000055', name: selectedDeviceId || 'Device Node' };
   }, [devices, selectedDeviceId]);
 
   // Standard point mapper identical to device dashboard
   const mapPointData = (pt, activeDev = selectedDevice) => {
     const ts = pt.timestamp || pt.time;
     // 1. Axis Mapping:
-    // X-Axis: tilt.roll
-    // Y-Axis: tilt.pitch
-    // Z-Axis: tilt.yaw
-    const currentRoll = pt.tilt?.roll ?? pt.roll;
-    const currentPitch = pt.tilt?.pitch ?? pt.pitch;
-    const currentYaw = pt.tilt?.yaw ?? pt.yaw;
+    // X-Axis: tilt.roll / roll / xTilt
+    // Y-Axis: tilt.pitch / pitch / yTilt
+    // Z-Axis: tilt.yaw / yaw / zTilt
+    const currentRoll = pt.tilt?.roll ?? pt.roll ?? pt.presentX ?? pt.xTilt;
+    const currentPitch = pt.tilt?.pitch ?? pt.pitch ?? pt.presentY ?? pt.yTilt;
+    const currentYaw = pt.tilt?.yaw ?? pt.yaw ?? pt.presentZ ?? pt.zTilt;
 
     // 2. Present Values: actual device angle values without subtracting reference
     const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
@@ -61,15 +80,21 @@ export default function TrendsPage() {
 
     // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
     const L = parseFloat(activeDev?.gaugeLength_mm || 1000.0);
-    const refX = parseFloat(activeDev?.refThetaX ?? 0.0) || 0.0;
-    const refY = parseFloat(activeDev?.refThetaY ?? 0.0) || 0.0;
-    const refZ = parseFloat(activeDev?.refThetaZ ?? 0.0) || 0.0;
-    const hasRef = Boolean(activeDev?.hasReferenceZero || activeDev?.calibrate || (refX !== 0 || refY !== 0));
+    const hasCalibratedRef = Boolean(activeDev?.hasReferenceZero || activeDev?.calibrate || pt.hasReferenceZero);
+    const refX = hasCalibratedRef ? (parseFloat(activeDev?.refThetaX ?? pt.refThetaX ?? 0.0) || 0.0) : 0.0;
+    const refY = hasCalibratedRef ? (parseFloat(activeDev?.refThetaY ?? pt.refThetaY ?? 0.0) || 0.0) : 0.0;
+    const refZ = hasCalibratedRef ? (parseFloat(activeDev?.refThetaZ ?? pt.refThetaZ ?? 0.0) || 0.0) : 0.0;
 
     // 4. Delta Values = Current − Reference
-    const deltaX = presentX - refX;
-    const deltaY = presentY - refY;
-    const deltaZ = presentZ - refZ;
+    const deltaX = (pt.deltaX !== undefined && pt.deltaX !== null && !isNaN(parseFloat(pt.deltaX)))
+      ? parseFloat(pt.deltaX)
+      : (presentX - refX);
+    const deltaY = (pt.deltaY !== undefined && pt.deltaY !== null && !isNaN(parseFloat(pt.deltaY)))
+      ? parseFloat(pt.deltaY)
+      : (presentY - refY);
+    const deltaZ = (pt.deltaZ !== undefined && pt.deltaZ !== null && !isNaN(parseFloat(pt.deltaZ)))
+      ? parseFloat(pt.deltaZ)
+      : (presentZ - refZ);
 
     // Device-provided displacement data:
     const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
@@ -81,7 +106,7 @@ export default function TrendsPage() {
     const xD = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
     const yD = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
     const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
-    const totD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
+    const totD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : Math.sqrt(xD * xD + yD * yD + zD * zD);
     const deltaRes = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
     const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
@@ -106,10 +131,10 @@ export default function TrendsPage() {
     const vibForStability = vibR ?? 0;
     let stability = 'Stable';
     let stabilityClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (Math.abs(activeResT) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
+    if (Math.abs(deltaRes) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
       stability = 'Critical';
       stabilityClass = 'bg-red-50 text-red-700 border-red-200';
-    } else if (Math.abs(activeResT) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
+    } else if (Math.abs(deltaRes) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
       stability = 'Warning';
       stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
     }
@@ -118,10 +143,16 @@ export default function TrendsPage() {
       time: formatHHMM(ts),
       fullTime: formatFullDateTime(ts),
       timestamp: ts,
-      resultant: Number(activeResT.toFixed(1)),
+      presentX: Number(presentX.toFixed(1)),
+      presentY: Number(presentY.toFixed(1)),
+      presentZ: Number(presentZ.toFixed(1)),
+      deltaX: Number(deltaX.toFixed(1)),
+      deltaY: Number(deltaY.toFixed(1)),
+      deltaZ: Number(deltaZ.toFixed(1)),
       xTilt: Number(deltaX.toFixed(1)),
       yTilt: Number(deltaY.toFixed(1)),
       zTilt: Number(deltaZ.toFixed(1)),
+      resultant: Number(deltaRes.toFixed(1)),
       totalDisp: Number(totD.toFixed(1)),
       xDisp: Number(xD.toFixed(1)),
       yDisp: Number(yD.toFixed(1)),
@@ -149,6 +180,10 @@ export default function TrendsPage() {
     if (!devId) return;
     setLoading(true);
 
+    const targetDev = devices.find(d => d.id?.toLowerCase() === devId?.toLowerCase()) ||
+                     devices.find(d => d.id === devId) ||
+                     selectedDevice;
+
     const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
     const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
 
@@ -161,7 +196,7 @@ export default function TrendsPage() {
             const ts = pt.timestamp || pt.time;
             if (ts && seen.has(ts)) continue;
             if (ts) seen.add(ts);
-            mapped.push(mapPointData(pt, selectedDevice));
+            mapped.push(mapPointData(pt, targetDev));
           }
           setTelemetryLogs(mapped);
           const firstPoint = mapped[0];
@@ -174,7 +209,8 @@ export default function TrendsPage() {
           setTelemetryLogs([]);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('Failed to load telemetry history:', err);
         setTelemetryLogs([]);
       })
       .finally(() => {
@@ -184,7 +220,11 @@ export default function TrendsPage() {
 
   useEffect(() => {
     if (selectedDeviceId) {
-      loadHistory(selectedDeviceId, null, null, activePreset);
+      if (activePreset === 'custom') {
+        loadHistory(selectedDeviceId, fromDateTime, toDateTime, null);
+      } else {
+        loadHistory(selectedDeviceId, null, null, activePreset);
+      }
     }
   }, [selectedDeviceId]);
 
@@ -263,7 +303,15 @@ export default function TrendsPage() {
               <span className="text-[11px] font-semibold text-slate-600">Device Node:</span>
               <select
                 value={selectedDeviceId}
-                onChange={e => setSelectedDeviceId(e.target.value)}
+                onChange={e => {
+                  const newId = e.target.value;
+                  setSelectedDeviceId(newId);
+                  setSearchParams(prev => {
+                    const n = new URLSearchParams(prev);
+                    n.set('deviceId', newId);
+                    return n;
+                  }, { replace: true });
+                }}
                 className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               >
                 {devices.map(d => (

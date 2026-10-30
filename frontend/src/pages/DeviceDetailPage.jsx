@@ -273,7 +273,7 @@ export default function DeviceDetailPage() {
           const dev = res?.device || res;
           if (dev) setDevice(dev);
         })
-        .catch(() => {});
+        .catch(() => { });
     }, 60000);
 
     return () => clearInterval(intervalId);
@@ -424,9 +424,9 @@ export default function DeviceDetailPage() {
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,Present_X_Roll_deg,Present_Y_Pitch_deg,Present_Z_Yaw_deg,Delta_X_Roll_deg,Delta_Y_Pitch_deg,Delta_Z_Yaw_deg,XDisp_mm,YDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,Tilt_X_deg,Tilt_Y_deg,Tilt_Z_deg,XDisp_mm,YDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
     const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},${r.presentX?.toFixed(4) ?? r.xTilt?.toFixed(4) ?? ''},${r.presentY?.toFixed(4) ?? r.yTilt?.toFixed(4) ?? ''},${r.presentZ?.toFixed(4) ?? r.zTilt?.toFixed(4) ?? ''},${r.deltaX?.toFixed(4) ?? ''},${r.deltaY?.toFixed(4) ?? ''},${r.deltaZ?.toFixed(4) ?? ''},${r.xDisp?.toFixed(3) ?? ''},${r.yDisp?.toFixed(3) ?? ''},${r.totalDisp?.toFixed(3) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(4) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(4) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},${(r.xTilt ?? r.deltaX)?.toFixed(1) ?? ''},${(r.yTilt ?? r.deltaY)?.toFixed(1) ?? ''},${(r.zTilt ?? r.deltaZ)?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(2) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(3) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(3) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -723,19 +723,19 @@ export default function DeviceDetailPage() {
                   <Layers className="w-4 h-4 text-slate-800" />
                   <span>TILT ANGLE</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
+                {/* <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
                   <span>θ₀ Ref:</span>
                   <span className="font-semibold text-slate-700">X:{formatSigned(refX, 1)}</span>
                   <span className="font-semibold text-slate-700">Y:{formatSigned(refY, 1)}</span>
                   <span className="font-semibold text-slate-700">Z:{formatSigned(refZ, 1)}</span>
-                </div>
+                </div> */}
               </div>
 
               <div className="grid grid-cols-3 gap-3 text-center">
-                {/* ΔX */}
+                {/* Tilt X */}
                 <div className="relative overflow-hidden p-3.5 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center">
                   <span className="px-3.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
-                    ΔX (Roll)
+                    Tilt X
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
                     {formatSigned(deltaX, 1)}
@@ -747,10 +747,10 @@ export default function DeviceDetailPage() {
                   </div>
                 </div>
 
-                {/* ΔY */}
+                {/* Tilt Y */}
                 <div className="relative overflow-hidden p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100/80 flex flex-col items-center justify-center">
                   <span className="px-3.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs tracking-tight">
-                    ΔY (Pitch)
+                    Tilt Y
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
                     {formatSigned(deltaY, 1)}
@@ -762,10 +762,10 @@ export default function DeviceDetailPage() {
                   </div>
                 </div>
 
-                {/* ΔZ */}
+                {/* Tilt Z */}
                 <div className="relative overflow-hidden p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 flex flex-col items-center justify-center">
                   <span className="px-3.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs tracking-tight">
-                    ΔZ (Yaw)
+                    Tilt Z
                   </span>
                   <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
                     {formatSigned(deltaZ, 1)}
@@ -991,12 +991,9 @@ export default function DeviceDetailPage() {
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 font-mono">
               <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
                 <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3 text-blue-700" title="Actual device Roll (never subtracted)">Present X (Roll)</th>
-                <th className="py-2.5 px-3 text-purple-700" title="Actual device Pitch (never subtracted)">Present Y (Pitch)</th>
-                <th className="py-2.5 px-3 text-emerald-700" title="Actual device Yaw (never subtracted)">Present Z (Yaw)</th>
-                <th className="py-2.5 px-3 text-indigo-700" title="Current Roll − Zero Reference Roll">ΔX (Roll)</th>
-                <th className="py-2.5 px-3 text-violet-700" title="Current Pitch − Zero Reference Pitch">ΔY (Pitch)</th>
-                <th className="py-2.5 px-3 text-teal-700" title="Current Yaw − Zero Reference Yaw">ΔZ (Yaw)</th>
+                <th className="py-2.5 px-3 text-blue-700">Tilt X (°)</th>
+                <th className="py-2.5 px-3 text-purple-700">Tilt Y (°)</th>
+                <th className="py-2.5 px-3 text-emerald-700">Tilt Z (°)</th>
                 <th className="py-2.5 px-3 text-cyan-700">X Disp (mm)</th>
                 <th className="py-2.5 px-3 text-amber-700">Y Disp (mm)</th>
                 <th className="py-2.5 px-3 text-pink-700">Total Disp (mm)</th>
@@ -1008,7 +1005,7 @@ export default function DeviceDetailPage() {
             <tbody className="divide-y divide-slate-100 font-mono">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={10} className="py-8 text-center text-slate-400 text-xs font-mono">
                     {loading ? 'Fetching telemetry logs for this device...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -1018,23 +1015,14 @@ export default function DeviceDetailPage() {
                     <td className="py-2 px-3 text-slate-600 font-medium font-sans">
                       {r.fullTime || r.time}
                     </td>
-                    <td className="py-2 px-3 text-blue-700 font-semibold">
-                      {formatPresent(r.presentX, 1)}
+                    <td className="py-2 px-3 text-blue-700 font-bold">
+                      {formatSigned(r.xTilt ?? r.deltaX, 1)}
                     </td>
-                    <td className="py-2 px-3 text-purple-700 font-semibold">
-                      {formatPresent(r.presentY, 1)}
+                    <td className="py-2 px-3 text-purple-700 font-bold">
+                      {formatSigned(r.yTilt ?? r.deltaY, 1)}
                     </td>
-                    <td className="py-2 px-3 text-emerald-700 font-semibold">
-                      {formatPresent(r.presentZ, 1)}
-                    </td>
-                    <td className="py-2 px-3 text-indigo-700 font-bold">
-                      {formatSigned(r.deltaX, 1)}
-                    </td>
-                    <td className="py-2 px-3 text-violet-700 font-bold">
-                      {formatSigned(r.deltaY, 1)}
-                    </td>
-                    <td className="py-2 px-3 text-teal-700 font-bold">
-                      {formatSigned(r.deltaZ, 1)}
+                    <td className="py-2 px-3 text-emerald-700 font-bold">
+                      {formatSigned(r.zTilt ?? r.deltaZ, 1)}
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
                       {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${Number(r.xDisp).toFixed(2)} mm` : '--'}

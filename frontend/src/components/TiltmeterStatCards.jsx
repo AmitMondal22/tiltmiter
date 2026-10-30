@@ -41,21 +41,21 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   // Primary Stat Cards: Tilt Change (X, Y, Z) + Device Displacement (X, Y, Z, Total)
   const primary = [
     {
-      label: 'ΔX (Roll)',
+      label: 'Tilt X',
       value: `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(1)}°`,
       unit: 'Delta Tilt',
       color: '#3b82f6',
       spark: d.sparklineXTilt || null,
     },
     {
-      label: 'ΔY (Pitch)',
+      label: 'Tilt Y',
       value: `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(1)}°`,
       unit: 'Delta Tilt',
       color: '#0d9488',
       spark: d.sparklineYTilt || null,
     },
     {
-      label: 'ΔZ (Yaw)',
+      label: 'Tilt Z',
       value: `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(1)}°`,
       unit: 'Delta Tilt',
       color: '#ea580c',

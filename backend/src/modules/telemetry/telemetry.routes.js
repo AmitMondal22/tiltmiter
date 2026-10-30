@@ -30,9 +30,9 @@ export async function telemetryRoutes(fastify) {
       }
     } catch (e) {}
 
-    // Handle range shortcuts if provided (e.g. 1h, 6h, 12h, 24h, 7d, 30d) anchored to latest device data
+    // Handle range shortcuts if provided (e.g. 1h, 6h, 12h, 24h, 7d, 30d, all) anchored to latest device data
     if (range && !startDate) {
-      let refDate = new Date();
+      let refDate = null;
       try {
         const latestRec = await TelemetryRecord.findOne({
           where: {
@@ -67,17 +67,31 @@ export async function telemetryRoutes(fastify) {
         }
       } catch (err) {}
 
-      const anchorTime = Math.max(Date.now(), refDate.getTime());
       const rLower = String(range).toLowerCase();
-      let durationMs = 24 * 60 * 60 * 1000;
-      if (rLower === '1h') durationMs = 60 * 60 * 1000;
-      else if (rLower === '6h') durationMs = 6 * 60 * 60 * 1000;
-      else if (rLower === '12h') durationMs = 12 * 60 * 60 * 1000;
-      else if (rLower === '24h' || rLower === '1d') durationMs = 24 * 60 * 60 * 1000;
-      else if (rLower === '7d' || rLower === '1w') durationMs = 7 * 24 * 60 * 60 * 1000;
-      else if (rLower === '30d' || rLower === '1m') durationMs = 30 * 24 * 60 * 60 * 1000;
-      startDate = new Date(anchorTime - durationMs);
-      stopDate = null; // Do not cap upper bound so newly ingested points are never filtered out
+      if (rLower === 'all') {
+        startDate = null;
+        stopDate = null;
+      } else {
+        let durationMs = 24 * 60 * 60 * 1000;
+        if (rLower === '1h') durationMs = 60 * 60 * 1000;
+        else if (rLower === '6h') durationMs = 6 * 60 * 60 * 1000;
+        else if (rLower === '12h') durationMs = 12 * 60 * 60 * 1000;
+        else if (rLower === '24h' || rLower === '1d') durationMs = 24 * 60 * 60 * 1000;
+        else if (rLower === '7d' || rLower === '1w') durationMs = 7 * 24 * 60 * 60 * 1000;
+        else if (rLower === '30d' || rLower === '1m') durationMs = 30 * 24 * 60 * 60 * 1000;
+
+        const nowMs = Date.now();
+        let anchorTime = nowMs;
+        if (refDate && !isNaN(refDate.getTime())) {
+          const recMs = refDate.getTime();
+          // If the device has not sent data within durationMs, anchor to the latest received record
+          if (nowMs - recMs > durationMs) {
+            anchorTime = recMs;
+          }
+        }
+        startDate = new Date(anchorTime - durationMs);
+        stopDate = null; // Do not cap upper bound so newly ingested points are never filtered out
+      }
     }
 
     // Check device zero calibration status from database
@@ -178,6 +192,7 @@ export async function telemetryRoutes(fastify) {
       const azG = sensors.azG ?? parseFloat(pt.azG ?? pt.az ?? null);
       const accMag = sensors.accMag ?? parseFloat(pt.accMag ?? null);
       const vibRMS = sensors.vibRMS ?? parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? null);
+      const vibPeak = sensors.vibPeak ?? parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? null);
       const rawPtTemp = sensors.temperature ?? pt.temp ?? pt.temperature ?? pt.rawPayload?.environment?.temperature;
       const temperature = (rawPtTemp !== undefined && rawPtTemp !== null && !isNaN(parseFloat(rawPtTemp)))
         ? parseFloat(rawPtTemp)
@@ -335,11 +350,11 @@ export async function telemetryRoutes(fastify) {
           source: 'PostgreSQL DB',
           totalPoints: history.length,
           history,
-          latest: latestPoint,
+          latest: latestPoint || (history.length > 0 ? history[history.length - 1] : null),
         });
       }
     } catch (err) {
-      fastify.log.warn('[Telemetry] PostgreSQL query error:', err.message);
+      fastify.log.warn({ err }, '[Telemetry] PostgreSQL query error: ' + (err?.message || err));
     }
 
     // 2. If no history recorded in PostgreSQL for selected device & range, check for latest point
@@ -373,7 +388,9 @@ export async function telemetryRoutes(fastify) {
           vibration: latestDbRec.vibration || null,
         }, ext);
       }
-    } catch (e) {}
+    } catch (e) {
+      fastify.log.warn({ err: e }, '[Telemetry] Fallback query error: ' + (e?.message || e));
+    }
 
     return reply.send({
       statusCode: 200,

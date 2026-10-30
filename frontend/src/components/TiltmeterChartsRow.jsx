@@ -109,33 +109,36 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     return telemetryHistory.map(pt => {
       const ts = pt.timestamp || pt.time;
       // 1. Axis Mapping:
-      // X-Axis: tilt.roll
-      // Y-Axis: tilt.pitch
-      // Z-Axis: tilt.yaw
-      // Do not use the combined tilt.tilt value as an individual X, Y, or Z axis value.
-      const currentRoll = pt.tilt?.roll ?? pt.roll;
-      const currentPitch = pt.tilt?.pitch ?? pt.pitch;
-      const currentYaw = pt.tilt?.yaw ?? pt.yaw;
+      // X-Axis: tilt.roll / roll / xTilt
+      // Y-Axis: tilt.pitch / pitch / yTilt
+      // Z-Axis: tilt.yaw / yaw / zTilt
+      const currentRoll = pt.tilt?.roll ?? pt.roll ?? pt.presentX ?? pt.xTilt;
+      const currentPitch = pt.tilt?.pitch ?? pt.pitch ?? pt.presentY ?? pt.yTilt;
+      const currentYaw = pt.tilt?.yaw ?? pt.yaw ?? pt.presentZ ?? pt.zTilt;
 
-      // 2. Present Value:
-      // Display the actual angle values received from the device without subtracting the reference angle.
+      // 2. Present Value (actual device angle values):
       const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
       const presentY = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
       const presentZ = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
 
       // 3. Delta Value:
-      // Delta represents the change in angle relative to the zero reference angle (0.0°).
       // Delta X = Current Roll − Reference Roll
       // Delta Y = Current Pitch − Reference Pitch
       // Delta Z = Current Yaw − Reference Yaw
-      // Initially, all reference angles are 0.0°. If a calibrated reference is configured later, use that stored reference for the calculation.
-      const deltaX = presentX - refX;
-      const deltaY = presentY - refY;
-      const deltaZ = presentZ - refZ;
+      const deltaX = (pt.deltaX !== undefined && pt.deltaX !== null && !isNaN(parseFloat(pt.deltaX)))
+        ? parseFloat(pt.deltaX)
+        : (presentX - refX);
+      const deltaY = (pt.deltaY !== undefined && pt.deltaY !== null && !isNaN(parseFloat(pt.deltaY)))
+        ? parseFloat(pt.deltaY)
+        : (presentY - refY);
+      const deltaZ = (pt.deltaZ !== undefined && pt.deltaZ !== null && !isNaN(parseFloat(pt.deltaZ)))
+        ? parseFloat(pt.deltaZ)
+        : (presentZ - refZ);
 
-      const xT = deltaX;
-      const yT = deltaY;
-      const zT = deltaZ;
+      // Round to 1 decimal place as requested
+      const xT = Number(deltaX.toFixed(1));
+      const yT = Number(deltaY.toFixed(1));
+      const zT = Number(deltaZ.toFixed(1));
 
       // Device-provided displacement data:
       const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
@@ -169,22 +172,22 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
         ...pt,
         time: pt.time && pt.time.length <= 5 ? pt.time : formatHHMM(ts),
         fullTime: pt.fullTime || formatFullDateTime(ts),
-        presentX,
-        presentY,
-        presentZ,
-        deltaX,
-        deltaY,
-        deltaZ,
-        xTilt: Number(xT.toFixed(2)),
-        yTilt: Number(yT.toFixed(2)),
-        zTilt: Number(zT.toFixed(2)),
-        xDisp: Number(xD.toFixed(2)),
-        yDisp: Number(yD.toFixed(2)),
-        zDisp: Number(zD.toFixed(2)),
-        totalDisp: Number(totalD.toFixed(2)),
-        axG: axG !== null ? Number(axG.toFixed(2)) : null,
-        ayG: ayG !== null ? Number(ayG.toFixed(2)) : null,
-        azG: azG !== null ? Number(azG.toFixed(2)) : null,
+        presentX: Number(presentX.toFixed(1)),
+        presentY: Number(presentY.toFixed(1)),
+        presentZ: Number(presentZ.toFixed(1)),
+        deltaX: xT,
+        deltaY: yT,
+        deltaZ: zT,
+        xTilt: xT,
+        yTilt: yT,
+        zTilt: zT,
+        xDisp: Number(xD.toFixed(1)),
+        yDisp: Number(yD.toFixed(1)),
+        zDisp: Number(zD.toFixed(1)),
+        totalDisp: Number(totalD.toFixed(1)),
+        axG: axG !== null ? Number(axG.toFixed(1)) : null,
+        ayG: ayG !== null ? Number(ayG.toFixed(1)) : null,
+        azG: azG !== null ? Number(azG.toFixed(1)) : null,
         temp: tempVal !== null ? Number(tempVal.toFixed(1)) : null,
       };
     });
@@ -192,6 +195,29 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
 
   const totalPoints = chartData.length;
   const lastPt = totalPoints > 0 ? chartData[totalPoints - 1] : null;
+
+  // Compute nice Y-axis domain for Tilt (fixed 1 decimal and visible range even when values are close to 0)
+  const tiltYDomain = useMemo(() => {
+    if (!chartData.length) return [-1.0, 1.0];
+    let minVal = Infinity;
+    let maxVal = -Infinity;
+    chartData.forEach(p => {
+      [p.xTilt, p.yTilt, p.zTilt].forEach(v => {
+        if (v !== undefined && v !== null && !isNaN(v)) {
+          if (v < minVal) minVal = v;
+          if (v > maxVal) maxVal = v;
+        }
+      });
+    });
+    if (minVal === Infinity || maxVal === -Infinity) return [-1.0, 1.0];
+    const diff = maxVal - minVal;
+    if (diff < 0.2) {
+      const mid = (maxVal + minVal) / 2;
+      return [Number((mid - 0.5).toFixed(1)), Number((mid + 0.5).toFixed(1))];
+    }
+    const pad = Math.max(0.2, diff * 0.15);
+    return [Number((minVal - pad).toFixed(1)), Number((maxVal + pad).toFixed(1))];
+  }, [chartData]);
 
   const hasAccelData = useMemo(() => {
     return chartData.some(p => p.axG !== null || p.ayG !== null || p.azG !== null);
@@ -319,7 +345,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                 <YAxis
                   stroke="#64748b"
                   tick={{ fontSize: 9.5, fill: '#64748b' }}
-                  domain={['auto', 'auto']}
+                  domain={tiltYDomain}
                   tickFormatter={(v) => Number(v).toFixed(1)}
                   label={{ value: 'Tilt Change (°)', angle: -90, position: 'insideLeft', offset: 18, style: { fontSize: 9.5, fill: '#64748b', fontWeight: 600, textAnchor: 'middle' } }}
                 />

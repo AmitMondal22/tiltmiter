@@ -215,10 +215,12 @@ export default function DeviceDetailPage() {
     if (!id) return;
     setLoading(true);
 
-    const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
-    const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
+    const isCustom = !rangeKey || rangeKey === 'custom';
+    const utcFrom = (isCustom && fromDt) ? istDatetimeToUTC(fromDt) : null;
+    const utcTo = (isCustom && toDt) ? istDatetimeToUTC(toDt) : null;
+    const effectiveRange = isCustom ? null : rangeKey;
 
-    getDeviceTelemetry(id, utcFrom, utcTo, rangeKey)
+    getDeviceTelemetry(id, utcFrom, utcTo, effectiveRange)
       .then(res => {
         if (isCurrentCheck && !isCurrentCheck()) return;
         if (res?.history?.length) {
@@ -233,7 +235,7 @@ export default function DeviceDetailPage() {
           setTelemetryHistory(mapped);
           const firstPoint = mapped[0];
           const lastPoint = mapped[mapped.length - 1];
-          if (firstPoint?.timestamp && lastPoint?.timestamp && rangeKey) {
+          if (firstPoint?.timestamp && lastPoint?.timestamp && effectiveRange) {
             setFromDateTime(formatISTDatetimeLocal(new Date(firstPoint.timestamp)));
             setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
           }
@@ -243,8 +245,8 @@ export default function DeviceDetailPage() {
           }
         } else if (res?.latest) {
           const mappedLatest = mapPointData(res.latest);
-          setTelemetryHistory([mappedLatest]);
           setLiveData(parseTelemetry(mappedLatest));
+          setTelemetryHistory(prev => prev.length > 0 ? prev : [mappedLatest]);
         } else {
           setTelemetryHistory([]);
           setLiveData(null);
@@ -267,7 +269,11 @@ export default function DeviceDetailPage() {
 
     const intervalId = setInterval(() => {
       // Re-fetch historical telemetry and device status every 1 minute
-      loadHistory(deviceId, fromDateTime, toDateTime, activeFilter);
+      if (activeFilter === 'custom') {
+        loadHistory(deviceId, fromDateTime, toDateTime, 'custom');
+      } else {
+        loadHistory(deviceId, null, null, activeFilter);
+      }
       getDevice(deviceId)
         .then(res => {
           const dev = res?.device || res;
@@ -277,7 +283,7 @@ export default function DeviceDetailPage() {
     }, 60000);
 
     return () => clearInterval(intervalId);
-  }, [deviceId, fromDateTime, toDateTime, activeFilter]);
+  }, [deviceId, activeFilter, fromDateTime, toDateTime]);
 
   // Handle Preset Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
   const handleRangeSelect = (presetKey) => {

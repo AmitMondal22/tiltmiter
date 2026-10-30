@@ -184,10 +184,12 @@ export default function TrendsPage() {
       devices.find(d => d.id === devId) ||
       selectedDevice;
 
-    const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
-    const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
+    const isCustom = !rangeKey || rangeKey === 'custom';
+    const utcFrom = (isCustom && fromDt) ? istDatetimeToUTC(fromDt) : null;
+    const utcTo = (isCustom && toDt) ? istDatetimeToUTC(toDt) : null;
+    const effectiveRange = isCustom ? null : rangeKey;
 
-    getTelemetryHistory(devId, utcFrom, utcTo, rangeKey)
+    getTelemetryHistory(devId, utcFrom, utcTo, effectiveRange)
       .then(res => {
         if (res?.history?.length) {
           const seen = new Set();
@@ -201,7 +203,7 @@ export default function TrendsPage() {
           setTelemetryLogs(mapped);
           const firstPoint = mapped[0];
           const lastPoint = mapped[mapped.length - 1];
-          if (firstPoint?.timestamp && lastPoint?.timestamp && rangeKey) {
+          if (firstPoint?.timestamp && lastPoint?.timestamp && effectiveRange) {
             setFromDateTime(formatISTDatetimeLocal(new Date(firstPoint.timestamp)));
             setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
           }
@@ -221,7 +223,7 @@ export default function TrendsPage() {
   useEffect(() => {
     if (selectedDeviceId) {
       if (activePreset === 'custom') {
-        loadHistory(selectedDeviceId, fromDateTime, toDateTime, null);
+        loadHistory(selectedDeviceId, fromDateTime, toDateTime, 'custom');
       } else {
         loadHistory(selectedDeviceId, null, null, activePreset);
       }
@@ -233,11 +235,15 @@ export default function TrendsPage() {
     if (!selectedDeviceId) return;
 
     const intervalId = setInterval(() => {
-      loadHistory(selectedDeviceId, fromDateTime, toDateTime, activePreset);
+      if (activePreset === 'custom') {
+        loadHistory(selectedDeviceId, fromDateTime, toDateTime, 'custom');
+      } else {
+        loadHistory(selectedDeviceId, null, null, activePreset);
+      }
     }, 60000);
 
     return () => clearInterval(intervalId);
-  }, [selectedDeviceId, fromDateTime, toDateTime, activePreset]);
+  }, [selectedDeviceId, activePreset, fromDateTime, toDateTime]);
 
   // Handle Preset Time Selection: 1h, 6h, 24h, 7d, 30d relative to last available data
   const handlePresetSelect = (presetKey) => {

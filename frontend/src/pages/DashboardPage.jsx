@@ -222,10 +222,12 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     if (!id) return;
     setLoading(true);
 
-    const utcFrom = fromDt ? istDatetimeToUTC(fromDt) : null;
-    const utcTo = toDt ? istDatetimeToUTC(toDt) : null;
+    const isCustom = !rangeKey || rangeKey === 'custom';
+    const utcFrom = (isCustom && fromDt) ? istDatetimeToUTC(fromDt) : null;
+    const utcTo = (isCustom && toDt) ? istDatetimeToUTC(toDt) : null;
+    const effectiveRange = isCustom ? null : rangeKey;
 
-    getDeviceTelemetry(id, utcFrom, utcTo, rangeKey)
+    getDeviceTelemetry(id, utcFrom, utcTo, effectiveRange)
       .then(res => {
         if (isCurrentCheck && !isCurrentCheck()) return;
         if (res?.history?.length) {
@@ -240,7 +242,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           setTelemetryHistory(mapped);
           const firstPoint = mapped[0];
           const lastPoint = mapped[mapped.length - 1];
-          if (firstPoint?.timestamp && lastPoint?.timestamp && rangeKey) {
+          if (firstPoint?.timestamp && lastPoint?.timestamp && effectiveRange) {
             setFromDateTime(formatISTDatetimeLocal(new Date(firstPoint.timestamp)));
             setToDateTime(formatISTDatetimeLocal(new Date(lastPoint.timestamp)));
           }
@@ -252,8 +254,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           }
         } else if (res?.latest) {
           const mappedLatest = mapPointData(res.latest);
-          setTelemetryHistory([mappedLatest]);
           setLiveData(parseTelemetry(mappedLatest));
+          setTelemetryHistory(prev => prev.length > 0 ? prev : [mappedLatest]);
         } else {
           setTelemetryHistory([]);
           setLiveData(null);
@@ -312,7 +314,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
     const intervalId = setInterval(() => {
       // Re-fetch telemetry history and device metadata every 1 minute
-      loadHistory(selectedId, fromDateTime, toDateTime, activeFilter);
+      if (activeFilter === 'custom') {
+        loadHistory(selectedId, fromDateTime, toDateTime, 'custom');
+      } else {
+        loadHistory(selectedId, null, null, activeFilter);
+      }
       getDevice(selectedId)
         .then(res => {
           const dev = res?.device || res;
@@ -324,7 +330,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     }, 60000);
 
     return () => clearInterval(intervalId);
-  }, [selectedId, fromDateTime, toDateTime, activeFilter]);
+  }, [selectedId, activeFilter, fromDateTime, toDateTime]);
 
   const handleDeviceSelect = (newId) => {
     if (newId === selectedId) return;

@@ -31,7 +31,7 @@ export async function telemetryRoutes(fastify) {
     } catch (e) {}
 
     // Handle range shortcuts if provided (e.g. 1h, 6h, 12h, 24h, 7d, 30d, all) anchored to latest device data
-    if (range && !startDate) {
+    if (range && String(range).toLowerCase() !== 'custom') {
       let refDate = null;
       try {
         const latestRec = await TelemetryRecord.findOne({
@@ -81,13 +81,10 @@ export async function telemetryRoutes(fastify) {
         else if (rLower === '30d' || rLower === '1m') durationMs = 30 * 24 * 60 * 60 * 1000;
 
         const nowMs = Date.now();
+        // Anchor to latest record timestamp so data points within durationMs are never cut off prematurely
         let anchorTime = nowMs;
         if (refDate && !isNaN(refDate.getTime())) {
-          const recMs = refDate.getTime();
-          // If the device has not sent data within durationMs, anchor to the latest received record
-          if (nowMs - recMs > durationMs) {
-            anchorTime = recMs;
-          }
+          anchorTime = refDate.getTime();
         }
         startDate = new Date(anchorTime - durationMs);
         stopDate = null; // Do not cap upper bound so newly ingested points are never filtered out

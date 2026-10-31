@@ -1,17 +1,18 @@
 import React from 'react';
 import { parseTelemetry } from '../utils/telemetryHelper';
 
-const num = (v, d = 0) => (typeof v === 'number' && !isNaN(v) ? v : (parseFloat(v) || d));
+const num = (v, d = null) => (typeof v === 'number' && !isNaN(v) ? v : (v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v)) ? parseFloat(v) : d));
 
 export default function TiltPositionVisualizer({ currentDevice }) {
   const d = parseTelemetry(currentDevice);
-  const roll = num(d.xTilt, 1.53);
-  const pitch = num(d.yTilt, -0.92);
-  const resultant = num(d.resultantTilt, 1.83);
+  const roll = num(d.xTilt, null);
+  const pitch = num(d.yTilt, null);
+  const resultant = num(d.resultantTilt, null);
 
   // Precision bubble level offset calculation (clamped to [-36, 36] px)
-  const bubbleX = Math.max(-36, Math.min(36, roll * 14));
-  const bubbleY = Math.max(-36, Math.min(36, -pitch * 14));
+  const hasData = roll !== null && pitch !== null;
+  const bubbleX = hasData ? Math.max(-36, Math.min(36, roll * 14)) : 0;
+  const bubbleY = hasData ? Math.max(-36, Math.min(36, -pitch * 14)) : 0;
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white p-4 flex flex-col justify-between shadow-xs h-full">
@@ -20,7 +21,6 @@ export default function TiltPositionVisualizer({ currentDevice }) {
         <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-slate-700">
           DUAL-AXIS TILT LEVEL
         </span>
-
       </div>
 
       {/* High-Precision Electronic Dual-Axis Bullseye Horizon Level */}
@@ -44,7 +44,9 @@ export default function TiltPositionVisualizer({ currentDevice }) {
 
           {/* Fluid Inclinometer Sensor Bubble */}
           <div
-            className="absolute w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-md transition-all duration-300 ease-out flex items-center justify-center z-10"
+            className={`absolute w-6 h-6 rounded-full border-2 border-white shadow-md transition-all duration-300 ease-out flex items-center justify-center z-10 ${
+              hasData ? 'bg-blue-600' : 'bg-slate-300 opacity-60'
+            }`}
             style={{
               transform: `translate(${bubbleX}px, ${bubbleY}px)`,
             }}
@@ -58,15 +60,15 @@ export default function TiltPositionVisualizer({ currentDevice }) {
       <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-100 text-center font-mono">
         <div className="p-1 rounded-lg bg-slate-50 border border-slate-100">
           <span className="text-[8px] text-slate-500 uppercase font-medium block">Tilt X</span>
-          <span className="text-[11px] font-semibold text-blue-600">{roll.toFixed(2)}°</span>
+          <span className="text-[11px] font-semibold text-blue-600">{roll !== null ? `${roll.toFixed(2)}°` : '--'}</span>
         </div>
         <div className="p-1 rounded-lg bg-slate-50 border border-slate-100">
           <span className="text-[8px] text-slate-500 uppercase font-medium block">Tilt Y</span>
-          <span className="text-[11px] font-semibold text-purple-600">{pitch.toFixed(2)}°</span>
+          <span className="text-[11px] font-semibold text-purple-600">{pitch !== null ? `${pitch.toFixed(2)}°` : '--'}</span>
         </div>
         <div className="p-1 rounded-lg bg-slate-50 border border-slate-100">
           <span className="text-[8px] text-slate-500 uppercase font-medium block">Resultant</span>
-          <span className="text-[11px] font-semibold text-emerald-600">{resultant.toFixed(2)}°</span>
+          <span className="text-[11px] font-semibold text-emerald-600">{resultant !== null ? `${resultant.toFixed(2)}°` : '--'}</span>
         </div>
       </div>
     </div>

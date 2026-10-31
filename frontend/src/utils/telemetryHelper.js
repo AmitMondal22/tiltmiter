@@ -73,9 +73,10 @@ export function calculateTiltToDisplacement({
 
 /**
  * Formats any numeric value to 1 decimal place (e.g. 1.01215 -> 1.0).
+ * If value is missing or null, returns empty placeholder '--' instead of fake '0.0'.
  */
-export function format1Dec(val, fallback = '0.0') {
-  if (val === null || val === undefined || val === '') return fallback;
+export function format1Dec(val, fallback = '--') {
+  if (val === null || val === undefined || val === '' || val === '--') return fallback;
   const num = parseFloat(val);
   return isNaN(num) ? fallback : num.toFixed(1);
 }
@@ -83,6 +84,7 @@ export function format1Dec(val, fallback = '0.0') {
 /**
  * Formats signed delta value (e.g. +1.4° or -0.8° or +0.0°).
  * Retains full precision until formatting to 1 decimal place for display only.
+ * Returns '--' if missing/null.
  */
 export function formatSigned(val, decimals = 1, unit = '°', fallback = '--') {
   if (val === null || val === undefined || val === '' || val === '--') return fallback;
@@ -98,6 +100,7 @@ export function formatSigned(val, decimals = 1, unit = '°', fallback = '--') {
 /**
  * Formats present actual value without subtracting reference angle.
  * Displays actual angle rounded to 1 decimal place for display only (e.g. 1.4° or -1.4°).
+ * Returns '--' if missing/null.
  */
 export function formatPresent(val, decimals = 1, unit = '°', fallback = '--') {
   if (val === null || val === undefined || val === '' || val === '--') return fallback;
@@ -112,40 +115,31 @@ export function formatPresent(val, decimals = 1, unit = '°', fallback = '--') {
 
 /**
  * Converts battery voltage in 0 to 13 range (0V = 0%, 13V = 100%) to a clean 0% to 100% string.
+ * Returns '--' if no value was reported by the sensor.
  */
-export function formatBatteryPercentage(val, fallback = '100%') {
+export function formatBatteryPercentage(val, fallback = '--') {
   if (val === null || val === undefined || val === '' || val === '--') return fallback;
   if (typeof val === 'string' && val.includes('%')) {
     const p = parseFloat(val);
-    return !isNaN(p) ? `${Math.min(100, Math.max(0, Math.round(p)))}%` : val;
+    return !isNaN(p) ? `${Math.min(100, Math.max(0, Math.round(p)))}%` : fallback;
   }
   const isVoltageStr = typeof val === 'string' && /v/i.test(val);
   const num = parseFloat(val);
   if (isNaN(num)) return fallback;
   let pct = 0;
-  // If explicitly designated with 'V' or value is in voltage operating range (<= 20V):
-  // Scale 0 to 13V -> 0% to 100% (e.g. 13V+ or 13.98V float/charging is clamped to 100%)
   if (isVoltageStr || num <= 20) {
     pct = Math.min(100, Math.max(0, Math.round((num / 13.0) * 100)));
   } else {
-    // Already in 0 to 100 percentage scale
     pct = Math.min(100, Math.max(0, Math.round(num)));
   }
   return `${pct}%`;
 }
 
 /**
- * Converts cellular CSQ (0 to 31), RSSI dBm (-113 to -51 dBm), or raw signal into a clean 0% to 100% percentage string.
- * Scale:
- * - CSQ 0 (or -113 dBm) = 0%
- * - CSQ 31 (or -51 dBm) = 100%
- * - Typical nominal CSQ 19 (~-75 dBm) = ~61%
- *
- * @param {*} val - CSQ number, string like "19 CSQ", "-60 dBm", "85%", etc.
- * @param {string} fallback - Fallback string if value is missing/invalid (default: '85%')
- * @returns {string} Formatted percentage string (e.g. "61%", "85%", "100%")
+ * Converts cellular CSQ (0 to 31) into clean 0% to 100% percentage string.
+ * Returns '--' if missing/empty.
  */
-export function formatCSQPercentage(val, fallback = '85%') {
+export function formatCSQPercentage(val, fallback = '--') {
   if (val === null || val === undefined || val === '' || val === '--') return fallback;
 
   if (typeof val === 'string') {
@@ -154,7 +148,6 @@ export function formatCSQPercentage(val, fallback = '85%') {
       const p = parseFloat(trimmed);
       return !isNaN(p) ? `${Math.min(100, Math.max(0, Math.round(p)))}%` : fallback;
     }
-    // Handle dBm RSSI (typical cellular range: -113 dBm [0 CSQ / 0%] to -51 dBm [31 CSQ / 100%])
     if (/dbm/i.test(trimmed)) {
       const dbm = parseFloat(trimmed);
       if (!isNaN(dbm)) {
@@ -166,27 +159,19 @@ export function formatCSQPercentage(val, fallback = '85%') {
 
   const num = parseFloat(val);
   if (isNaN(num)) return fallback;
-
-  // Negative numbers indicate dBm even if "dBm" is omitted (e.g. -60 or -80)
   if (num < 0) {
     const pct = Math.min(100, Math.max(0, Math.round(((num - (-113)) / ((-51) - (-113))) * 100)));
     return `${pct}%`;
   }
-
-  // CSQ 99 in AT+CSQ standard means "not known or not detectable"
   if (num === 99) {
     return fallback;
   }
-
   let pct = 0;
-  // If in standard CSQ range (0 to 31): scale 0 to 31 -> 0% to 100%
   if (num <= 31) {
     pct = Math.min(100, Math.max(0, Math.round((num / 31.0) * 100)));
   } else {
-    // Already in 0 to 100 percentage scale
     pct = Math.min(100, Math.max(0, Math.round(num)));
   }
-
   return `${pct}%`;
 }
 
@@ -225,29 +210,34 @@ export function hasTelemetryData(data) {
 export function parseTelemetry(data) {
   if (!data) return {};
 
+  const parseNum = (v) => {
+    if (v === null || v === undefined || v === '' || v === '--') return null;
+    const n = typeof v === 'number' ? v : parseFloat(v);
+    return !isNaN(n) ? n : null;
+  };
+
   // Acceleration
-  const ax = typeof data.acceleration?.ax === 'number' ? data.acceleration.ax : (parseFloat(data.acceleration?.ax) || 0);
-  const ay = typeof data.acceleration?.ay === 'number' ? data.acceleration.ay : (parseFloat(data.acceleration?.ay) || 0);
-  const az = typeof data.acceleration?.az === 'number' ? data.acceleration.az : (parseFloat(data.acceleration?.az) || 9.80665);
-  const accMag = typeof data.acceleration?.accMag === 'number' ? data.acceleration.accMag : (parseFloat(data.acceleration?.accMag) || Math.sqrt(ax * ax + ay * ay + az * az));
+  const ax = parseNum(data.acceleration?.ax ?? data.ax ?? data.axG);
+  const ay = parseNum(data.acceleration?.ay ?? data.ay ?? data.ayG);
+  const az = parseNum(data.acceleration?.az ?? data.az ?? data.azG);
+  const accMag = parseNum(data.acceleration?.accMag) ?? (ax !== null && ay !== null && az !== null ? Math.sqrt(ax * ax + ay * ay + az * az) : null);
 
   // 1. Axis Mapping:
   // X-Axis: tilt.roll
   // Y-Axis: tilt.pitch
   // Z-Axis: tilt.yaw
-  // Do not use the combined tilt.tilt value as an individual X, Y, or Z axis value.
-  const currentRoll = data.tilt?.roll ?? data.roll;
-  const currentPitch = data.tilt?.pitch ?? data.pitch;
-  const currentYaw = data.tilt?.yaw ?? data.yaw;
+  const currentRoll = data.tilt?.roll ?? data.roll ?? data.xTilt ?? data.presentX ?? data.angleDelta?.x;
+  const currentPitch = data.tilt?.pitch ?? data.pitch ?? data.yTilt ?? data.presentY ?? data.angleDelta?.y;
+  const currentYaw = data.tilt?.yaw ?? data.yaw ?? data.zTilt ?? data.presentZ ?? data.angleDelta?.z;
 
   // 2. Present Values: actual device angle values without subtracting reference
-  const roll = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
-  const pitch = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
-  const yaw = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
+  const roll = parseNum(currentRoll);
+  const pitch = parseNum(currentPitch);
+  const yaw = parseNum(currentYaw);
 
   // Combined tilt value: Math.sqrt(roll^2 + pitch^2)
   const rawTiltCombined = data.tilt?.tilt ?? data.presentTilt ?? data.resultantTilt ?? data.tilt;
-  const tiltVal = (typeof rawTiltCombined === 'number' && !isNaN(rawTiltCombined)) ? rawTiltCombined : Math.sqrt(roll * roll + pitch * pitch);
+  const tiltVal = parseNum(rawTiltCombined) ?? (roll !== null && pitch !== null ? Math.sqrt(roll * roll + pitch * pitch) : null);
   const zTilt = yaw;
   const tiltStatus = data.tilt?.tiltStatus || data.tiltStatus || 'NORMAL';
 
@@ -258,11 +248,11 @@ export function parseTelemetry(data) {
   const presentTilt = tiltVal;
 
   // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
-  const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0);
+  const gaugeLength_mm = parseFloat(data.gaugeLength_mm || data.gaugeLength || data.L || 1000.0) || 1000.0;
   const hasReferenceZero = Boolean(data.hasReferenceZero === true || data.calibrate === true);
-  const refThetaX = hasReferenceZero ? (parseFloat(data.device?.refThetaX ?? data.activeDevice?.refThetaX ?? data.refThetaX ?? 0.0) || 0.0) : 0.0;
-  const refThetaY = hasReferenceZero ? (parseFloat(data.device?.refThetaY ?? data.activeDevice?.refThetaY ?? data.refThetaY ?? 0.0) || 0.0) : 0.0;
-  const refThetaZ = hasReferenceZero ? (parseFloat(data.device?.refThetaZ ?? data.activeDevice?.refThetaZ ?? data.refThetaZ ?? 0.0) || 0.0) : 0.0;
+  const refThetaX = hasReferenceZero ? (parseNum(data.device?.refThetaX ?? data.activeDevice?.refThetaX ?? data.refThetaX) || 0.0) : 0.0;
+  const refThetaY = hasReferenceZero ? (parseNum(data.device?.refThetaY ?? data.activeDevice?.refThetaY ?? data.refThetaY) || 0.0) : 0.0;
+  const refThetaZ = hasReferenceZero ? (parseNum(data.device?.refThetaZ ?? data.activeDevice?.refThetaZ ?? data.refThetaZ) || 0.0) : 0.0;
 
   // 4. Device angle values directly without logic modifications
   const deltaX = presentX;
@@ -271,20 +261,20 @@ export function parseTelemetry(data) {
   const deltaThetaX = deltaX;
   const deltaThetaY = deltaY;
   const deltaThetaZ = deltaZ;
-  const deltaResultantTilt = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+  const deltaResultantTilt = (deltaX !== null && deltaY !== null) ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
 
   // Slope in mm/m (1000 * sin(angle * π / 180)) based on delta angle
-  const xSlope = Math.sin((deltaX * Math.PI) / 180) * 1000;
-  const ySlope = Math.sin((deltaY * Math.PI) / 180) * 1000;
-  const zSlope = Math.sin((deltaZ * Math.PI) / 180) * 1000;
-  const resultantSlope = Math.sin((deltaResultantTilt * Math.PI) / 180) * 1000;
+  const xSlope = deltaX !== null ? Math.sin((deltaX * Math.PI) / 180) * 1000 : null;
+  const ySlope = deltaY !== null ? Math.sin((deltaY * Math.PI) / 180) * 1000 : null;
+  const zSlope = deltaZ !== null ? Math.sin((deltaZ * Math.PI) / 180) * 1000 : null;
+  const resultantSlope = deltaResultantTilt !== null ? Math.sin((deltaResultantTilt * Math.PI) / 180) * 1000 : null;
 
   // ClinoX D = L * tan(Δθ * π / 180) using full precision delta angles
-  const radX = (deltaX * Math.PI) / 180.0;
-  const radY = (deltaY * Math.PI) / 180.0;
-  const clinoXDisp = gaugeLength_mm * Math.tan(radX);
-  const clinoYDisp = gaugeLength_mm * Math.tan(radY);
-  const clinoTotalDisp = Math.sqrt(clinoXDisp * clinoXDisp + clinoYDisp * clinoYDisp);
+  const radX = deltaX !== null ? (deltaX * Math.PI) / 180.0 : null;
+  const radY = deltaY !== null ? (deltaY * Math.PI) / 180.0 : null;
+  const clinoXDisp = radX !== null ? gaugeLength_mm * Math.tan(radX) : null;
+  const clinoYDisp = radY !== null ? gaugeLength_mm * Math.tan(radY) : null;
+  const clinoTotalDisp = (clinoXDisp !== null && clinoYDisp !== null) ? Math.sqrt(clinoXDisp * clinoXDisp + clinoYDisp * clinoYDisp) : null;
 
   const clinoX = {
     L: gaugeLength_mm,
@@ -295,24 +285,24 @@ export function parseTelemetry(data) {
     totalDisp: clinoTotalDisp,
     formattedDeltaX: formatSigned(deltaX),
     formattedDeltaY: formatSigned(deltaY),
-    formattedDispX: formatSigned(clinoXDisp, 2, ' mm'),
-    formattedDispY: formatSigned(clinoYDisp, 2, ' mm'),
-    formattedTotalDisp: `${clinoTotalDisp.toFixed(2)} mm`,
+    formattedDispX: clinoXDisp !== null ? formatSigned(clinoXDisp, 2, ' mm') : '--',
+    formattedDispY: clinoYDisp !== null ? formatSigned(clinoYDisp, 2, ' mm') : '--',
+    formattedTotalDisp: clinoTotalDisp !== null ? `${clinoTotalDisp.toFixed(2)} mm` : '--',
   };
 
   // Gyroscope
-  const gx = typeof data.gyroscope?.gx === 'number' ? data.gyroscope.gx : (parseFloat(data.gyroscope?.gx) || 0);
-  const gy = typeof data.gyroscope?.gy === 'number' ? data.gyroscope.gy : (parseFloat(data.gyroscope?.gy) || 0);
-  const gz = typeof data.gyroscope?.gz === 'number' ? data.gyroscope.gz : (parseFloat(data.gyroscope?.gz) || 0);
-  const gyroMag = typeof data.gyroscope?.gyroMag === 'number' ? data.gyroscope.gyroMag : (parseFloat(data.gyroscope?.gyroMag) || Math.sqrt(gx * gx + gy * gy + gz * gz));
+  const gx = parseNum(data.gyroscope?.gx ?? data.gx);
+  const gy = parseNum(data.gyroscope?.gy ?? data.gy);
+  const gz = parseNum(data.gyroscope?.gz ?? data.gz);
+  const gyroMag = parseNum(data.gyroscope?.gyroMag) ?? (gx !== null && gy !== null && gz !== null ? Math.sqrt(gx * gx + gy * gy + gz * gz) : null);
 
   // Vibration
-  const vibRMS = typeof data.vibration?.vibrationRMS === 'number' ? data.vibration.vibrationRMS : (parseFloat(data.vibration?.vibrationRMS ?? data.vibration?.vibration) || 0);
-  const vibPeak = typeof data.vibration?.vibrationPeak === 'number' ? data.vibration.vibrationPeak : (parseFloat(data.vibration?.vibrationPeak) || 0);
-  const xVib = typeof data.vibration?.xVibrationRMS === 'number' ? data.vibration.xVibrationRMS : (parseFloat(data.vibration?.xVibrationRMS) || 0);
-  const yVib = typeof data.vibration?.yVibrationRMS === 'number' ? data.vibration.yVibrationRMS : (parseFloat(data.vibration?.yVibrationRMS) || 0);
-  const zVib = typeof data.vibration?.zVibrationRMS === 'number' ? data.vibration.zVibrationRMS : (parseFloat(data.vibration?.zVibrationRMS) || 0);
-  const vibRaw = typeof data.vibration?.vibration === 'number' ? data.vibration.vibration : (parseFloat(data.vibration?.vibration) || 0);
+  const vibRMS = parseNum(data.vibration?.vibrationRMS ?? data.vibration?.vibration ?? data.vibrationRMS ?? data.vibRMS);
+  const vibPeak = parseNum(data.vibration?.vibrationPeak ?? data.touchVibrationPeak ?? data.vibrationPeak ?? data.vibPeak);
+  const xVib = parseNum(data.vibration?.xVibrationRMS ?? data.xVib);
+  const yVib = parseNum(data.vibration?.yVibrationRMS ?? data.yVib);
+  const zVib = parseNum(data.vibration?.zVibrationRMS ?? data.zVib);
+  const vibRaw = parseNum(data.vibration?.vibration ?? data.vibRaw);
   const vibStatus = data.vibration?.vibrationStatus || 'NORMAL';
 
   // Displacement: use device telemetry data directly (displacement.xDisplacement_mm, etc.)
@@ -321,20 +311,20 @@ export function parseTelemetry(data) {
   const rawZDisp = data.displacement?.zDisplacement_mm ?? data.zDisplacement_mm ?? data.zDisplacement ?? data.zDisp;
   const rawTotalDisp = data.displacement?.totalDisplacement_mm ?? data.totalDisplacement_mm ?? data.totalDisplacement ?? data.totalDisp;
 
-  const xDisp = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
-  const yDisp = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
-  const zDisp = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
-  const totalDisp = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
+  const xDisp = parseNum(rawXDisp);
+  const yDisp = parseNum(rawYDisp);
+  const zDisp = parseNum(rawZDisp);
+  const totalDisp = parseNum(rawTotalDisp) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
 
   // Environment & Calibration - no dummy values
   const rawTemp = data.environment?.temperature ?? data.temperature ?? data.temp;
-  const temp = rawTemp !== undefined && rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
+  const temp = parseNum(rawTemp);
   const calibrated = Boolean(data.calibration?.calibrated ?? data.calibrate ?? data.hasReferenceZero ?? false);
 
   // Power & Battery Percentage calculation: 0 to 13 is 0 to 100%
   const rawBat = data.power?.batteryVoltage ?? data.batteryVoltage ?? data.battery;
   const hasBat = rawBat !== undefined && rawBat !== null && rawBat !== '' && rawBat !== '--';
-  const batteryVoltage = hasBat && !isNaN(parseFloat(rawBat)) ? parseFloat(rawBat) : null;
+  const batteryVoltage = hasBat ? parseNum(rawBat) : null;
   const batteryStr = hasBat ? formatBatteryPercentage(rawBat, null) : null;
   const batteryPercent = (batteryStr && batteryStr !== '--') ? parseInt(batteryStr, 10) : null;
 
@@ -343,17 +333,21 @@ export function parseTelemetry(data) {
   const hasCsq = rawCsq !== undefined && rawCsq !== null && rawCsq !== '' && rawCsq !== '--';
   const csqStr = hasCsq ? formatCSQPercentage(rawCsq, null) : null;
   const csqPercent = (csqStr && csqStr !== '--') ? parseInt(csqStr, 10) : null;
-  const csq = typeof rawCsq === 'number' ? rawCsq : (!isNaN(parseInt(rawCsq)) ? parseInt(rawCsq) : null);
+  const csq = parseNum(rawCsq);
   const signalStr = csqStr;
 
   // Calculate cardinal tilt direction angle
-  const angleRad = Math.atan2(pitch, roll);
-  let angleDeg = (angleRad * 180) / Math.PI;
-  if (angleDeg < 0) angleDeg += 360;
+  let angleDeg = null;
+  let cardinalStr = '--';
+  if (pitch !== null && roll !== null) {
+    const angleRad = Math.atan2(pitch, roll);
+    angleDeg = (angleRad * 180) / Math.PI;
+    if (angleDeg < 0) angleDeg += 360;
 
-  const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  const cardinalIdx = Math.round(angleDeg / 45) % 8;
-  const cardinalStr = cardinals[cardinalIdx];
+    const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const cardinalIdx = Math.round(angleDeg / 45) % 8;
+    cardinalStr = cardinals[cardinalIdx];
+  }
 
   return {
     ...data,
@@ -421,16 +415,43 @@ export function parseTelemetry(data) {
     vibStatus,
     vibration: { vibration: vibRaw, vibrationRMS: vibRMS, vibrationPeak: vibPeak, xVibrationRMS: xVib, yVibrationRMS: yVib, zVibrationRMS: zVib, vibrationStatus: vibStatus },
 
-    // Displacement: X / Y only, no Z value
+    // Displacement: real 3-axis displacement from device telemetry
     xDisp,
     yDisp,
-    zDisp: 0.0,
+    zDisp,
     totalDisp,
     xDisplacement: xDisp,
     yDisplacement: yDisp,
-    zDisplacement: 0.0,
+    zDisplacement: zDisp,
     totalDisplacement: totalDisp,
-    displacement: { xDisplacement_mm: xDisp, yDisplacement_mm: yDisp, totalDisplacement_mm: totalDisp },
+    displacement: {
+      xDisplacement_mm: xDisp,
+      yDisplacement_mm: yDisp,
+      zDisplacement_mm: zDisp,
+      totalDisplacement_mm: totalDisp,
+      ...(typeof data.displacement === 'object' ? data.displacement : {}),
+    },
+
+    // Schema v2 Specific Objects & Vectors
+    schemaVersion: data.schemaVersion ?? 2,
+    sampleUptimeMs: data.sampleUptimeMs ?? null,
+    accelerationCurrent: data.accelerationCurrent || null,
+    accelerationReference: data.accelerationReference || null,
+    accelerationDelta: data.accelerationDelta || null,
+    angleReference: data.angleReference || null,
+    angleCurrent: data.angleCurrent || null,
+    angleDelta: data.angleDelta || null,
+    rockfallAlarm: data.rockfallAlarm || null,
+    motionEvent: data.motionEvent || null,
+    monitoringSettings: data.monitoringSettings || null,
+    units: data.units || null,
+    rawPayload: data.rawPayload || data,
+
+    rockfallDeltaPeak: data.rockfallDeltaPeak ?? data.accelerationDelta?.peak ?? null,
+    touchVibrationPeak: data.touchVibrationPeak ?? data.vibration?.vibrationPeak ?? vibPeak,
+    motionClassification: data.motionClassification ?? data.motionEvent?.classification ?? 'STABLE',
+    alarmActive: Boolean(data.alarmActive ?? data.rockfallAlarm?.active ?? false),
+    eventPending: Boolean(data.eventPending ?? data.motionEvent?.pending ?? false),
 
     // Environment & Power & Network & Calibration
     temp,
@@ -441,28 +462,28 @@ export function parseTelemetry(data) {
     batteryPercent,
     batteryVoltage,
     batteryVoltageFormatted: batteryVoltage !== null ? `${batteryVoltage.toFixed(1)} V` : '--',
-    power: { batteryVoltage, batteryPercent },
+    power: { batteryVoltage, batteryPercent, ...(typeof data.power === 'object' ? data.power : {}) },
 
     // Network
     signal: csqStr,
     signalStrength: signalStr,
     csq,
     csqPercent,
-    network: { csq, csqPercent },
+    network: { csq, csqPercent, ...(typeof data.network === 'object' ? data.network : {}) },
 
     calibrated,
-    environment: { temperature: temp },
-    calibration: { calibrated },
+    environment: { temperature: temp, ...(typeof data.environment === 'object' ? data.environment : {}) },
+    calibration: { calibrated, ...(typeof data.calibration === 'object' ? data.calibration : {}) },
     timestamp: data.timestamp || new Date().toISOString(),
 
-    // ClinoX Reference Zero and Delta Angles (Core Logic: Present values never subtract reference zero)
+    // Reference Zero and Delta Angles
     gaugeLength_mm,
     refThetaX,
     refThetaY,
     refThetaZ,
     hasReferenceZero,
 
-    // Core Logic Properties:
+    // Core Properties:
     presentX,
     presentY,
     presentZ,

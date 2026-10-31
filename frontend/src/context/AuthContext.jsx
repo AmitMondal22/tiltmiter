@@ -3,20 +3,28 @@ import { loginUser, getUserProfile } from '../api/apiClient';
 
 const AuthContext = createContext();
 
+const DEFAULT_USER = {
+  id: 1,
+  username: 'operator',
+  fullName: 'Telemetry Viewer',
+  role: 'SUPER_ADMIN',
+  email: 'viewer@techavo.in',
+};
+
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('tiltmeter_jwt_token') || null);
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('tiltmeter_user');
-    if (savedUser && token) {
+    if (savedUser) {
       try {
         return JSON.parse(savedUser);
       } catch (e) {
-        return null;
+        return DEFAULT_USER;
       }
     }
-    return null;
+    return DEFAULT_USER;
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (token) {

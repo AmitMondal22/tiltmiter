@@ -57,12 +57,18 @@ export default function TrendsPage() {
   const selectedDevice = useMemo(() => {
     return devices.find(d => d.id?.toLowerCase() === selectedDeviceId?.toLowerCase()) ||
       devices.find(d => d.id === selectedDeviceId) ||
-      { id: selectedDeviceId || 'TILT000055', name: selectedDeviceId || 'Device Node' };
+      (selectedDeviceId ? { id: selectedDeviceId, name: selectedDeviceId } : null);
   }, [devices, selectedDeviceId]);
 
   // Standard point mapper identical to device dashboard
   const mapPointData = (pt, activeDev = selectedDevice) => {
     const ts = pt.timestamp || pt.time;
+    const parseNum = (v) => {
+      if (v === null || v === undefined || v === '' || v === '--') return null;
+      const n = typeof v === 'number' ? v : parseFloat(v);
+      return !isNaN(n) ? n : null;
+    };
+
     // 1. Axis Mapping:
     // X-Axis: tilt.roll / roll / xTilt
     // Y-Axis: tilt.pitch / pitch / yTilt
@@ -72,11 +78,11 @@ export default function TrendsPage() {
     const currentYaw = pt.tilt?.yaw ?? pt.yaw ?? pt.presentZ ?? pt.zTilt;
 
     // 2. Present Values: actual device angle values without subtracting reference
-    const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
-    const presentY = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
-    const presentZ = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
+    const presentX = parseNum(currentRoll);
+    const presentY = parseNum(currentPitch);
+    const presentZ = parseNum(currentYaw);
     const rawRes = pt.tilt?.tilt ?? pt.presentTilt ?? pt.resultantTilt ?? pt.resultant ?? pt.tilt;
-    const presentRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(presentX * presentX + presentY * presentY);
+    const presentRes = parseNum(rawRes) ?? (presentX !== null && presentY !== null ? Math.sqrt(presentX * presentX + presentY * presentY) : null);
 
     // 3. Stored Reference Angles: Initially 0.0°, or calibrated reference if configured
     const L = parseFloat(activeDev?.gaugeLength_mm || 1000.0);
@@ -86,15 +92,9 @@ export default function TrendsPage() {
     const refZ = hasCalibratedRef ? (parseFloat(activeDev?.refThetaZ ?? pt.refThetaZ ?? 0.0) || 0.0) : 0.0;
 
     // 4. Delta Values = Current − Reference
-    const deltaX = (pt.deltaX !== undefined && pt.deltaX !== null && !isNaN(parseFloat(pt.deltaX)))
-      ? parseFloat(pt.deltaX)
-      : (presentX - refX);
-    const deltaY = (pt.deltaY !== undefined && pt.deltaY !== null && !isNaN(parseFloat(pt.deltaY)))
-      ? parseFloat(pt.deltaY)
-      : (presentY - refY);
-    const deltaZ = (pt.deltaZ !== undefined && pt.deltaZ !== null && !isNaN(parseFloat(pt.deltaZ)))
-      ? parseFloat(pt.deltaZ)
-      : (presentZ - refZ);
+    const deltaX = parseNum(pt.deltaX) ?? (presentX !== null ? (presentX - refX) : null);
+    const deltaY = parseNum(pt.deltaY) ?? (presentY !== null ? (presentY - refY) : null);
+    const deltaZ = parseNum(pt.deltaZ) ?? (presentZ !== null ? (presentZ - refZ) : null);
 
     // Device-provided displacement data:
     const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
@@ -103,11 +103,11 @@ export default function TrendsPage() {
     const rawZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisp ?? pt.zDisplacement;
     const rawTotalDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisp ?? pt.totalDisplacement;
 
-    const xD = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
-    const yD = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
-    const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
-    const totD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : Math.sqrt(xD * xD + yD * yD + zD * zD);
-    const deltaRes = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    const xD = parseNum(rawXDisp);
+    const yD = parseNum(rawYDisp);
+    const zD = parseNum(rawZDisp);
+    const totD = parseNum(rawTotalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
+    const deltaRes = (deltaX !== null && deltaY !== null) ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
 
     const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
     const rawAyRaw = pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? null;
@@ -131,32 +131,34 @@ export default function TrendsPage() {
     const vibForStability = vibR ?? 0;
     let stability = 'Stable';
     let stabilityClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (Math.abs(deltaRes) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
-      stability = 'Critical';
-      stabilityClass = 'bg-red-50 text-red-700 border-red-200';
-    } else if (Math.abs(deltaRes) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
-      stability = 'Warning';
-      stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
+    if (deltaRes !== null && totD !== null) {
+      if (Math.abs(deltaRes) >= 2.0 || Math.abs(totD) >= 10.0 || vibForStability >= 0.5) {
+        stability = 'Critical';
+        stabilityClass = 'bg-red-50 text-red-700 border-red-200';
+      } else if (Math.abs(deltaRes) >= 1.0 || Math.abs(totD) >= 5.0 || vibForStability >= 0.2) {
+        stability = 'Warning';
+        stabilityClass = 'bg-amber-50 text-amber-700 border-amber-200';
+      }
     }
 
     return {
       time: formatHHMM(ts),
       fullTime: formatFullDateTime(ts),
       timestamp: ts,
-      presentX: Number(presentX.toFixed(1)),
-      presentY: Number(presentY.toFixed(1)),
-      presentZ: Number(presentZ.toFixed(1)),
-      deltaX: Number(presentX.toFixed(1)),
-      deltaY: Number(presentY.toFixed(1)),
-      deltaZ: Number(presentZ.toFixed(1)),
-      xTilt: Number(presentX.toFixed(1)),
-      yTilt: Number(presentY.toFixed(1)),
-      zTilt: Number(presentZ.toFixed(1)),
-      resultant: Number(deltaRes.toFixed(1)),
-      totalDisp: Number(totD.toFixed(1)),
-      xDisp: Number(xD.toFixed(1)),
-      yDisp: Number(yD.toFixed(1)),
-      zDisp: Number(zD.toFixed(1)),
+      presentX: presentX !== null ? Number(presentX.toFixed(1)) : null,
+      presentY: presentY !== null ? Number(presentY.toFixed(1)) : null,
+      presentZ: presentZ !== null ? Number(presentZ.toFixed(1)) : null,
+      deltaX: deltaX !== null ? Number(deltaX.toFixed(1)) : null,
+      deltaY: deltaY !== null ? Number(deltaY.toFixed(1)) : null,
+      deltaZ: deltaZ !== null ? Number(deltaZ.toFixed(1)) : null,
+      xTilt: presentX !== null ? Number(presentX.toFixed(1)) : null,
+      yTilt: presentY !== null ? Number(presentY.toFixed(1)) : null,
+      zTilt: presentZ !== null ? Number(presentZ.toFixed(1)) : null,
+      resultant: deltaRes !== null ? Number(deltaRes.toFixed(1)) : null,
+      totalDisp: totD !== null ? Number(totD.toFixed(1)) : null,
+      xDisp: xD !== null ? Number(xD.toFixed(1)) : null,
+      yDisp: yD !== null ? Number(yD.toFixed(1)) : null,
+      zDisp: zD !== null ? Number(zD.toFixed(1)) : null,
       axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(1)) : null,
       ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(1)) : null,
       azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(1)) : null,

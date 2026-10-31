@@ -489,13 +489,7 @@ export default function Landslide3DMapView({
     });
 
     // Render all devices on the 3D terrain
-    const allDevsToRender = (devices && devices.length > 0)
-      ? devices
-      : [
-          { id: 'TM-001', name: 'Node S1', totalDisplacement: 16.8, xDisplacement: 12.4, yDisplacement: 11.3, resultantTilt: 2.8, xTilt: 1.9, yTilt: 2.0, status: 'ONLINE', battery: '95%', signal: '88%' },
-          { id: 'TM-002', name: 'Node RW1', totalDisplacement: 3.4, xDisplacement: 1.2, yDisplacement: 3.1, resultantTilt: 0.6, xTilt: 0.3, yTilt: 0.5, status: 'ONLINE', battery: '100%', signal: '92%' },
-          { id: 'TM-003', name: 'Node CB1', totalDisplacement: 7.2, xDisplacement: 4.5, yDisplacement: 5.6, resultantTilt: 1.4, xTilt: 0.9, yTilt: 1.1, status: 'ONLINE', battery: '89%', signal: '80%' }
-        ];
+    const allDevsToRender = (devices && devices.length > 0) ? devices : [];
 
     allDevsToRender.forEach((dev, dIdx) => {
       const devCount = allDevsToRender.length;
@@ -513,12 +507,12 @@ export default function Landslide3DMapView({
         type: 'DEVICE',
         data: {
           ...dev,
-          xDisplacement: dev.xDisplacement !== undefined ? dev.xDisplacement : 1.2,
-          yDisplacement: dev.yDisplacement !== undefined ? dev.yDisplacement : 2.5,
-          totalDisplacement: dev.totalDisplacement !== undefined ? dev.totalDisplacement : (dev.displacement?.totalDisplacement_mm || 2.8),
-          xTilt: dev.xTilt !== undefined ? dev.xTilt : 0.8,
-          yTilt: dev.yTilt !== undefined ? dev.yTilt : 1.2,
-          resultantTilt: dev.resultantTilt !== undefined ? dev.resultantTilt : (dev.tilt?.tilt || 1.4),
+          xDisplacement: dev.xDisplacement !== undefined ? dev.xDisplacement : null,
+          yDisplacement: dev.yDisplacement !== undefined ? dev.yDisplacement : null,
+          totalDisplacement: dev.totalDisplacement !== undefined ? dev.totalDisplacement : (dev.displacement?.totalDisplacement_mm ?? null),
+          xTilt: dev.xTilt !== undefined ? dev.xTilt : null,
+          yTilt: dev.yTilt !== undefined ? dev.yTilt : null,
+          resultantTilt: dev.resultantTilt !== undefined ? dev.resultantTilt : (dev.tilt?.tilt ?? null),
         }
       };
 

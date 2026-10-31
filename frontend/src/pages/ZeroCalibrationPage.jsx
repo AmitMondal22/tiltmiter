@@ -544,10 +544,10 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
 
                         <div className="text-right shrink-0 space-y-0.5">
                           <div className="font-mono text-slate-700 font-semibold text-[11px]">
-                            Tilt: {(device.resultantTilt ?? 0).toFixed(1)}°
+                            Tilt: {device.resultantTilt !== null && device.resultantTilt !== undefined ? `${Number(device.resultantTilt).toFixed(1)}°` : '--'}
                           </div>
                           <div className="font-mono text-slate-500 text-[10px]">
-                            Disp: {(device.totalDisplacement ?? 0).toFixed(1)} mm
+                            Disp: {device.totalDisplacement !== null && device.totalDisplacement !== undefined ? `${Number(device.totalDisplacement).toFixed(1)} mm` : '--'}
                           </div>
                         </div>
                       </div>
@@ -624,7 +624,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                     <span className="text-slate-600 font-medium">Roll / X-Tilt (θX):</span>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-slate-500 line-through">
-                        {isBulkMode ? '--' : `${(selectedDevice?.xTilt ?? 0).toFixed(1)}°`}
+                        {isBulkMode ? '--' : (selectedDevice?.xTilt !== null && selectedDevice?.xTilt !== undefined ? `${Number(selectedDevice.xTilt).toFixed(1)}°` : '--')}
                       </span>
                       <ArrowRight className="w-3 h-3 text-blue-500" />
                       <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
@@ -638,7 +638,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                     <span className="text-slate-600 font-medium">Pitch / Y-Tilt (θY):</span>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-slate-500 line-through">
-                        {isBulkMode ? '--' : `${(selectedDevice?.yTilt ?? 0).toFixed(1)}°`}
+                        {isBulkMode ? '--' : (selectedDevice?.yTilt !== null && selectedDevice?.yTilt !== undefined ? `${Number(selectedDevice.yTilt).toFixed(1)}°` : '--')}
                       </span>
                       <ArrowRight className="w-3 h-3 text-blue-500" />
                       <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
@@ -652,7 +652,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                     <span className="text-slate-600 font-medium">Resultant Tilt (θR):</span>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-slate-500 line-through">
-                        {isBulkMode ? '--' : `${(selectedDevice?.resultantTilt ?? 0).toFixed(1)}°`}
+                        {isBulkMode ? '--' : (selectedDevice?.resultantTilt !== null && selectedDevice?.resultantTilt !== undefined ? `${Number(selectedDevice.resultantTilt).toFixed(1)}°` : '--')}
                       </span>
                       <ArrowRight className="w-3 h-3 text-blue-500" />
                       <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
@@ -681,7 +681,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                     <span className="text-slate-600 font-medium">X Displacement (DX):</span>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-slate-500 line-through">
-                        {isBulkMode ? '--' : `${(selectedDevice?.xDisplacement ?? 0).toFixed(1)} mm`}
+                        {isBulkMode ? '--' : (selectedDevice?.xDisplacement !== null && selectedDevice?.xDisplacement !== undefined ? `${Number(selectedDevice.xDisplacement).toFixed(1)} mm` : '--')}
                       </span>
                       <ArrowRight className="w-3 h-3 text-indigo-500" />
                       <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
@@ -695,7 +695,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                     <span className="text-slate-600 font-medium">Y Displacement (DY):</span>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-slate-500 line-through">
-                        {isBulkMode ? '--' : `${(selectedDevice?.yDisplacement ?? 0).toFixed(1)} mm`}
+                        {isBulkMode ? '--' : (selectedDevice?.yDisplacement !== null && selectedDevice?.yDisplacement !== undefined ? `${Number(selectedDevice.yDisplacement).toFixed(1)} mm` : '--')}
                       </span>
                       <ArrowRight className="w-3 h-3 text-indigo-500" />
                       <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
@@ -709,7 +709,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
                     <span className="text-slate-600 font-medium">Total Displacement:</span>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-slate-500 line-through">
-                        {isBulkMode ? '--' : `${(selectedDevice?.totalDisplacement ?? 0).toFixed(1)} mm`}
+                        {isBulkMode ? '--' : (selectedDevice?.totalDisplacement !== null && selectedDevice?.totalDisplacement !== undefined ? `${Number(selectedDevice.totalDisplacement).toFixed(1)} mm` : '--')}
                       </span>
                       <ArrowRight className="w-3 h-3 text-indigo-500" />
                       <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
@@ -980,7 +980,7 @@ export default function ZeroCalibrationPage({ isDark = false, isStandalone = fal
 
                     {log.previous && (
                       <div className="text-right text-[10px] font-mono text-slate-500 bg-white px-2 py-1 rounded border border-slate-200/80">
-                        Prev: θR={log.previous.resultantTilt?.toFixed(1)}° | TotDisp={log.previous.totalDisplacement?.toFixed(1)}mm
+                        Prev: θR={log.previous.resultantTilt !== null && log.previous.resultantTilt !== undefined ? `${Number(log.previous.resultantTilt).toFixed(1)}°` : '--'} | TotDisp={log.previous.totalDisplacement !== null && log.previous.totalDisplacement !== undefined ? `${Number(log.previous.totalDisplacement).toFixed(1)}mm` : '--'}
                       </div>
                     )}
                   </div>

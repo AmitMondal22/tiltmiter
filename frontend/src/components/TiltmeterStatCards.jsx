@@ -16,10 +16,10 @@ function Spark({ data, color, width = 64, height = 20 }) {
   );
 }
 
-const n = (val, def = 0) => {
-  if (val === null || val === undefined || val === '' || val === '--') return def;
+const parseNum = (val) => {
+  if (val === null || val === undefined || val === '' || val === '--') return null;
   const num = typeof val === 'number' ? val : parseFloat(val);
-  return !isNaN(num) ? num : def;
+  return !isNaN(num) ? num : null;
 };
 
 import { formatFullDateTime } from '../utils/dateHelper';
@@ -27,56 +27,56 @@ import { formatFullDateTime } from '../utils/dateHelper';
 export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
   const d = parseTelemetry(rawDevice);
 
-  const deltaX = typeof d.presentX === 'number' ? d.presentX : n(d.tilt?.roll ?? d.roll ?? d.xTilt, 0);
-  const deltaY = typeof d.presentY === 'number' ? d.presentY : n(d.tilt?.pitch ?? d.pitch ?? d.yTilt, 0);
-  const deltaZ = typeof d.presentZ === 'number' ? d.presentZ : n(d.tilt?.yaw ?? d.yaw ?? d.zTilt, 0);
-  const resT = n(d.resultantTilt, 0);
-  const xDisp = n(d.xDisplacement ?? d.displacement?.xDisplacement_mm, 0);
-  const yDisp = n(d.yDisplacement ?? d.displacement?.yDisplacement_mm, 0);
-  const totD = n(d.totalDisplacement ?? d.displacement?.totalDisplacement_mm, 0);
+  const deltaX = typeof d.presentX === 'number' ? d.presentX : parseNum(d.tilt?.roll ?? d.roll ?? d.xTilt);
+  const deltaY = typeof d.presentY === 'number' ? d.presentY : parseNum(d.tilt?.pitch ?? d.pitch ?? d.yTilt);
+  const deltaZ = typeof d.presentZ === 'number' ? d.presentZ : parseNum(d.tilt?.yaw ?? d.yaw ?? d.zTilt);
+  const resT = parseNum(d.resultantTilt);
+  const xDisp = parseNum(d.xDisplacement ?? d.displacement?.xDisplacement_mm);
+  const yDisp = parseNum(d.yDisplacement ?? d.displacement?.yDisplacement_mm);
+  const totD = parseNum(d.totalDisplacement ?? d.displacement?.totalDisplacement_mm);
 
-  const lastFullDateTime = formatFullDateTime(d.timestamp);
+  const lastFullDateTime = d.timestamp ? formatFullDateTime(d.timestamp) : '--';
 
   // Primary Stat Cards: Tilt Angle (X, Y, Z) + Device Displacement (X, Y, Total)
   const primary = [
     {
       label: 'Tilt X',
-      value: `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(1)}°`,
+      value: deltaX !== null ? `${deltaX >= 0 ? '+' : ''}${deltaX.toFixed(1)}°` : '--',
       unit: 'Tilt Angle',
       color: '#3b82f6',
       spark: d.sparklineXTilt || null,
     },
     {
       label: 'Tilt Y',
-      value: `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(1)}°`,
+      value: deltaY !== null ? `${deltaY >= 0 ? '+' : ''}${deltaY.toFixed(1)}°` : '--',
       unit: 'Tilt Angle',
       color: '#0d9488',
       spark: d.sparklineYTilt || null,
     },
     {
       label: 'Tilt Z',
-      value: `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(1)}°`,
+      value: deltaZ !== null ? `${deltaZ >= 0 ? '+' : ''}${deltaZ.toFixed(1)}°` : '--',
       unit: 'Tilt Angle',
       color: '#ea580c',
       spark: d.sparklineResultant || null,
     },
     {
       label: 'DX',
-      value: `${xDisp.toFixed(2)}`,
+      value: xDisp !== null ? `${xDisp.toFixed(2)}` : '--',
       unit: 'mm',
       iconCircle: 'bg-cyan-50 text-cyan-500 border-cyan-200',
       icon: Layers,
     },
     {
       label: 'DY',
-      value: `${yDisp.toFixed(2)}`,
+      value: yDisp !== null ? `${yDisp.toFixed(2)}` : '--',
       unit: 'mm',
       iconCircle: 'bg-purple-50 text-purple-500 border-purple-200',
       icon: Radio,
     },
     {
       label: 'Total Displacement',
-      value: `${totD.toFixed(2)}`,
+      value: totD !== null ? `${totD.toFixed(2)}` : '--',
       unit: 'mm',
       iconCircle: 'bg-pink-50 text-pink-500 border-pink-200',
       icon: Zap,
@@ -85,10 +85,10 @@ export default function TiltmeterStatCards({ currentDevice: rawDevice }) {
 
   // Secondary Sensor Diagnostic Pills
   const secondary = [
-    { label: 'Vibration Peak', val: `${n(d.vibPeak, 0).toFixed(4)} g`, icon: Zap, iconColor: 'text-amber-500 bg-amber-50' },
-    { label: 'Vibration RMS', val: `${n(d.vibRMS, 0).toFixed(4)} g`, icon: Activity, iconColor: 'text-purple-500 bg-purple-50' },
-    { label: 'Acceleration Mag', val: `${n(d.accMag, 0).toFixed(3)} g`, icon: Activity, iconColor: 'text-blue-500 bg-blue-50' },
-    { label: 'Ambient Temp.', val: `${n(d.temp, 0).toFixed(1)} °C`, icon: Thermometer, iconColor: 'text-orange-500 bg-orange-50' },
+    { label: 'Vibration Peak', val: d.vibPeak !== null && d.vibPeak !== undefined ? `${Number(d.vibPeak).toFixed(4)} g` : '--', icon: Zap, iconColor: 'text-amber-500 bg-amber-50' },
+    { label: 'Vibration RMS', val: d.vibRMS !== null && d.vibRMS !== undefined ? `${Number(d.vibRMS).toFixed(4)} g` : '--', icon: Activity, iconColor: 'text-purple-500 bg-purple-50' },
+    { label: 'Acceleration Mag', val: d.accMag !== null && d.accMag !== undefined ? `${Number(d.accMag).toFixed(3)} g` : '--', icon: Activity, iconColor: 'text-blue-500 bg-blue-50' },
+    { label: 'Ambient Temp.', val: d.temp !== null && d.temp !== undefined ? `${Number(d.temp).toFixed(1)} °C` : '--', icon: Thermometer, iconColor: 'text-orange-500 bg-orange-50' },
     { label: 'Last Sync Date & Time', val: lastFullDateTime, icon: Clock, iconColor: 'text-blue-500 bg-blue-50' },
   ];
 

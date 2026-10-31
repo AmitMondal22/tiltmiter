@@ -170,20 +170,24 @@ export async function devicesRoutes(fastify) {
         const rawYaw = latestRecord.zTilt ?? latestRecord.yaw ?? raw.tilt?.yaw ?? raw.tilt?.zTilt ?? raw.yaw;
         const rawRes = latestRecord.resultantTilt ?? raw.tilt?.tilt ?? raw.resultantTilt ?? raw.tilt;
 
-        const xTilt = (rawRoll !== undefined && rawRoll !== null && !isNaN(parseFloat(rawRoll))) ? parseFloat(rawRoll) : (devObj.xTilt || 0.0);
-        const yTilt = (rawPitch !== undefined && rawPitch !== null && !isNaN(parseFloat(rawPitch))) ? parseFloat(rawPitch) : (devObj.yTilt || 0.0);
-        const zTilt = (rawYaw !== undefined && rawYaw !== null && !isNaN(parseFloat(rawYaw))) ? parseFloat(rawYaw) : (devObj.zTilt || 0.0);
-        const resultantTilt = (rawRes !== undefined && rawRes !== null && !isNaN(parseFloat(rawRes))) ? parseFloat(rawRes) : Math.sqrt(xTilt * xTilt + yTilt * yTilt);
+        const parseNum = (v) => {
+          if (v === null || v === undefined || v === '' || v === '--') return null;
+          const n = typeof v === 'number' ? v : parseFloat(v);
+          return !isNaN(n) ? n : null;
+        };
+
+        const xTilt = parseNum(rawRoll) ?? parseNum(devObj.xTilt);
+        const yTilt = parseNum(rawPitch) ?? parseNum(devObj.yTilt);
+        const zTilt = parseNum(rawYaw) ?? parseNum(devObj.zTilt);
+        const resultantTilt = parseNum(rawRes) ?? (xTilt !== null && yTilt !== null ? Math.sqrt(xTilt * xTilt + yTilt * yTilt) : null);
 
         const rawDisp = latestRecord.displacement || raw.displacement || {};
-        const xD = parseFloat(rawDisp.xDisplacement_mm ?? latestRecord.xDisplacement ?? devObj.xDisplacement ?? 0.0) || 0.0;
-        const yD = parseFloat(rawDisp.yDisplacement_mm ?? latestRecord.yDisplacement ?? devObj.yDisplacement ?? 0.0) || 0.0;
-        const zD = parseFloat(rawDisp.zDisplacement_mm ?? latestRecord.zDisplacement ?? devObj.zDisplacement ?? 0.0) || 0.0;
-        const totD = parseFloat(rawDisp.totalDisplacement_mm ?? latestRecord.totalDisplacement ?? devObj.totalDisplacement ?? 0.0) || Math.sqrt(xD * xD + yD * yD + zD * zD);
+        const xD = parseNum(rawDisp.xDisplacement_mm ?? latestRecord.xDisplacement ?? devObj.xDisplacement);
+        const yD = parseNum(rawDisp.yDisplacement_mm ?? latestRecord.yDisplacement ?? devObj.yDisplacement);
+        const zD = parseNum(rawDisp.zDisplacement_mm ?? latestRecord.zDisplacement ?? devObj.zDisplacement);
+        const totD = parseNum(rawDisp.totalDisplacement_mm ?? latestRecord.totalDisplacement ?? devObj.totalDisplacement) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
 
-        const tempVal = latestRecord.temperature !== null && latestRecord.temperature !== undefined
-          ? parseFloat(latestRecord.temperature)
-          : (raw.environment?.temperature !== undefined ? parseFloat(raw.environment.temperature) : devObj.temperature);
+        const tempVal = parseNum(latestRecord.temperature ?? raw.environment?.temperature ?? devObj.temperature);
 
         devObj.xTilt = xTilt;
         devObj.yTilt = yTilt;

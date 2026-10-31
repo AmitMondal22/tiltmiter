@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { sequelize, initSequelize } from '../config/sequelize.js';
+import { sequelize } from '../config/sequelize.js';
 import { User } from '../models/index.js';
 
 export async function seedDatabase() {
@@ -51,6 +51,42 @@ export async function seedDatabase() {
       'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "message" TEXT;',
       'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "enabled" BOOLEAN DEFAULT true;',
       'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "organizationId" INTEGER;',
+
+      // Schema v2 columns for telemetry_records
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "schemaVersion" INTEGER DEFAULT 2;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "sampleUptimeMs" BIGINT;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "batteryVoltage" FLOAT;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "csq" INTEGER;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "rockfallDeltaPeak" FLOAT;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "touchVibrationPeak" FLOAT;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "vibrationRMS" FLOAT;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "motionClassification" VARCHAR(255);',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "alarmActive" BOOLEAN DEFAULT false;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "eventPending" BOOLEAN DEFAULT false;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "accelerationCurrent" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "accelerationReference" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "accelerationDelta" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "tilt" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "angleReference" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "angleCurrent" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "angleDelta" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "displacement" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "environment" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "power" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "network" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "calibration" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "rockfallAlarm" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "motionEvent" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "monitoringSettings" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "units" JSONB;',
+
+      // Schema v2 columns for devices
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "schemaVersion" INTEGER DEFAULT 2;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "motionClassification" VARCHAR(255) DEFAULT \'STABLE\';',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "alarmActive" BOOLEAN DEFAULT false;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "rockfallDeltaPeak" FLOAT;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "vibrationPeak" FLOAT;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "monitoringSettings" JSONB;',
     ];
 
     for (const q of addColumnQueries) {
@@ -61,7 +97,7 @@ export async function seedDatabase() {
       }
     }
 
-    // Clean up any legacy tiltmeter.io emails from database
+    // Clean up any legacy emails from database
     try {
       await sequelize.query(`UPDATE users SET email = 'superadmin@techavo.in' WHERE email = 'superadmin@tiltmeter.io';`);
     } catch (_) {}
@@ -89,5 +125,3 @@ export async function seedDatabase() {
     console.error('❌ Error during schema initialization:', err.message);
   }
 }
-
-

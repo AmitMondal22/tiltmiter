@@ -189,6 +189,30 @@ export const Device = sequelize.define('Device', {
     type: DataTypes.BOOLEAN,
     defaultValue: false, // True once reference zero has been set
   },
+  schemaVersion: {
+    type: DataTypes.INTEGER,
+    defaultValue: 2,
+  },
+  motionClassification: {
+    type: DataTypes.STRING,
+    defaultValue: 'STABLE',
+  },
+  alarmActive: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+  rockfallDeltaPeak: {
+    type: DataTypes.FLOAT,
+    defaultValue: null,
+  },
+  vibrationPeak: {
+    type: DataTypes.FLOAT,
+    defaultValue: null,
+  },
+  monitoringSettings: {
+    type: DataTypes.JSONB,
+    defaultValue: null,
+  },
 }, {
   tableName: 'devices',
   timestamps: true,

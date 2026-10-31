@@ -1,15 +1,15 @@
 import React from 'react';
 import { parseTelemetry } from '../utils/telemetryHelper';
 
-const num = (v, d = 0) => (typeof v === 'number' && !isNaN(v) ? v : (parseFloat(v) || d));
+const num = (v, d = null) => (typeof v === 'number' && !isNaN(v) ? v : (v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v)) ? parseFloat(v) : d));
 
 export default function TiltDirectionCompass({ currentDevice }) {
   const d = parseTelemetry(currentDevice);
-  const angle = num(d.tiltDirectionAngle, 329.8);
-  const cardinal = d.tiltDirectionCardinal || 'NW';
+  const angle = num(d.tiltDirectionAngle, null);
+  const cardinal = d.tiltDirectionCardinal && d.tiltDirectionCardinal !== '--' ? d.tiltDirectionCardinal : null;
+  const hasVector = angle !== null && cardinal !== null;
 
-  // Arrow calculation for 329.8°
-  const rad = ((angle - 90) * Math.PI) / 180;
+  const rad = hasVector ? ((angle - 90) * Math.PI) / 180 : 0;
   const r = 46;
   const ax = 70 + r * Math.cos(rad);
   const ay = 70 + r * Math.sin(rad);
@@ -44,17 +44,23 @@ export default function TiltDirectionCompass({ currentDevice }) {
               <polygon points="0 0, 6 3, 0 6" fill="#f97316" />
             </marker>
           </defs>
-          <line x1="70" y1="70" x2={ax} y2={ay} stroke="#f97316" strokeWidth="2.5" markerEnd="url(#arrowOrange)" />
-          <circle cx="70" cy="70" r="3" fill="#f97316" />
+          {hasVector ? (
+            <>
+              <line x1="70" y1="70" x2={ax} y2={ay} stroke="#f97316" strokeWidth="2.5" markerEnd="url(#arrowOrange)" />
+              <circle cx="70" cy="70" r="3" fill="#f97316" />
+            </>
+          ) : (
+            <circle cx="70" cy="70" r="2.5" fill="#cbd5e1" />
+          )}
         </svg>
       </div>
 
       <div className="text-center font-mono">
         <div className="text-base font-black text-slate-900 leading-tight">
-          {angle.toFixed(1)}°
+          {hasVector ? `${angle.toFixed(1)}°` : '--'}
         </div>
         <div className="text-[10px] font-bold text-orange-500 mt-0.5">
-          {cardinal} Vector
+          {hasVector ? `${cardinal} Vector` : 'No Vector'}
         </div>
       </div>
     </div>

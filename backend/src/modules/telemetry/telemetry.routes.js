@@ -114,85 +114,76 @@ export async function telemetryRoutes(fastify) {
     const refZ = hasReferenceZero ? (parseFloat(devRecord?.refThetaZ ?? 0.0) || 0.0) : 0.0;
     const L = parseFloat(devRecord?.gaugeLength_mm ?? 1000.0) || 1000.0;
 
+    const parseNum = (v) => {
+      if (v === null || v === undefined || v === '' || v === '--') return null;
+      const n = typeof v === 'number' ? v : parseFloat(v);
+      return !isNaN(n) ? n : null;
+    };
+
     // Helper to extract sensor values from rawPayload nested structure or flat fields
     const extractFromRecord = (r) => {
       const raw = r.rawPayload || {};
-      // Acceleration - prefer rawPayload nested first
-      const ax = parseFloat(raw.acceleration?.ax ?? raw.acceleration?.axG ?? r.acceleration?.ax ?? 0) || 0;
-      const ay = parseFloat(raw.acceleration?.ay ?? raw.acceleration?.ayG ?? r.acceleration?.ay ?? 0) || 0;
-      const az = parseFloat(raw.acceleration?.az ?? raw.acceleration?.azG ?? r.acceleration?.az ?? 0) || 0;
-      // Acceleration directly from device without division or logic modification
+      // Acceleration - return null if not reported
+      const ax = parseNum(raw.acceleration?.ax ?? raw.acceleration?.axG ?? r.acceleration?.ax ?? r.ax ?? r.axG);
+      const ay = parseNum(raw.acceleration?.ay ?? raw.acceleration?.ayG ?? r.acceleration?.ay ?? r.ay ?? r.ayG);
+      const az = parseNum(raw.acceleration?.az ?? raw.acceleration?.azG ?? r.acceleration?.az ?? r.az ?? r.azG);
       const axG = ax;
       const ayG = ay;
       const azG = az;
-      const accMag = parseFloat(raw.acceleration?.accMag ?? r.acceleration?.accMag ?? Math.sqrt(axG*axG + ayG*ayG + azG*azG)) || null;
+      const accMag = parseNum(raw.acceleration?.accMag ?? r.acceleration?.accMag ?? (ax !== null && ay !== null && az !== null ? Math.sqrt(ax*ax + ay*ay + az*az) : null));
 
       // Vibration
-      const vibRMS = parseFloat(raw.vibration?.vibrationRMS ?? raw.vibration?.vibration ?? r.vibration?.vibrationRMS ?? r.vibration?.vibration ?? null);
-      const vibPeak = parseFloat(raw.vibration?.vibrationPeak ?? r.vibration?.vibrationPeak ?? null);
+      const vibRMS = parseNum(raw.vibration?.vibrationRMS ?? raw.vibration?.vibration ?? r.vibration?.vibrationRMS ?? r.vibration?.vibration);
+      const vibPeak = parseNum(raw.vibration?.vibrationPeak ?? r.vibration?.vibrationPeak);
 
       // Temperature - stored as number in DB
       const rawEnvTemp = r.temperature ?? raw.environment?.temperature;
-      const temperature = (rawEnvTemp !== undefined && rawEnvTemp !== null && !isNaN(parseFloat(rawEnvTemp)))
-        ? parseFloat(rawEnvTemp)
-        : null;
+      const temperature = parseNum(rawEnvTemp);
 
       return { ax, ay, az, axG, ayG, azG, accMag, vibRMS, vibPeak, temperature };
     };
 
     // Helper to format every point ensuring calibration data is correctly applied
     const formatPoint = (pt, extracted = null) => {
-      const rawX = parseFloat(pt.xTilt ?? pt.tiltX ?? pt.roll ?? pt.rawPayload?.tilt?.roll ?? 0) || 0;
-      const rawY = parseFloat(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? pt.rawPayload?.tilt?.pitch ?? 0) || 0;
-      const rawZ = parseFloat(pt.yaw ?? pt.zTilt ?? pt.tiltZ ?? pt.rawPayload?.tilt?.yaw ?? pt.rawPayload?.tilt?.zTilt ?? 0) || 0;
-      const rawRes = pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? pt.rawPayload?.tilt?.tilt;
-      const calcRes = typeof rawRes === 'number' && !isNaN(rawRes) ? rawRes : Math.sqrt(rawX * rawX + rawY * rawY);
+      const raw = pt.rawPayload || {};
+      const rawX = parseNum(pt.xTilt ?? pt.tiltX ?? pt.roll ?? raw.tilt?.roll ?? raw.angleDelta?.x);
+      const rawY = parseNum(pt.yTilt ?? pt.tiltY ?? pt.pitch ?? raw.tilt?.pitch ?? raw.angleDelta?.y);
+      const rawZ = parseNum(pt.yaw ?? pt.zTilt ?? pt.tiltZ ?? raw.tilt?.yaw ?? raw.tilt?.zTilt ?? raw.angleDelta?.z);
+      const rawRes = parseNum(pt.resultant ?? pt.resultantTilt ?? pt.tilt ?? raw.tilt?.tilt);
+      const calcRes = rawRes !== null ? rawRes : (rawX !== null && rawY !== null ? Math.sqrt(rawX * rawX + rawY * rawY) : null);
 
-      // Present Values = Pure actual device values (NEVER subtracted by reference zero)
+      // Present Values = Pure actual device values (null if not sent)
       const presentX = rawX;
       const presentY = rawY;
       const presentZ = rawZ;
       const presentResultant = calcRes;
 
-      // Pure device angles directly without reference logic change
       const deltaThetaX = rawX;
       const deltaThetaY = rawY;
       const deltaThetaZ = rawZ;
 
-      // Device-provided displacement data (fallback to clino formula only if device displacement not sent)
-      const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
-      const devXDisp = rawDisp.xDisplacement_mm ?? pt.xDisplacement_mm ?? pt.xDisplacement ?? pt.xDisp;
-      const devYDisp = rawDisp.yDisplacement_mm ?? pt.yDisplacement_mm ?? pt.yDisplacement ?? pt.yDisp;
-      const devZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisplacement ?? pt.zDisp;
-      const devTotDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisplacement ?? pt.totalDisp;
+      // Device-provided displacement data
+      const rawDisp = pt.displacement || raw.displacement || {};
+      const devXDisp = parseNum(rawDisp.xDisplacement_mm ?? pt.xDisplacement_mm ?? pt.xDisplacement ?? pt.xDisp);
+      const devYDisp = parseNum(rawDisp.yDisplacement_mm ?? pt.yDisplacement_mm ?? pt.yDisplacement ?? pt.yDisp);
+      const devZDisp = parseNum(rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisplacement ?? pt.zDisp);
+      const devTotDisp = parseNum(rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisplacement ?? pt.totalDisp);
 
-      const clinoDx = L * Math.tan((deltaThetaX * Math.PI) / 180.0);
-      const clinoDy = L * Math.tan((deltaThetaY * Math.PI) / 180.0);
-      const finalXDisp = (devXDisp !== undefined && devXDisp !== null && !isNaN(parseFloat(devXDisp)))
-        ? parseFloat(devXDisp)
-        : (!isNaN(clinoDx) ? clinoDx : 0.0);
-      const finalYDisp = (devYDisp !== undefined && devYDisp !== null && !isNaN(parseFloat(devYDisp)))
-        ? parseFloat(devYDisp)
-        : (!isNaN(clinoDy) ? clinoDy : 0.0);
-      const finalZDisp = (devZDisp !== undefined && devZDisp !== null && !isNaN(parseFloat(devZDisp)))
-        ? parseFloat(devZDisp)
-        : (parseFloat(pt.zDisp ?? pt.zDisplacement ?? 0) || 0.0);
-      const finalTotalDisp = (devTotDisp !== undefined && devTotDisp !== null && !isNaN(parseFloat(devTotDisp)))
-        ? parseFloat(devTotDisp)
-        : Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp + finalZDisp * finalZDisp);
+      const finalXDisp = devXDisp;
+      const finalYDisp = devYDisp;
+      const finalZDisp = devZDisp;
+      const finalTotalDisp = devTotDisp !== null ? devTotDisp : (finalXDisp !== null && finalYDisp !== null ? Math.sqrt(finalXDisp * finalXDisp + finalYDisp * finalYDisp + (finalZDisp || 0) * (finalZDisp || 0)) : null);
 
       // Use extracted sensor values (no dummy fallbacks - null means no data)
       const sensors = extracted || {};
-      const axG = sensors.axG ?? parseFloat(pt.axG ?? pt.ax ?? null);
-      const ayG = sensors.ayG ?? parseFloat(pt.ayG ?? pt.ay ?? null);
-      const azG = sensors.azG ?? parseFloat(pt.azG ?? pt.az ?? null);
-      const accMag = sensors.accMag ?? parseFloat(pt.accMag ?? null);
-      const vibRMS = sensors.vibRMS ?? parseFloat(pt.vibRMS ?? pt.vibrationRMS ?? null);
-      const vibPeak = sensors.vibPeak ?? parseFloat(pt.vibPeak ?? pt.vibrationPeak ?? null);
-      const rawPtTemp = sensors.temperature ?? pt.temp ?? pt.temperature ?? pt.rawPayload?.environment?.temperature;
-      const temperature = (rawPtTemp !== undefined && rawPtTemp !== null && !isNaN(parseFloat(rawPtTemp)))
-        ? parseFloat(rawPtTemp)
-        : null;
+      const axG = sensors.axG ?? parseNum(pt.axG ?? pt.ax);
+      const ayG = sensors.ayG ?? parseNum(pt.ayG ?? pt.ay);
+      const azG = sensors.azG ?? parseNum(pt.azG ?? pt.az);
+      const accMag = sensors.accMag ?? parseNum(pt.accMag);
+      const vibRMS = sensors.vibRMS ?? parseNum(pt.vibRMS ?? pt.vibrationRMS);
+      const vibPeak = sensors.vibPeak ?? parseNum(pt.vibPeak ?? pt.vibrationPeak);
+      const rawPtTemp = sensors.temperature ?? pt.temp ?? pt.temperature ?? raw.environment?.temperature;
+      const temperature = parseNum(rawPtTemp);
 
       return {
         time: new Date(pt.timestamp || pt.time).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
@@ -219,7 +210,7 @@ export async function telemetryRoutes(fastify) {
         resultantTilt: presentResultant,
         tilt: presentResultant,
 
-        // Delta Values = Current Roll/Pitch/Yaw − Zero Reference Roll/Pitch/Yaw
+        // Delta Values
         deltaX: deltaThetaX,
         deltaY: deltaThetaY,
         deltaZ: deltaThetaZ,
@@ -232,35 +223,59 @@ export async function telemetryRoutes(fastify) {
         refThetaZ: refZ,
         hasReferenceZero,
 
-        xDisp: Number(finalXDisp.toFixed(3)),
-        xDisplacement: Number(finalXDisp.toFixed(3)),
-        yDisp: Number(finalYDisp.toFixed(3)),
-        yDisplacement: Number(finalYDisp.toFixed(3)),
-        zDisp: Number(finalZDisp.toFixed(3)),
-        zDisplacement: Number(finalZDisp.toFixed(3)),
-        totalDisp: Number(finalTotalDisp.toFixed(3)),
-        totalDisplacement: Number(finalTotalDisp.toFixed(3)),
-        xDisplacement_mm: Number(finalXDisp.toFixed(4)),
-        yDisplacement_mm: Number(finalYDisp.toFixed(4)),
-        zDisplacement_mm: Number(finalZDisp.toFixed(4)),
-        totalDisplacement_mm: Number(finalTotalDisp.toFixed(4)),
+        xDisp: finalXDisp !== null ? Number(finalXDisp.toFixed(3)) : null,
+        xDisplacement: finalXDisp !== null ? Number(finalXDisp.toFixed(3)) : null,
+        yDisp: finalYDisp !== null ? Number(finalYDisp.toFixed(3)) : null,
+        yDisplacement: finalYDisp !== null ? Number(finalYDisp.toFixed(3)) : null,
+        zDisp: finalZDisp !== null ? Number(finalZDisp.toFixed(3)) : null,
+        zDisplacement: finalZDisp !== null ? Number(finalZDisp.toFixed(3)) : null,
+        totalDisp: finalTotalDisp !== null ? Number(finalTotalDisp.toFixed(3)) : null,
+        totalDisplacement: finalTotalDisp !== null ? Number(finalTotalDisp.toFixed(3)) : null,
+        xDisplacement_mm: finalXDisp !== null ? Number(finalXDisp.toFixed(4)) : null,
+        yDisplacement_mm: finalYDisp !== null ? Number(finalYDisp.toFixed(4)) : null,
+        zDisplacement_mm: finalZDisp !== null ? Number(finalZDisp.toFixed(4)) : null,
+        totalDisplacement_mm: finalTotalDisp !== null ? Number(finalTotalDisp.toFixed(4)) : null,
         displacement: {
-          xDisplacement_mm: Number(finalXDisp.toFixed(4)),
-          yDisplacement_mm: Number(finalYDisp.toFixed(4)),
-          zDisplacement_mm: Number(finalZDisp.toFixed(4)),
-          totalDisplacement_mm: Number(finalTotalDisp.toFixed(4)),
+          xDisplacement_mm: finalXDisp !== null ? Number(finalXDisp.toFixed(4)) : null,
+          yDisplacement_mm: finalYDisp !== null ? Number(finalYDisp.toFixed(4)) : null,
+          zDisplacement_mm: finalZDisp !== null ? Number(finalZDisp.toFixed(4)) : null,
+          totalDisplacement_mm: finalTotalDisp !== null ? Number(finalTotalDisp.toFixed(4)) : null,
         },
-        // Sensor data - null if not available in DB record
-        axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(4)) : null,
-        ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(4)) : null,
-        azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(4)) : null,
-        accMag: accMag !== null && !isNaN(accMag) ? Number(accMag.toFixed(4)) : null,
-        vibRMS: vibRMS !== null && !isNaN(vibRMS) ? Number(vibRMS.toFixed(4)) : null,
-        vibrationRMS: vibRMS !== null && !isNaN(vibRMS) ? Number(vibRMS.toFixed(4)) : null,
-        vibPeak: vibPeak !== null && !isNaN(vibPeak) ? Number(vibPeak.toFixed(4)) : null,
-        vibrationPeak: vibPeak !== null && !isNaN(vibPeak) ? Number(vibPeak.toFixed(4)) : null,
-        temperature: temperature !== null && !isNaN(temperature) ? Number(temperature.toFixed(1)) : null,
-        temp: temperature !== null && !isNaN(temperature) ? Number(temperature.toFixed(1)) : null,
+        // Full Schema v2 Destructured and Raw Payload Data
+        schemaVersion: pt.schemaVersion ?? raw.schemaVersion ?? 2,
+        sampleUptimeMs: pt.sampleUptimeMs ?? raw.sampleUptimeMs ?? null,
+        acceleration: pt.acceleration || raw.acceleration || null,
+        accelerationCurrent: pt.accelerationCurrent || raw.accelerationCurrent || null,
+        accelerationReference: pt.accelerationReference || raw.accelerationReference || null,
+        accelerationDelta: pt.accelerationDelta || raw.accelerationDelta || null,
+        gyroscope: pt.gyroscope || raw.gyroscope || null,
+        tilt: pt.tilt || raw.tilt || null,
+        angleReference: pt.angleReference || raw.angleReference || null,
+        angleCurrent: pt.angleCurrent || raw.angleCurrent || null,
+        angleDelta: pt.angleDelta || raw.angleDelta || null,
+        vibration: pt.vibration || raw.vibration || null,
+        environment: pt.environment || raw.environment || null,
+        power: pt.power || raw.power || null,
+        network: pt.network || raw.network || null,
+        calibration: pt.calibration || raw.calibration || null,
+        rockfallAlarm: pt.rockfallAlarm || raw.rockfallAlarm || null,
+        motionEvent: pt.motionEvent || raw.motionEvent || null,
+        monitoringSettings: pt.monitoringSettings || raw.monitoringSettings || null,
+        units: pt.units || raw.units || null,
+        rawPayload: pt.rawPayload || raw || null,
+
+        rockfallDeltaPeak: pt.rockfallDeltaPeak ?? raw.accelerationDelta?.peak ?? null,
+        touchVibrationPeak: pt.touchVibrationPeak ?? raw.vibration?.vibrationPeak ?? null,
+        vibrationPeak: vibPeak !== null && !isNaN(vibPeak) ? Number(vibPeak.toFixed(4)) : (pt.touchVibrationPeak ?? raw.vibration?.vibrationPeak ?? null),
+        vibrationRMS: vibRMS !== null && !isNaN(vibRMS) ? Number(vibRMS.toFixed(4)) : (raw.vibration?.vibrationRMS ?? null),
+        motionClassification: pt.motionClassification ?? raw.motionEvent?.classification ?? 'STABLE',
+        alarmActive: Boolean(pt.alarmActive ?? raw.rockfallAlarm?.active ?? false),
+        eventPending: Boolean(pt.eventPending ?? raw.motionEvent?.pending ?? false),
+
+        battery: raw.power?.batteryVoltage !== undefined ? `${raw.power.batteryVoltage} V` : (pt.batteryVoltage !== null && pt.batteryVoltage !== undefined ? `${pt.batteryVoltage} V` : null),
+        batteryVoltage: raw.power?.batteryVoltage ?? pt.batteryVoltage ?? null,
+        csq: raw.network?.csq ?? pt.csq ?? null,
+        signalStrength: raw.network?.csq !== undefined ? `${raw.network.csq} CSQ` : (pt.csq !== null && pt.csq !== undefined ? `${pt.csq} CSQ` : null),
       };
     };
 
@@ -434,10 +449,10 @@ export async function telemetryRoutes(fastify) {
       }
 
       const raw = latestDbRec.rawPayload || {};
-      const rawX = parseFloat(latestDbRec.xTilt ?? raw.tilt?.roll ?? 0) || 0;
-      const rawY = parseFloat(latestDbRec.yTilt ?? raw.tilt?.pitch ?? 0) || 0;
-      const rawZ = parseFloat(latestDbRec.zTilt ?? latestDbRec.yaw ?? raw.tilt?.yaw ?? 0) || 0;
-      const calcRes = Math.sqrt(rawX * rawX + rawY * rawY);
+      const rawX = parseNum(latestDbRec.xTilt ?? raw.tilt?.roll ?? raw.roll);
+      const rawY = parseNum(latestDbRec.yTilt ?? raw.tilt?.pitch ?? raw.pitch);
+      const rawZ = parseNum(latestDbRec.zTilt ?? latestDbRec.yaw ?? raw.tilt?.yaw ?? raw.yaw);
+      const calcRes = (rawX !== null && rawY !== null) ? Math.sqrt(rawX * rawX + rawY * rawY) : null;
 
       // Pure device angle values directly without logic change
       const deltaX = rawX;
@@ -445,13 +460,13 @@ export async function telemetryRoutes(fastify) {
       const deltaZ = rawZ;
 
       const rawDisp = latestDbRec.displacement || raw.displacement || {};
-      const xD = parseFloat(rawDisp.xDisplacement_mm ?? latestDbRec.xDisplacement ?? 0.0) || 0.0;
-      const yD = parseFloat(rawDisp.yDisplacement_mm ?? latestDbRec.yDisplacement ?? 0.0) || 0.0;
-      const zD = 0.0;
-      const totD = parseFloat(rawDisp.totalDisplacement_mm ?? latestDbRec.totalDisplacement ?? 0.0) || Math.sqrt(xD * xD + yD * yD);
+      const xD = parseNum(rawDisp.xDisplacement_mm ?? latestDbRec.xDisplacement ?? latestDbRec.xDisp);
+      const yD = parseNum(rawDisp.yDisplacement_mm ?? latestDbRec.yDisplacement ?? latestDbRec.yDisp);
+      const zD = parseNum(rawDisp.zDisplacement_mm ?? latestDbRec.zDisplacement ?? latestDbRec.zDisp);
+      const totD = parseNum(rawDisp.totalDisplacement_mm ?? latestDbRec.totalDisplacement ?? latestDbRec.totalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
 
       const rawTemp = latestDbRec.temperature ?? raw.environment?.temperature;
-      const temp = rawTemp !== undefined && rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
+      const temp = parseNum(rawTemp);
 
       return reply.send({
         statusCode: 200,

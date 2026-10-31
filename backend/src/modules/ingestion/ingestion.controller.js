@@ -47,15 +47,30 @@ export async function receiveTelemetryHandler(req, reply) {
     } catch (e) {}
 
     const isCalibrated = devObj ? Boolean(devObj.calibrate ?? devObj.hasReferenceZero ?? false) : false;
+    const devSettings = devObj?.monitoringSettings || rawPayload.monitoringSettings || {};
 
-    // Exact response format returned to hardware device
+    // Exact response format returned to hardware device as documented in Section 9
     const responsePayload = {
       success: true,
       device_id: devObj?.id || deviceId,
       settings: {
-        sleep_count: devObj?.sleep_count !== undefined && devObj?.sleep_count !== null ? devObj.sleep_count : 15, // Minutes
-        wake_count: devObj?.wake_count !== undefined && devObj?.wake_count !== null ? devObj.wake_count : 30,     // Seconds
-        calibrate: isCalibrated                                                                                   // true / false
+        sleep_count: devObj?.sleep_count !== undefined && devObj?.sleep_count !== null ? devObj.sleep_count : (devSettings.uploadIntervalMinutes || 15),
+        wake_count: devObj?.wake_count !== undefined && devObj?.wake_count !== null ? devObj.wake_count : 30,
+        calibrate: isCalibrated,
+        debug: devSettings.debug !== undefined ? Boolean(devSettings.debug) : true,
+        thresholds: {
+          rockfall_on: typeof devSettings.rockfall_on === 'number' ? devSettings.rockfall_on : 12.0,
+          rockfall_off: typeof devSettings.rockfall_off === 'number' ? devSettings.rockfall_off : 3.0,
+          landslide_on: typeof devSettings.landslide_on === 'number' ? devSettings.landslide_on : 15.0,
+          landslide_off: typeof devSettings.landslide_off === 'number' ? devSettings.landslide_off : 5.0,
+          landslide_seconds: typeof devSettings.landslide_seconds === 'number' ? devSettings.landslide_seconds : 5,
+          human_touch_on: typeof devSettings.human_touch_on === 'number' ? devSettings.human_touch_on : 5.0,
+          human_touch_off: typeof devSettings.human_touch_off === 'number' ? devSettings.human_touch_off : 1.5,
+          air_wind_on: typeof devSettings.air_wind_on === 'number' ? devSettings.air_wind_on : 0.8,
+          air_wind_off: typeof devSettings.air_wind_off === 'number' ? devSettings.air_wind_off : 0.25,
+          air_wind_seconds: typeof devSettings.air_wind_seconds === 'number' ? devSettings.air_wind_seconds : 12,
+          normal_seconds: typeof devSettings.normal_seconds === 'number' ? devSettings.normal_seconds : 10,
+        }
       }
     };
 

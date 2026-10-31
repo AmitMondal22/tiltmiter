@@ -101,33 +101,47 @@ export default function ReportsPage({ currentDevice }) {
       activeDev?.calibrate
     );
 
+    const parseNum = (v) => {
+      if (v === null || v === undefined || v === '' || v === '--') return null;
+      const n = typeof v === 'number' ? v : parseFloat(v);
+      return !isNaN(n) ? n : null;
+    };
+
     const mapReportRow = (r) => {
+      const xTilt = parseNum(r.xTilt ?? r.tiltX);
+      const yTilt = parseNum(r.yTilt ?? r.tiltY);
+      const zTilt = parseNum(r.zTilt ?? r.tiltZ);
+      const resultantTilt = parseNum(r.resultantTilt ?? r.resultant) ?? (xTilt !== null && yTilt !== null ? Math.sqrt(xTilt * xTilt + yTilt * yTilt) : null);
+      const xDisp = parseNum(r.xDisp ?? r.xDisplacement);
+      const yDisp = parseNum(r.yDisp ?? r.yDisplacement);
+      const zDisp = parseNum(r.zDisp ?? r.zDisplacement);
+      const totalDisp = parseNum(r.totalDisp ?? r.totalDisplacement) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
+
       return {
         ...r,
-        resultant: parseFloat(r.resultant ?? r.resultantTilt ?? 0),
-        resultantTilt: parseFloat(r.resultantTilt ?? r.resultant ?? 0),
-        xTilt: parseFloat(r.xTilt ?? r.tiltX ?? 0),
-        tiltX: parseFloat(r.tiltX ?? r.xTilt ?? 0),
-        yTilt: parseFloat(r.yTilt ?? r.tiltY ?? 0),
-        tiltY: parseFloat(r.tiltY ?? r.yTilt ?? 0),
-        zTilt: parseFloat(r.zTilt ?? r.tiltZ ?? 0),
-        tiltZ: parseFloat(r.tiltZ ?? r.zTilt ?? 0),
-        totalDisp: parseFloat(r.totalDisp ?? r.totalDisplacement ?? 0),
-        totalDisplacement: parseFloat(r.totalDisplacement ?? r.totalDisp ?? 0),
-        xDisp: parseFloat(r.xDisp ?? r.xDisplacement ?? 0),
-        xDisplacement: parseFloat(r.xDisplacement ?? r.xDisp ?? 0),
-        yDisp: parseFloat(r.yDisp ?? r.yDisplacement ?? 0),
-        yDisplacement: parseFloat(r.yDisplacement ?? r.yDisp ?? 0),
-        zDisp: parseFloat(r.zDisp ?? r.zDisplacement ?? 0),
-        zDisplacement: parseFloat(r.zDisplacement ?? r.zDisp ?? 0),
-        // Sensor fields: null if not available (backend returns null when no data)
-        accMag: r.accMag !== null && r.accMag !== undefined ? parseFloat(r.accMag) : null,
-        vibrationRMS: (r.vibrationRMS ?? r.vibRMS) !== null && (r.vibrationRMS ?? r.vibRMS) !== undefined ? parseFloat(r.vibrationRMS ?? r.vibRMS) : null,
-        vibRMS: (r.vibRMS ?? r.vibrationRMS) !== null && (r.vibRMS ?? r.vibrationRMS) !== undefined ? parseFloat(r.vibRMS ?? r.vibrationRMS) : null,
-        vibrationPeak: (r.vibrationPeak ?? r.vibPeak) !== null && (r.vibrationPeak ?? r.vibPeak) !== undefined ? parseFloat(r.vibrationPeak ?? r.vibPeak) : null,
-        vibPeak: (r.vibPeak ?? r.vibrationPeak) !== null && (r.vibPeak ?? r.vibrationPeak) !== undefined ? parseFloat(r.vibPeak ?? r.vibrationPeak) : null,
-        temperature: (r.temperature ?? r.temp) !== null && (r.temperature ?? r.temp) !== undefined ? parseFloat(r.temperature ?? r.temp) : null,
-        temp: (r.temp ?? r.temperature) !== null && (r.temp ?? r.temperature) !== undefined ? parseFloat(r.temp ?? r.temperature) : null,
+        resultant: resultantTilt,
+        resultantTilt,
+        xTilt,
+        tiltX: xTilt,
+        yTilt,
+        tiltY: yTilt,
+        zTilt,
+        tiltZ: zTilt,
+        totalDisp,
+        totalDisplacement: totalDisp,
+        xDisp,
+        xDisplacement: xDisp,
+        yDisp,
+        yDisplacement: yDisp,
+        zDisp,
+        zDisplacement: zDisp,
+        accMag: parseNum(r.accMag),
+        vibrationRMS: parseNum(r.vibrationRMS ?? r.vibRMS),
+        vibRMS: parseNum(r.vibRMS ?? r.vibrationRMS),
+        vibrationPeak: parseNum(r.vibrationPeak ?? r.vibPeak),
+        vibPeak: parseNum(r.vibPeak ?? r.vibrationPeak),
+        temperature: parseNum(r.temperature ?? r.temp),
+        temp: parseNum(r.temp ?? r.temperature),
       };
     };
 
@@ -312,18 +326,18 @@ export default function ReportsPage({ currentDevice }) {
         `"${formatFullDateTime(r.timestamp || r.time)}"`,
         r.timestamp || '',
         r.deviceId || selectedDevice,
-        Number(r.xTilt || r.tiltX || 0).toFixed(4),
-        Number(r.yTilt || r.tiltY || 0).toFixed(4),
-        Number(r.zTilt || r.tiltZ || r.resultantTilt || 0).toFixed(4),
-        Number(r.resultant || r.resultantTilt || 0).toFixed(4),
-        Number(r.xDisp || r.xDisplacement || 0).toFixed(4),
-        Number(r.yDisp || r.yDisplacement || 0).toFixed(4),
-        Number(r.zDisp || r.zDisplacement || 0).toFixed(4),
-        Number(d).toFixed(4),
-        Number(r.accMag || 0.982).toFixed(3),
-        Number(r.vibRMS || r.vibrationRMS || 0.045).toFixed(4),
-        Number(r.vibPeak || r.vibrationPeak || 0.104).toFixed(4),
-        Number(r.temperature || r.temp || 28.5).toFixed(1),
+        r.xTilt !== null && r.xTilt !== undefined ? Number(r.xTilt).toFixed(4) : '',
+        r.yTilt !== null && r.yTilt !== undefined ? Number(r.yTilt).toFixed(4) : '',
+        r.zTilt !== null && r.zTilt !== undefined ? Number(r.zTilt).toFixed(4) : '',
+        r.resultant !== null && r.resultant !== undefined ? Number(r.resultant).toFixed(4) : '',
+        r.xDisp !== null && r.xDisp !== undefined ? Number(r.xDisp).toFixed(4) : '',
+        r.yDisp !== null && r.yDisp !== undefined ? Number(r.yDisp).toFixed(4) : '',
+        r.zDisp !== null && r.zDisp !== undefined ? Number(r.zDisp).toFixed(4) : '',
+        r.totalDisp !== null && r.totalDisp !== undefined ? Number(r.totalDisp).toFixed(4) : '',
+        r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : '',
+        r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(4) : '',
+        r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(4) : '',
+        (r.temperature ?? r.temp) !== null && (r.temperature ?? r.temp) !== undefined ? Number(r.temperature ?? r.temp).toFixed(1) : '',
         status
       ].join(',');
     });
@@ -741,16 +755,16 @@ export default function ReportsPage({ currentDevice }) {
                           {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
                             <>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-blue-700 font-semibold">
-                                {Number(r.xTilt || r.tiltX || 0) >= 0 ? '+' : ''}{Number(r.xTilt || r.tiltX || 0).toFixed(1)}°
+                                {r.xTilt !== null && r.xTilt !== undefined ? `${r.xTilt >= 0 ? '+' : ''}${Number(r.xTilt).toFixed(1)}°` : '--'}
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-semibold">
-                                {Number(r.yTilt || r.tiltY || 0) >= 0 ? '+' : ''}{Number(r.yTilt || r.tiltY || 0).toFixed(1)}°
+                                {r.yTilt !== null && r.yTilt !== undefined ? `${r.yTilt >= 0 ? '+' : ''}${Number(r.yTilt).toFixed(1)}°` : '--'}
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
-                                {Number(r.zTilt || r.tiltZ || r.resultantTilt || 0) >= 0 ? '+' : ''}{Number(r.zTilt || r.tiltZ || r.resultantTilt || 0).toFixed(1)}°
+                                {r.zTilt !== null && r.zTilt !== undefined ? `${r.zTilt >= 0 ? '+' : ''}${Number(r.zTilt).toFixed(1)}°` : '--'}
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-purple-700 font-bold">
-                                {Number(r.resultant || r.resultantTilt || 0).toFixed(1)}°
+                                {r.resultant !== null && r.resultant !== undefined ? `${Number(r.resultant).toFixed(1)}°` : '--'}
                               </td>
                             </>
                           )}
@@ -759,13 +773,13 @@ export default function ReportsPage({ currentDevice }) {
                           {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                             <>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-cyan-700 font-semibold">
-                                {Number(r.xDisp || r.xDisplacement || 0) >= 0 ? '+' : ''}{Number(r.xDisp || r.xDisplacement || 0).toFixed(1)} mm
+                                {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${Number(r.xDisp).toFixed(1)} mm` : '--'}
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
-                                {Number(r.yDisp || r.yDisplacement || 0) >= 0 ? '+' : ''}{Number(r.yDisp || r.yDisplacement || 0).toFixed(1)} mm
+                                {r.yDisp !== null && r.yDisp !== undefined ? `${r.yDisp >= 0 ? '+' : ''}${Number(r.yDisp).toFixed(1)} mm` : '--'}
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-pink-700 font-bold">
-                                {Number(r.totalDisp || r.totalDisplacement || 0).toFixed(1)} mm
+                                {r.totalDisp !== null && r.totalDisp !== undefined ? `${Number(r.totalDisp).toFixed(1)} mm` : '--'}
                               </td>
                             </>
                           )}

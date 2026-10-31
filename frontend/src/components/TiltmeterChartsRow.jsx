@@ -112,33 +112,25 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       // X-Axis: tilt.roll / roll / xTilt
       // Y-Axis: tilt.pitch / pitch / yTilt
       // Z-Axis: tilt.yaw / yaw / zTilt
-      const currentRoll = pt.tilt?.roll ?? pt.roll ?? pt.presentX ?? pt.xTilt;
-      const currentPitch = pt.tilt?.pitch ?? pt.pitch ?? pt.presentY ?? pt.yTilt;
-      const currentYaw = pt.tilt?.yaw ?? pt.yaw ?? pt.presentZ ?? pt.zTilt;
+      const parseNum = (v) => {
+        if (v === null || v === undefined || v === '' || v === '--') return null;
+        const n = typeof v === 'number' ? v : parseFloat(v);
+        return !isNaN(n) ? n : null;
+      };
+
+      const currentRoll = pt.tilt?.roll ?? pt.roll ?? pt.presentX ?? pt.xTilt ?? pt.deltaX;
+      const currentPitch = pt.tilt?.pitch ?? pt.pitch ?? pt.presentY ?? pt.yTilt ?? pt.deltaY;
+      const currentYaw = pt.tilt?.yaw ?? pt.yaw ?? pt.presentZ ?? pt.zTilt ?? pt.deltaZ;
 
       // 2. Present Value (actual device angle values):
-      const presentX = (currentRoll !== undefined && currentRoll !== null && !isNaN(parseFloat(currentRoll))) ? parseFloat(currentRoll) : 0.0;
-      const presentY = (currentPitch !== undefined && currentPitch !== null && !isNaN(parseFloat(currentPitch))) ? parseFloat(currentPitch) : 0.0;
-      const presentZ = (currentYaw !== undefined && currentYaw !== null && !isNaN(parseFloat(currentYaw))) ? parseFloat(currentYaw) : 0.0;
-
-      // 3. Delta Value:
-      // Delta X = Current Roll − Reference Roll
-      // Delta Y = Current Pitch − Reference Pitch
-      // Delta Z = Current Yaw − Reference Yaw
-      const deltaX = (pt.deltaX !== undefined && pt.deltaX !== null && !isNaN(parseFloat(pt.deltaX)))
-        ? parseFloat(pt.deltaX)
-        : (presentX - refX);
-      const deltaY = (pt.deltaY !== undefined && pt.deltaY !== null && !isNaN(parseFloat(pt.deltaY)))
-        ? parseFloat(pt.deltaY)
-        : (presentY - refY);
-      const deltaZ = (pt.deltaZ !== undefined && pt.deltaZ !== null && !isNaN(parseFloat(pt.deltaZ)))
-        ? parseFloat(pt.deltaZ)
-        : (presentZ - refZ);
+      const presentX = parseNum(currentRoll);
+      const presentY = parseNum(currentPitch);
+      const presentZ = parseNum(currentYaw);
 
       // Direct device angles without logic modification
-      const xT = Number(presentX.toFixed(1));
-      const yT = Number(presentY.toFixed(1));
-      const zT = Number(presentZ.toFixed(1));
+      const xT = presentX !== null ? Number(presentX.toFixed(1)) : null;
+      const yT = presentY !== null ? Number(presentY.toFixed(1)) : null;
+      const zT = presentZ !== null ? Number(presentZ.toFixed(1)) : null;
 
       // Device-provided displacement data:
       const rawDisp = pt.displacement || pt.rawPayload?.displacement || {};
@@ -147,40 +139,40 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       const rawZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisp ?? pt.zDisplacement;
       const rawTotalDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisp ?? pt.totalDisplacement;
 
-      const xD = (rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp))) ? parseFloat(rawXDisp) : 0.0;
-      const yD = (rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp))) ? parseFloat(rawYDisp) : 0.0;
-      const zD = (rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp))) ? parseFloat(rawZDisp) : 0.0;
-      const totalD = (rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp))) ? parseFloat(rawTotalDisp) : 0.0;
+      const xD = parseNum(rawXDisp);
+      const yD = parseNum(rawYDisp);
+      const zD = parseNum(rawZDisp);
+      const totalD = parseNum(rawTotalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
 
       // Raw acceleration directly from device without division
       const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
       const rawAyRaw = pt.ayG ?? pt.ay ?? pt.acceleration?.ay ?? pt.acceleration?.y ?? null;
       const rawAzRaw = pt.azG ?? pt.az ?? pt.acceleration?.az ?? pt.acceleration?.z ?? null;
 
-      const axG = rawAxRaw !== null && !isNaN(parseFloat(rawAxRaw)) ? parseFloat(rawAxRaw) : null;
-      const ayG = rawAyRaw !== null && !isNaN(parseFloat(rawAyRaw)) ? parseFloat(rawAyRaw) : null;
-      const azG = rawAzRaw !== null && !isNaN(parseFloat(rawAzRaw)) ? parseFloat(rawAzRaw) : null;
+      const axG = parseNum(rawAxRaw);
+      const ayG = parseNum(rawAyRaw);
+      const azG = parseNum(rawAzRaw);
 
       const rawTemp = pt.temp ?? pt.temperature ?? pt.environment?.temperature ?? null;
-      const tempVal = rawTemp !== null && !isNaN(parseFloat(rawTemp)) ? parseFloat(rawTemp) : null;
+      const tempVal = parseNum(rawTemp);
 
       return {
         ...pt,
         time: pt.time && pt.time.length <= 5 ? pt.time : formatHHMM(ts),
         fullTime: pt.fullTime || formatFullDateTime(ts),
-        presentX: Number(presentX.toFixed(1)),
-        presentY: Number(presentY.toFixed(1)),
-        presentZ: Number(presentZ.toFixed(1)),
+        presentX: xT,
+        presentY: yT,
+        presentZ: zT,
         deltaX: xT,
         deltaY: yT,
         deltaZ: zT,
         xTilt: xT,
         yTilt: yT,
         zTilt: zT,
-        xDisp: Number(xD.toFixed(1)),
-        yDisp: Number(yD.toFixed(1)),
-        zDisp: Number(zD.toFixed(1)),
-        totalDisp: Number(totalD.toFixed(1)),
+        xDisp: xD !== null ? Number(xD.toFixed(1)) : null,
+        yDisp: yD !== null ? Number(yD.toFixed(1)) : null,
+        zDisp: zD !== null ? Number(zD.toFixed(1)) : null,
+        totalDisp: totalD !== null ? Number(totalD.toFixed(1)) : null,
         axG: axG !== null ? Number(axG.toFixed(1)) : null,
         ayG: ayG !== null ? Number(ayG.toFixed(1)) : null,
         azG: azG !== null ? Number(azG.toFixed(1)) : null,
@@ -415,6 +407,10 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
             <span className="w-2.5 h-2.5 rounded-full bg-[#0d9488]" />
             <span className="text-slate-700">DY</span>
           </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" />
+            <span className="text-slate-700">DZ</span>
+          </span>
         </div>
 
         {/* Chart Body */}
@@ -466,6 +462,15 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   strokeWidth={2}
                   isAnimationActive={false}
                   dot={renderCalloutDot('yDisp', totalPoints, '#0d9488', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.y)}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="zDisp"
+                  name="DZ"
+                  stroke="#8b5cf6"
+                  strokeWidth={2}
+                  isAnimationActive={false}
+                  dot={renderCalloutDot('zDisp', totalPoints, '#8b5cf6', (v) => `${Number(v).toFixed(2)} mm`, 0)}
                 />
               </LineChart>
             </ResponsiveContainer>

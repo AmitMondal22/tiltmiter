@@ -5,8 +5,35 @@ const { Op } = pkg;
 
 export async function receiveTelemetryHandler(req, reply) {
   try {
-    const rawPayload = req.body || {};
-    let targetDeviceId = req.params?.deviceId || req.query?.deviceId || rawPayload.deviceId || rawPayload.device_id || rawPayload.id || req.headers?.['x-device-id'] || req.headers?.deviceid || req.headers?.['device-id'];
+    let rawPayload = req.body || {};
+    if (typeof rawPayload === 'string') {
+      try {
+        rawPayload = JSON.parse(rawPayload);
+      } catch (_) {
+        rawPayload = { raw: rawPayload };
+      }
+    }
+    // Unwrap if device payload is nested under data/payload/telemetry
+    if (rawPayload && typeof rawPayload === 'object' && !Array.isArray(rawPayload)) {
+      if (rawPayload.data && typeof rawPayload.data === 'object' && !Array.isArray(rawPayload.data) && (rawPayload.data.tilt || rawPayload.data.xTilt || rawPayload.data.roll || rawPayload.data.acceleration)) {
+        rawPayload = { ...rawPayload.data, deviceId: rawPayload.deviceId || rawPayload.device_id || rawPayload.data.deviceId || rawPayload.data.device_id };
+      } else if (rawPayload.payload && typeof rawPayload.payload === 'object' && !Array.isArray(rawPayload.payload) && (rawPayload.payload.tilt || rawPayload.payload.xTilt || rawPayload.payload.roll)) {
+        rawPayload = { ...rawPayload.payload, deviceId: rawPayload.deviceId || rawPayload.device_id || rawPayload.payload.deviceId || rawPayload.payload.device_id };
+      }
+    }
+
+    let targetDeviceId =
+      req.params?.deviceId ||
+      req.query?.deviceId ||
+      req.query?.device_id ||
+      rawPayload.deviceId ||
+      rawPayload.device_id ||
+      rawPayload.id ||
+      rawPayload.node_id ||
+      rawPayload.sensor_id ||
+      req.headers?.['x-device-id'] ||
+      req.headers?.deviceid ||
+      req.headers?.['device-id'];
 
     if (!targetDeviceId) {
       const activeDev = await Device.findOne({ order: [['lastSeen', 'DESC NULLS LAST'], ['createdAt', 'DESC']] }).catch(() => null);

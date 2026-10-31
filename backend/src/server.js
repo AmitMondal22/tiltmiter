@@ -50,7 +50,7 @@ const fastify = Fastify({
   bodyLimit: 15 * 1024 * 1024, // 15MB limit to allow high-res image uploads & base64 payloads
 });
 
-// Allow empty body when content-type is application/json (e.g. for DELETE requests)
+// Allow empty body and parse JSON safely
 fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
   if (!body || typeof body !== 'string' || body.trim() === '') {
     done(null, {});
@@ -62,6 +62,20 @@ fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, bo
   } catch (err) {
     err.statusCode = 400;
     done(err, undefined);
+  }
+});
+
+// Support IoT hardware modems sending text/plain, text/json or octet-stream
+fastify.addContentTypeParser(['text/plain', 'text/json', 'application/octet-stream'], { parseAs: 'string' }, (req, body, done) => {
+  if (!body || typeof body !== 'string' || body.trim() === '') {
+    done(null, {});
+    return;
+  }
+  try {
+    const json = JSON.parse(body);
+    done(null, json);
+  } catch (_) {
+    done(null, body);
   }
 });
 

@@ -53,6 +53,13 @@ export async function seedDatabase() {
       'ALTER TABLE alert_rules ADD COLUMN IF NOT EXISTS "organizationId" INTEGER;',
 
       // Schema v2 columns for telemetry_records
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "rawPayload" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "acceleration" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "gyroscope" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "vibration" JSONB;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "zDisplacement" FLOAT DEFAULT 0.0;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "totalDisplacement" FLOAT DEFAULT 0.0;',
+      'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "resultantTilt" FLOAT DEFAULT 0.0;',
       'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "schemaVersion" INTEGER DEFAULT 2;',
       'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "sampleUptimeMs" BIGINT;',
       'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "batteryVoltage" FLOAT;',
@@ -81,6 +88,9 @@ export async function seedDatabase() {
       'ALTER TABLE telemetry_records ADD COLUMN IF NOT EXISTS "units" JSONB;',
 
       // Schema v2 columns for devices
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "zDisplacement" FLOAT DEFAULT 0.0;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "totalDisplacement" FLOAT DEFAULT 0.0;',
+      'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "resultantTilt" FLOAT DEFAULT 0.0;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "schemaVersion" INTEGER DEFAULT 2;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "motionClassification" VARCHAR(255) DEFAULT \'STABLE\';',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "alarmActive" BOOLEAN DEFAULT false;',

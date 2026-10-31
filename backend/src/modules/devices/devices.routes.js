@@ -69,13 +69,35 @@ export async function devicesRoutes(fastify) {
           devObj.totalDisplacement = (totalDisp !== undefined && totalDisp !== null && !isNaN(parseFloat(totalDisp))) ? parseFloat(totalDisp) : devObj.totalDisplacement;
           devObj.temperature = (tempVal !== undefined && tempVal !== null && !isNaN(parseFloat(tempVal))) ? parseFloat(tempVal) : devObj.temperature;
           devObj.lastSeen = rec.timestamp || devObj.lastSeen;
+          devObj.rawPayload = rec.rawPayload || raw || null;
+          devObj.displacement = rec.displacement || raw.displacement || null;
+          devObj.acceleration = rec.acceleration || raw.acceleration || null;
+          devObj.gyroscope = rec.gyroscope || raw.gyroscope || null;
+          devObj.vibration = rec.vibration || raw.vibration || null;
+          devObj.tilt = rec.tilt || raw.tilt || null;
+          devObj.angleDelta = rec.angleDelta || raw.angleDelta || null;
+          devObj.environment = rec.environment || raw.environment || null;
+          devObj.power = rec.power || raw.power || null;
+          devObj.network = rec.network || raw.network || null;
+          devObj.calibration = rec.calibration || raw.calibration || null;
+          devObj.rockfallAlarm = rec.rockfallAlarm || raw.rockfallAlarm || null;
+          devObj.motionEvent = rec.motionEvent || raw.motionEvent || null;
+          devObj.monitoringSettings = rec.monitoringSettings || raw.monitoringSettings || devObj.monitoringSettings || null;
+
           devObj.latestTelemetry = {
             timestamp: rec.timestamp,
             xTilt: devObj.xTilt,
             yTilt: devObj.yTilt,
             zTilt: devObj.zTilt,
             temperature: devObj.temperature,
-            totalDisplacement: devObj.totalDisplacement
+            totalDisplacement: devObj.totalDisplacement,
+            rawPayload: rec.rawPayload || raw || null,
+            displacement: devObj.displacement,
+            acceleration: devObj.acceleration,
+            gyroscope: devObj.gyroscope,
+            vibration: devObj.vibration,
+            tilt: devObj.tilt,
+            angleDelta: devObj.angleDelta,
           };
         }
         return devObj;
@@ -200,6 +222,20 @@ export async function devicesRoutes(fastify) {
         devObj.totalDisplacement = totD;
         devObj.temperature = tempVal;
         devObj.lastSeen = latestRecord.timestamp || devObj.lastSeen;
+        devObj.rawPayload = raw || latestRecord.rawPayload || null;
+        devObj.displacement = latestRecord.displacement || raw.displacement || null;
+        devObj.acceleration = latestRecord.acceleration || raw.acceleration || null;
+        devObj.gyroscope = latestRecord.gyroscope || raw.gyroscope || null;
+        devObj.vibration = latestRecord.vibration || raw.vibration || null;
+        devObj.tilt = latestRecord.tilt || raw.tilt || null;
+        devObj.angleDelta = latestRecord.angleDelta || raw.angleDelta || null;
+        devObj.environment = latestRecord.environment || raw.environment || null;
+        devObj.power = latestRecord.power || raw.power || null;
+        devObj.network = latestRecord.network || raw.network || null;
+        devObj.calibration = latestRecord.calibration || raw.calibration || null;
+        devObj.rockfallAlarm = latestRecord.rockfallAlarm || raw.rockfallAlarm || null;
+        devObj.motionEvent = latestRecord.motionEvent || raw.motionEvent || null;
+        devObj.monitoringSettings = latestRecord.monitoringSettings || raw.monitoringSettings || devObj.monitoringSettings || null;
 
         devObj.latestTelemetry = {
           timestamp: latestRecord.timestamp,

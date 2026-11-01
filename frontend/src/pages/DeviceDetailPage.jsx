@@ -4,7 +4,7 @@ import {
   ArrowLeft, Battery, Signal, Sliders, Calendar,
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
-  Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move
+  Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move, X
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
@@ -34,7 +34,27 @@ export default function DeviceDetailPage() {
   const rowsPerPage = 20;
 
   const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [configForm, setConfigForm] = useState({ sleep_count: '', wake_count: '', calibrate: false, gaugeLength_mm: 1000 });
+  const [configForm, setConfigForm] = useState({
+    sleep_count: 15,
+    wake_count: 30,
+    gaugeLength_mm: 1000,
+    samplingWindowSeconds: 1,
+    samplingRateHz: 400,
+    calibrate: false,
+    debug: true,
+    status: 'ONLINE',
+    rockfall_on: 12.0,
+    rockfall_off: 3.0,
+    landslide_on: 15.0,
+    landslide_off: 5.0,
+    landslide_seconds: 5,
+    human_touch_on: 5.0,
+    human_touch_off: 1.5,
+    air_wind_on: 0.8,
+    air_wind_off: 0.25,
+    air_wind_seconds: 12,
+    normal_seconds: 10,
+  });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
@@ -53,11 +73,27 @@ export default function DeviceDetailPage() {
         const dev = res?.device || res;
         if (dev && (dev.id || dev.name)) {
           setDevice(dev);
+          const s = dev.monitoringSettings || {};
           setConfigForm({
-            sleep_count: dev.sleep_count !== undefined ? dev.sleep_count : '',
-            wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
-            calibrate: Boolean(dev.calibrate),
-            gaugeLength_mm: dev.gaugeLength_mm !== undefined ? dev.gaugeLength_mm : 1000,
+            sleep_count: dev.sleep_count !== undefined && dev.sleep_count !== null ? dev.sleep_count : (s.uploadIntervalMinutes || 15),
+            wake_count: dev.wake_count !== undefined && dev.wake_count !== null ? dev.wake_count : (s.wakeCountSeconds || 30),
+            gaugeLength_mm: dev.gaugeLength_mm !== undefined && dev.gaugeLength_mm !== null ? dev.gaugeLength_mm : (s.gaugeLength_mm || 1000),
+            samplingWindowSeconds: s.samplingWindowSeconds ?? 1,
+            samplingRateHz: s.samplingRateHz ?? 400,
+            calibrate: Boolean(dev.calibrate ?? dev.hasReferenceZero),
+            debug: s.debug !== undefined ? Boolean(s.debug) : true,
+            status: dev.status || 'ONLINE',
+            rockfall_on: s.rockfall_on ?? 12.0,
+            rockfall_off: s.rockfall_off ?? 3.0,
+            landslide_on: s.landslide_on ?? 15.0,
+            landslide_off: s.landslide_off ?? 5.0,
+            landslide_seconds: s.landslide_seconds ?? 5,
+            human_touch_on: s.human_touch_on ?? 5.0,
+            human_touch_off: s.human_touch_off ?? 1.5,
+            air_wind_on: s.air_wind_on ?? 0.8,
+            air_wind_off: s.air_wind_off ?? 0.25,
+            air_wind_seconds: s.air_wind_seconds ?? 12,
+            normal_seconds: s.normal_seconds ?? 10,
           });
         } else {
           setDevice({ id: deviceId, name: `Tiltmeter ${deviceId}`, status: 'ONLINE' });
@@ -292,15 +328,107 @@ export default function DeviceDetailPage() {
 
   const handleOpenConfigModal = () => {
     if (device) {
+      const s = device.monitoringSettings || {};
       setConfigForm({
-        sleep_count: device.sleep_count !== undefined ? device.sleep_count : '',
-        wake_count: device.wake_count !== undefined ? device.wake_count : '',
+        sleep_count: device.sleep_count !== undefined && device.sleep_count !== null ? device.sleep_count : (s.uploadIntervalMinutes || 15),
+        wake_count: device.wake_count !== undefined && device.wake_count !== null ? device.wake_count : (s.wakeCountSeconds || 30),
+        gaugeLength_mm: device.gaugeLength_mm !== undefined && device.gaugeLength_mm !== null ? device.gaugeLength_mm : (s.gaugeLength_mm || 1000),
+        samplingWindowSeconds: s.samplingWindowSeconds ?? 1,
+        samplingRateHz: s.samplingRateHz ?? 400,
         calibrate: Boolean(device.calibrate ?? device.hasReferenceZero),
+        debug: s.debug !== undefined ? Boolean(s.debug) : true,
         status: device.status || 'ONLINE',
-        gaugeLength_mm: device.gaugeLength_mm !== undefined ? device.gaugeLength_mm : 1000,
+        rockfall_on: s.rockfall_on ?? 12.0,
+        rockfall_off: s.rockfall_off ?? 3.0,
+        landslide_on: s.landslide_on ?? 15.0,
+        landslide_off: s.landslide_off ?? 5.0,
+        landslide_seconds: s.landslide_seconds ?? 5,
+        human_touch_on: s.human_touch_on ?? 5.0,
+        human_touch_off: s.human_touch_off ?? 1.5,
+        air_wind_on: s.air_wind_on ?? 0.8,
+        air_wind_off: s.air_wind_off ?? 0.25,
+        air_wind_seconds: s.air_wind_seconds ?? 12,
+        normal_seconds: s.normal_seconds ?? 10,
       });
     }
     setConfigModalOpen(true);
+  };
+
+  const handleResetDefaults = () => {
+    setConfigForm(prev => ({
+      ...prev,
+      sleep_count: 15,
+      wake_count: 30,
+      gaugeLength_mm: 1000,
+      samplingWindowSeconds: 1,
+      samplingRateHz: 400,
+      calibrate: false,
+      debug: true,
+      rockfall_on: 12.0,
+      rockfall_off: 3.0,
+      landslide_on: 15.0,
+      landslide_off: 5.0,
+      landslide_seconds: 5,
+      human_touch_on: 5.0,
+      human_touch_off: 1.5,
+      air_wind_on: 0.8,
+      air_wind_off: 0.25,
+      air_wind_seconds: 12,
+      normal_seconds: 10,
+    }));
+  };
+
+  const handleSaveConfig = async (e) => {
+    e.preventDefault();
+    const sleepVal = Math.max(1, Number(configForm.sleep_count) || 15);
+    const wakeVal = Math.max(1, Number(configForm.wake_count) || 30);
+    const gaugeVal = parseFloat(configForm.gaugeLength_mm) || 1000;
+    const samplingWin = parseInt(configForm.samplingWindowSeconds, 10) || 1;
+    const samplingHz = parseInt(configForm.samplingRateHz, 10) || 400;
+
+    const monitoringSettings = {
+      uploadIntervalMinutes: sleepVal,
+      wakeCountSeconds: wakeVal,
+      gaugeLength_mm: gaugeVal,
+      samplingWindowSeconds: samplingWin,
+      samplingRateHz: samplingHz,
+      debug: Boolean(configForm.debug),
+      rockfall_on: parseFloat(configForm.rockfall_on) || 12.0,
+      rockfall_off: parseFloat(configForm.rockfall_off) || 3.0,
+      landslide_on: parseFloat(configForm.landslide_on) || 15.0,
+      landslide_off: parseFloat(configForm.landslide_off) || 5.0,
+      landslide_seconds: parseInt(configForm.landslide_seconds, 10) || 5,
+      human_touch_on: parseFloat(configForm.human_touch_on) || 5.0,
+      human_touch_off: parseFloat(configForm.human_touch_off) || 1.5,
+      air_wind_on: parseFloat(configForm.air_wind_on) || 0.8,
+      air_wind_off: parseFloat(configForm.air_wind_off) || 0.25,
+      air_wind_seconds: parseInt(configForm.air_wind_seconds, 10) || 12,
+      normal_seconds: parseInt(configForm.normal_seconds, 10) || 10,
+    };
+
+    const payload = {
+      sleep_count: sleepVal,
+      wake_count: wakeVal,
+      gaugeLength_mm: gaugeVal,
+      calibrate: Boolean(configForm.calibrate),
+      hasReferenceZero: Boolean(configForm.calibrate),
+      debug: Boolean(configForm.debug),
+      status: configForm.status || 'ONLINE',
+      monitoringSettings,
+      thresholds: monitoringSettings,
+    };
+    try {
+      const res = await configureDeviceTelemetry(deviceId, payload);
+      const updatedDev = res?.device || { ...device, ...payload, monitoringSettings };
+      setMsg({ type: 'success', text: `Configuration deployed to ${deviceId} successfully.` });
+      setConfigModalOpen(false);
+      setDevice(prev => ({ ...prev, ...updatedDev, calibrate: payload.calibrate, hasReferenceZero: payload.calibrate, monitoringSettings }));
+      loadHistory(deviceId, null, null, activeFilter);
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Error deploying config' });
+    } finally {
+      setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+    }
   };
 
   const handleSetReference = async () => {
@@ -331,7 +459,6 @@ export default function DeviceDetailPage() {
       };
 
       setDevice(updatedDevice);
-      // Immediately zero tilt change and lateral displacement at that instant (ClinoX Step 04)
       setLiveData(prev => {
         if (!prev) return prev;
         return {
@@ -383,37 +510,6 @@ export default function DeviceDetailPage() {
       setMsg({ type: 'error', text: err.message || 'Error resetting reference zero' });
     } finally {
       setTimeout(() => setMsg({ type: '', text: '' }), 4000);
-    }
-  };
-
-  const handleSaveConfig = async (e) => {
-    e.preventDefault();
-    const sleepVal = Number(configForm.sleep_count);
-    const wakeVal = Number(configForm.wake_count);
-    const gaugeVal = parseFloat(configForm.gaugeLength_mm) || 1000;
-    if (!sleepVal || sleepVal < 15) {
-      setMsg({ type: 'error', text: 'Sleep count must be at least 15 minutes (15M minimum).' });
-      return;
-    }
-    const payload = {
-      ...configForm,
-      sleep_count: sleepVal,
-      wake_count: wakeVal > 0 ? wakeVal : 30,
-      gaugeLength_mm: gaugeVal,
-      calibrate: Boolean(configForm.calibrate),
-      status: configForm.status || 'ONLINE',
-    };
-    try {
-      const res = await configureDeviceTelemetry(deviceId, payload);
-      const updatedDev = res?.device || { ...device, ...payload };
-      setMsg({ type: 'success', text: `Configuration deployed to ${deviceId} successfully. Calibrate: ${payload.calibrate ? 'ENABLED' : 'DISABLED'}.` });
-      setConfigModalOpen(false);
-      setDevice(prev => ({ ...prev, ...updatedDev, calibrate: payload.calibrate, hasReferenceZero: payload.calibrate }));
-      loadHistory(deviceId, null, null, activeFilter);
-    } catch (err) {
-      setMsg({ type: 'error', text: err.message || 'Error deploying config' });
-    } finally {
-      setTimeout(() => setMsg({ type: '', text: '' }), 3500);
     }
   };
 
@@ -1060,127 +1156,288 @@ export default function DeviceDetailPage() {
         )}
       </div>
 
-      {/* Modal: Configure Device */}
+      {/* Modal: Complete Device Configuration & Applied Parameters */}
       {configModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 font-sans">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-xl p-6">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Configure Device {deviceId}
-                </h3>
-                <p className="text-xs text-slate-500 font-medium">Sampling Interval (Min 15M) & Telemetry Parameters</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 font-sans">
+          <div className="w-full max-w-2xl max-h-[92vh] rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-blue-50/30">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-100/80 text-blue-700">
+                  <Sliders className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Configure Device {deviceId}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">Sampling intervals, physical dimensions &amp; multi-priority hazard thresholds</p>
+                </div>
               </div>
-              <button onClick={() => setConfigModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer">
-                ✕
+              <button onClick={() => setConfigModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer transition-colors">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveConfig} className="space-y-4 text-xs">
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="font-semibold text-slate-700">
-                    Sleep Count (Minutes)
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                      Current: {device?.sleep_count !== undefined ? device.sleep_count : '-'}M
-                    </span>
-                    <span className="text-[10px] font-mono text-blue-600 font-semibold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
-                      Min 15M
-                    </span>
+            <form onSubmit={handleSaveConfig} className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs flex-1 bg-slate-50/40">
+              {/* Card 1: Timing & Physical Parameters */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
+                <h4 className="text-sm font-bold text-slate-800">Timing &amp; Physical Parameters</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Upload Interval (Min)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      max="1440"
+                      value={configForm.sleep_count}
+                      onChange={e => setConfigForm({ ...configForm, sleep_count: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 15m</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Wake Sampling (Sec)</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      max="3600"
+                      value={configForm.wake_count}
+                      onChange={e => setConfigForm({ ...configForm, wake_count: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 30s</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Gauge Length (mm)</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={configForm.gaugeLength_mm}
+                      onChange={e => setConfigForm({ ...configForm, gaugeLength_mm: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">L for ΔDisp (1000)</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Sampling Rate (Hz)</label>
+                    <input
+                      type="number"
+                      step="10"
+                      min="10"
+                      max="1000"
+                      value={configForm.samplingRateHz}
+                      onChange={e => setConfigForm({ ...configForm, samplingRateHz: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">LSM6DSO: 400Hz</span>
                   </div>
                 </div>
-                <input
-                  type="number"
-                  required
-                  min="15"
-                  max="1440"
-                  placeholder="e.g. 15"
-                  value={configForm.sleep_count}
-                  onChange={e => setConfigForm({ ...configForm, sleep_count: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <p className="text-[10px] text-slate-400 mt-1">Minimum allowed interval is 15 minutes.</p>
               </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block font-semibold text-slate-700">
-                    Wake Count (Seconds)
-                  </label>
-                  <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                    Current: {device?.wake_count !== undefined ? device.wake_count : '-'}s
-                  </span>
+              {/* Card 2: Priority 1: Rockfall Thresholds (m/s²) */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-800">Priority 1: Rockfall Thresholds (m/s²)</h4>
+                  <span className="font-mono text-xs font-bold text-red-600">rockfallAlarm</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">ON Threshold (Trigger peak)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={configForm.rockfall_on}
+                      onChange={e => setConfigForm({ ...configForm, rockfall_on: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 12.0 m/s²</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">OFF Threshold (Recovery)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={configForm.rockfall_off}
+                      onChange={e => setConfigForm({ ...configForm, rockfall_off: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 3.0 m/s²</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 3: Priority 2: Landslide Thresholds (deg & duration) */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-800">Priority 2: Landslide Thresholds (deg &amp; duration)</h4>
+                  <span className="font-mono text-xs font-bold text-amber-600">Continuous Angle Drift</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">ON Angle (°)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={configForm.landslide_on}
+                      onChange={e => setConfigForm({ ...configForm, landslide_on: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 15.0°</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">OFF Angle (°)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={configForm.landslide_off}
+                      onChange={e => setConfigForm({ ...configForm, landslide_off: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 5.0°</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Duration (Sec)</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={configForm.landslide_seconds}
+                      onChange={e => setConfigForm({ ...configForm, landslide_seconds: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 5s</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Priority 3: Human Touch Vibration Thresholds (m/s²) */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-800">Priority 3: Human Touch Vibration Thresholds (m/s²)</h4>
+                  <span className="font-mono text-xs font-bold text-blue-600">Transient Touch</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">ON Peak Threshold</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={configForm.human_touch_on}
+                      onChange={e => setConfigForm({ ...configForm, human_touch_on: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 5.0 m/s²</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">OFF Peak Threshold</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={configForm.human_touch_off}
+                      onChange={e => setConfigForm({ ...configForm, human_touch_off: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 1.5 m/s²</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 5: Priority 4: Air / Wind Disturbance Thresholds */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-800">Priority 4: Air / Wind Disturbance Thresholds</h4>
+                  <span className="font-mono text-xs font-bold text-teal-600">Low-Frequency Wind Gusts</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">ON (m/s²)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={configForm.air_wind_on}
+                      onChange={e => setConfigForm({ ...configForm, air_wind_on: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 0.8</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">OFF (m/s²)</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={configForm.air_wind_off}
+                      onChange={e => setConfigForm({ ...configForm, air_wind_off: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 0.25</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Duration (Sec)</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={configForm.air_wind_seconds}
+                      onChange={e => setConfigForm({ ...configForm, air_wind_seconds: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 12s</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Settle (Sec)</label>
+                    <input
+                      type="number"
+                      step="1"
+                      min="1"
+                      value={configForm.normal_seconds}
+                      onChange={e => setConfigForm({ ...configForm, normal_seconds: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="block text-[11px] text-slate-400 mt-1">Default: 10s</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 6: Zero Reference Calibration (Tare Offset) */}
+              <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4 shadow-xs flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                    <ShieldCheck className="w-5 h-5 text-indigo-600 shrink-0" />
+                    <span>Zero Reference Calibration (Tare Offset)</span>
+                  </div>
+                  <p className="text-xs text-indigo-900/80">
+                    When enabled, marks current mounting angle as zero reference (Δθ = 0.000° datum)
+                  </p>
                 </div>
                 <input
-                  type="number"
-                  required
-                  min="1"
-                  max="3600"
-                  placeholder="e.g. 30"
-                  value={configForm.wake_count}
-                  onChange={e => setConfigForm({ ...configForm, wake_count: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  type="checkbox"
+                  checked={Boolean(configForm.calibrate)}
+                  onChange={e => setConfigForm({ ...configForm, calibrate: e.target.checked })}
+                  className="w-5 h-5 text-indigo-600 border-slate-300 rounded cursor-pointer shrink-0"
                 />
               </div>
 
-              {/* Vertical Separation / Gauge Length L (mm) for ClinoX D = L * tan(Δθ) */}
-              <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="block font-semibold text-slate-700">
-                    Vertical Distance / Gauge Length L (mm)
-                  </label>
-                  <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                    Current: {device?.gaugeLength_mm !== undefined ? device.gaugeLength_mm : 1000} mm
-                  </span>
+              {/* Card 7: Serial Debug Stream (*DBG) */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <h4 className="text-sm font-bold text-slate-900">Serial Debug Stream (*DBG)</h4>
+                  <p className="text-xs text-slate-500">Enable 1-second compact UART sensor line</p>
                 </div>
                 <input
-                  type="number"
-                  required
-                  min="10"
-                  max="100000"
-                  placeholder="e.g. 1000"
-                  value={configForm.gaugeLength_mm}
-                  onChange={e => setConfigForm({ ...configForm, gaugeLength_mm: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  type="checkbox"
+                  checked={Boolean(configForm.debug)}
+                  onChange={e => setConfigForm({ ...configForm, debug: e.target.checked })}
+                  className="w-5 h-5 text-blue-600 border-slate-300 rounded cursor-pointer shrink-0"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Vertical separation from pivot level to measurement point. Used in D = L × tan(Δθ × π / 180).
-                </p>
               </div>
 
-              {/* Enable / Disable Zero Calibration Offset */}
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+              {/* Card 8: Operational State */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs flex items-center justify-between gap-4">
                 <div>
-                  <div className="font-semibold text-slate-900">Calibrate Zero Offset</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    {configForm.calibrate
-                      ? 'Enabled: Zero offset calibration is applied to telemetry.'
-                      : 'Disabled: Standard raw telemetry is reported.'}
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(configForm.calibrate)}
-                    onChange={e => setConfigForm({ ...configForm, calibrate: e.target.checked })}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  <span className="ml-2 text-xs font-bold text-slate-700">
-                    {configForm.calibrate ? 'Enabled' : 'Disabled'}
-                  </span>
-                </label>
-              </div>
-
-              {/* Enable / Disable Device Operational State */}
-              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-slate-900">Device Operational State</div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    Enable or disable sensor device telemetry tracking.
-                  </div>
+                  <h4 className="text-sm font-bold text-slate-900">Device Operational State</h4>
+                  <p className="text-xs text-slate-500">Enable or disable sensor device telemetry tracking</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -1191,25 +1448,36 @@ export default function DeviceDetailPage() {
                   />
                   <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                   <span className="ml-2 text-xs font-bold text-slate-700">
-                    {configForm.status !== 'DISABLED' && configForm.status !== 'OFFLINE' ? 'Enabled' : 'Disabled'}
+                    {configForm.status !== 'DISABLED' && configForm.status !== 'OFFLINE' ? 'ONLINE' : 'DISABLED'}
                   </span>
                 </label>
               </div>
 
-              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+              {/* Action Bar */}
+              <div className="pt-3 flex items-center justify-between gap-2 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setConfigModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium cursor-pointer"
+                  onClick={handleResetDefaults}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium cursor-pointer hover:bg-slate-100 transition-colors"
                 >
-                  Cancel
+                  Reset Defaults
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs transition-colors cursor-pointer"
-                >
-                  Deploy Config
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfigModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium cursor-pointer hover:bg-slate-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Sliders className="w-4 h-4" />
+                    <span>Deploy Configuration</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

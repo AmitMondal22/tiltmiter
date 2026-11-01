@@ -450,8 +450,13 @@ export function parseTelemetry(data) {
     rockfallDeltaPeak: data.rockfallDeltaPeak ?? data.accelerationDelta?.peak ?? null,
     touchVibrationPeak: data.touchVibrationPeak ?? data.vibration?.vibrationPeak ?? vibPeak,
     motionClassification: data.motionClassification ?? data.motionEvent?.classification ?? 'STABLE',
+    eventType: data.eventType ?? data.motionEvent?.eventType ?? (data.motionClassification ?? data.motionEvent?.classification ?? 'STABLE'),
     alarmActive: Boolean(data.alarmActive ?? data.rockfallAlarm?.active ?? false),
-    eventPending: Boolean(data.eventPending ?? data.motionEvent?.pending ?? false),
+    rockfallActive: Boolean(data.rockfallActive ?? data.rockfallAlarm?.active ?? data.alarmActive ?? false),
+    rockfallNewEvent: Boolean(data.rockfallNewEvent ?? data.rockfallAlarm?.newEvent ?? data.newEvent ?? false),
+    rockfallSequence: typeof data.rockfallAlarm?.sequence === 'number' ? data.rockfallAlarm.sequence : (typeof data.rockfallSequence === 'number' ? data.rockfallSequence : (typeof data.sequence === 'number' ? data.sequence : null)),
+    eventPending: Boolean(data.eventPending ?? data.motionEvent?.pending ?? data.pending ?? false),
+    pending: Boolean(data.pending ?? data.eventPending ?? data.motionEvent?.pending ?? false),
 
     // Environment & Power & Network & Calibration
     temp,

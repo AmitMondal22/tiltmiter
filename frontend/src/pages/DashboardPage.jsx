@@ -181,8 +181,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     const csqVal = parseNum(net.csq ?? pt.csq);
 
     const classification = motion.classification || pt.motionClassification || 'STABLE';
-    const alarmActive = Boolean(rockfall.active ?? pt.alarmActive ?? false);
-    const eventPending = Boolean(motion.pending ?? pt.eventPending ?? false);
+    const eventType = motion.eventType || pt.eventType || pt.motionEventType || classification;
+    const alarmActive = Boolean(rockfall.active ?? pt.alarmActive ?? pt.rockfallActive ?? false);
+    const rockfallNewEvent = Boolean(rockfall.newEvent ?? pt.rockfallNewEvent ?? pt.newEvent ?? false);
+    const rockfallSequence = typeof rockfall.sequence === 'number' ? rockfall.sequence : (typeof pt.rockfallSequence === 'number' ? pt.rockfallSequence : (typeof pt.sequence === 'number' ? pt.sequence : null));
+    const eventPending = Boolean(motion.pending ?? pt.eventPending ?? pt.pending ?? false);
 
     return {
       time: formatHHMM(ts),
@@ -226,8 +229,16 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       vibrationPeak: vibPeak,
       vibrationRMS: vibRMS,
       motionClassification: classification,
+      eventType,
+      motionEventType: eventType,
       alarmActive,
+      rockfallActive: alarmActive,
+      rockfallNewEvent,
+      newEvent: rockfallNewEvent,
+      rockfallSequence,
+      sequence: rockfallSequence,
       eventPending,
+      pending: eventPending,
 
       acceleration: raw.acceleration || pt.acceleration || null,
       accelerationCurrent: raw.accelerationCurrent || pt.accelerationCurrent || null,
@@ -469,9 +480,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp,Device_ID,Classification,Alarm_Active,Event_Pending,Rockfall_Delta_Peak_ms2,Tilt_X_deg,Tilt_Y_deg,Tilt_Z_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,Vib_Peak_ms2,Vib_RMS_ms2,Temp_C,Uptime_ms';
+    const headers = 'Timestamp,Device_ID,Classification,Event_Type,Rockfall_Alarm_Active,Rockfall_New_Event,Rockfall_Sequence,Event_Pending,Rockfall_Delta_Peak_ms2,Tilt_X_deg,Tilt_Y_deg,Tilt_Z_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,Vib_Peak_ms2,Vib_RMS_ms2,Temp_C,Uptime_ms';
     const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp)}",${selectedId},"${r.motionClassification || 'STABLE'}",${Boolean(r.alarmActive)},${Boolean(r.eventPending)},${r.rockfallDeltaPeak ?? ''},${r.deltaX ?? ''},${r.deltaY ?? ''},${r.deltaZ ?? ''},${r.xDisp ?? ''},${r.yDisp ?? ''},${r.zDisp ?? ''},${r.totalDisp ?? ''},${r.vibrationPeak ?? ''},${r.vibrationRMS ?? ''},${r.temp ?? ''},${r.sampleUptimeMs ?? ''}`
+      `"${formatFullDateTime(r.timestamp)}",${selectedId},"${r.motionClassification || 'STABLE'}","${r.eventType || r.motionClassification || 'STABLE'}",${Boolean(r.alarmActive || r.rockfallActive)},${Boolean(r.rockfallNewEvent || r.newEvent)},${r.rockfallSequence ?? r.sequence ?? ''},${Boolean(r.eventPending || r.pending)},${r.rockfallDeltaPeak ?? ''},${r.deltaX ?? ''},${r.deltaY ?? ''},${r.deltaZ ?? ''},${r.xDisp ?? ''},${r.yDisp ?? ''},${r.zDisp ?? ''},${r.totalDisp ?? ''},${r.vibrationPeak ?? ''},${r.vibrationRMS ?? ''},${r.temp ?? ''},${r.sampleUptimeMs ?? ''}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -542,11 +553,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
   // Status flags
   const motionClass = d.motionClassification || rawP.motionEvent?.classification || (hasData ? 'STABLE' : '--');
-  const eventType = rawP.motionEvent?.eventType || d.motionEvent?.eventType || motionClass;
-  const isPending = Boolean(rawP.motionEvent?.pending ?? d.eventPending);
-  const isAlarmActive = Boolean(rawP.rockfallAlarm?.active ?? d.alarmActive);
-  const isNewEvent = Boolean(rawP.rockfallAlarm?.newEvent);
-  const eventSequence = rawP.rockfallAlarm?.sequence ?? d.rockfallAlarm?.sequence ?? (hasData ? 0 : '--');
+  const eventType = rawP.motionEvent?.eventType || d.eventType || d.motionEvent?.eventType || motionClass;
+  const isPending = Boolean(rawP.motionEvent?.pending ?? d.eventPending ?? d.pending);
+  const isAlarmActive = Boolean(rawP.rockfallAlarm?.active ?? d.alarmActive ?? d.rockfallActive);
+  const isNewEvent = Boolean(rawP.rockfallAlarm?.newEvent ?? d.rockfallNewEvent ?? d.newEvent);
+  const eventSequence = rawP.rockfallAlarm?.sequence ?? d.rockfallSequence ?? d.sequence ?? (hasData ? 0 : '--');
 
   // Key Trigger Measurements
   const rockfallPeak = parseNum(d.rockfallDeltaPeak ?? rawP.accelerationDelta?.peak);
@@ -800,7 +811,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
             <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-slate-500 mr-1.5">rockfallAlarm.active:</span>
               <strong className={!hasData ? 'text-slate-600' : isAlarmActive ? 'text-red-700 font-extrabold' : 'text-emerald-700'}>
@@ -808,9 +819,27 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               </strong>
             </div>
             <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 mr-1.5">rockfallAlarm.newEvent:</span>
+              <strong className={!hasData ? 'text-slate-600' : isNewEvent ? 'text-amber-700 font-bold' : 'text-slate-700'}>
+                {hasData ? String(isNewEvent) : '--'}
+              </strong>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 mr-1.5">sequence:</span>
+              <strong className="text-slate-800 font-bold">
+                {hasData ? `#${eventSequence}` : '--'}
+              </strong>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
+              <span className="text-slate-500 mr-1.5">motionEvent:</span>
+              <strong className="text-indigo-700 font-bold">
+                {hasData ? `${motionClass} (${eventType})` : '--'}
+              </strong>
+            </div>
+            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
               <span className="text-slate-500 mr-1.5">Queue Status:</span>
               <strong className={!hasData ? 'text-slate-600' : isPending ? 'text-amber-700' : 'text-emerald-700'}>
-                {hasData ? (isPending ? 'Pending Upload' : 'Sent / Synced') : '--'}
+                {hasData ? (isPending ? 'pending=true' : 'Synced') : '--'}
               </strong>
             </div>
           </div>
@@ -1464,7 +1493,19 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         </div>
 
         {/* Breakdown of Direct Raw Payload Groups */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-[11px] font-mono">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 text-[11px] font-mono">
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Rockfall Alarm</span>
+            <span className="font-bold text-slate-900 block mt-0.5 truncate text-[10px]">
+              Act: {String(isAlarmActive)} • New: {String(isNewEvent)} • Seq: {eventSequence}
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Motion Event</span>
+            <span className="font-bold text-indigo-700 block mt-0.5 truncate text-[10px]">
+              {motionClass} • {eventType} • {isPending ? 'Pending' : 'Synced'}
+            </span>
+          </div>
           <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
             <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Angles</span>
             <span className="font-bold text-slate-900 block mt-0.5 truncate">
@@ -1546,6 +1587,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
                 <th className="py-2.5 px-3">Timestamp</th>
                 <th className="py-2.5 px-3 text-indigo-700">Classification</th>
+                <th className="py-2.5 px-3 text-indigo-600">Event Type</th>
+                <th className="py-2.5 px-3 text-center text-red-700">Rockfall Alarm</th>
                 <th className="py-2.5 px-3 text-red-700">Rockfall Peak (m/s²)</th>
                 <th className="py-2.5 px-3 text-blue-700">Tilt X (°)</th>
                 <th className="py-2.5 px-3 text-purple-700">Tilt Y (°)</th>
@@ -1556,14 +1599,14 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <th className="py-2.5 px-3 text-purple-800">Total Disp (mm)</th>
                 <th className="py-2.5 px-3 text-amber-800">Vib Peak (m/s²)</th>
                 <th className="py-2.5 px-3 text-orange-700">Temp (°C)</th>
-                <th className="py-2.5 px-3 text-center">Alarm Active</th>
+                <th className="py-2.5 px-3 text-center">Pending</th>
                 <th className="py-2.5 px-3 text-center text-indigo-700">Direct Raw</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={14} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={16} className="py-8 text-center text-slate-400 text-xs font-mono">
                     {loading ? 'Fetching telemetry logs from database...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -1585,6 +1628,28 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                       }`}>
                         {r.motionClassification}
                       </span>
+                    </td>
+                    <td className="py-2 px-3 text-slate-800 font-semibold font-mono text-[11px]">
+                      {r.eventType || r.motionEventType || r.motionClassification || 'STABLE'}
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          (r.rockfallActive ?? r.alarmActive) ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {(r.rockfallActive ?? r.alarmActive) ? 'ACTIVE' : 'OFF'}
+                        </span>
+                        {(r.rockfallNewEvent ?? r.newEvent) && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold animate-pulse">
+                            NEW
+                          </span>
+                        )}
+                        {(r.rockfallSequence !== null && r.rockfallSequence !== undefined) && (
+                          <span className="text-[10px] text-slate-500 font-mono">
+                            #{r.rockfallSequence}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-2 px-3 text-red-700 font-bold">
                       {r.rockfallDeltaPeak !== null && r.rockfallDeltaPeak !== undefined ? Number(r.rockfallDeltaPeak).toFixed(4) : '--'}
@@ -1618,9 +1683,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                     </td>
                     <td className="py-2 px-3 text-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        r.alarmActive ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600'
+                        (r.eventPending ?? r.pending) ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'
                       }`}>
-                        {String(Boolean(r.alarmActive))}
+                        {(r.eventPending ?? r.pending) ? 'PENDING' : 'SYNCED'}
                       </span>
                     </td>
                     <td className="py-2 px-3 text-center">

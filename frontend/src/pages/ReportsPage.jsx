@@ -108,14 +108,30 @@ export default function ReportsPage({ currentDevice }) {
     };
 
     const mapReportRow = (r) => {
-      const xTilt = parseNum(r.xTilt ?? r.tiltX);
-      const yTilt = parseNum(r.yTilt ?? r.tiltY);
-      const zTilt = parseNum(r.zTilt ?? r.tiltZ);
+      let raw = r.rawPayload || r.raw_payload || {};
+      if (typeof raw === 'string') {
+        try { raw = JSON.parse(raw); } catch { raw = {}; }
+      }
+      const rockfall = raw.rockfallAlarm || r.rockfallAlarm || {};
+      const motion = raw.motionEvent || r.motionEvent || {};
+      const angleDelta = raw.angleDelta || {};
+      const disp = raw.displacement || {};
+
+      const xTilt = parseNum(r.xTilt ?? r.tiltX ?? angleDelta.x);
+      const yTilt = parseNum(r.yTilt ?? r.tiltY ?? angleDelta.y);
+      const zTilt = parseNum(r.zTilt ?? r.tiltZ ?? angleDelta.z);
       const resultantTilt = parseNum(r.resultantTilt ?? r.resultant) ?? (xTilt !== null && yTilt !== null ? Math.sqrt(xTilt * xTilt + yTilt * yTilt) : null);
-      const xDisp = parseNum(r.xDisp ?? r.xDisplacement);
-      const yDisp = parseNum(r.yDisp ?? r.yDisplacement);
-      const zDisp = parseNum(r.zDisp ?? r.zDisplacement);
-      const totalDisp = parseNum(r.totalDisp ?? r.totalDisplacement) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
+      const xDisp = parseNum(r.xDisp ?? r.xDisplacement ?? disp.xDisplacement_mm);
+      const yDisp = parseNum(r.yDisp ?? r.yDisplacement ?? disp.yDisplacement_mm);
+      const zDisp = parseNum(r.zDisp ?? r.zDisplacement ?? disp.zDisplacement_mm);
+      const totalDisp = parseNum(r.totalDisp ?? r.totalDisplacement ?? disp.totalDisplacement_mm) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
+
+      const rockfallActive = Boolean(rockfall.active ?? r.alarmActive ?? r.rockfallActive ?? false);
+      const rockfallNewEvent = Boolean(rockfall.newEvent ?? r.rockfallNewEvent ?? r.newEvent ?? false);
+      const rockfallSequence = typeof rockfall.sequence === 'number' ? rockfall.sequence : (typeof r.rockfallSequence === 'number' ? r.rockfallSequence : (typeof r.sequence === 'number' ? r.sequence : null));
+      const motionClassification = motion.classification || r.motionClassification || 'STABLE';
+      const motionEventType = motion.eventType || r.motionEventType || r.eventType || motionClassification;
+      const eventPending = Boolean(motion.pending ?? r.eventPending ?? r.pending ?? false);
 
       return {
         ...r,
@@ -135,13 +151,28 @@ export default function ReportsPage({ currentDevice }) {
         yDisplacement: yDisp,
         zDisp,
         zDisplacement: zDisp,
-        accMag: parseNum(r.accMag),
-        vibrationRMS: parseNum(r.vibrationRMS ?? r.vibRMS),
-        vibRMS: parseNum(r.vibRMS ?? r.vibrationRMS),
-        vibrationPeak: parseNum(r.vibrationPeak ?? r.vibPeak),
-        vibPeak: parseNum(r.vibPeak ?? r.vibrationPeak),
-        temperature: parseNum(r.temperature ?? r.temp),
-        temp: parseNum(r.temp ?? r.temperature),
+        accMag: parseNum(r.accMag ?? raw.accelerationDelta?.peak),
+        rockfallDeltaPeak: parseNum(r.rockfallDeltaPeak ?? raw.accelerationDelta?.peak),
+        vibrationRMS: parseNum(r.vibrationRMS ?? r.vibRMS ?? raw.vibration?.vibrationRMS),
+        vibRMS: parseNum(r.vibRMS ?? r.vibrationRMS ?? raw.vibration?.vibrationRMS),
+        vibrationPeak: parseNum(r.vibrationPeak ?? r.vibPeak ?? raw.vibration?.vibrationPeak),
+        vibPeak: parseNum(r.vibPeak ?? r.vibrationPeak ?? raw.vibration?.vibrationPeak),
+        temperature: parseNum(r.temperature ?? r.temp ?? raw.environment?.temperature),
+        temp: parseNum(r.temp ?? r.temperature ?? raw.environment?.temperature),
+        rockfallAlarm: rockfall,
+        motionEvent: motion,
+        rockfallActive,
+        alarmActive: rockfallActive,
+        rockfallNewEvent,
+        newEvent: rockfallNewEvent,
+        rockfallSequence,
+        sequence: rockfallSequence,
+        motionClassification,
+        motionEventType,
+        eventType: motionEventType,
+        eventPending,
+        pending: eventPending,
+        rawPayload: raw,
       };
     };
 
@@ -239,6 +270,9 @@ export default function ReportsPage({ currentDevice }) {
     let maxYDisp = 0;
     let maxVib = 0;
     let tempSum = 0;
+    let rockfallAlarmCount = 0;
+    let newEventCount = 0;
+    let pendingCount = 0;
 
     reportRows.forEach(r => {
       const t = parseFloat(r.resultant || r.resultantTilt || 0);
@@ -260,7 +294,13 @@ export default function ReportsPage({ currentDevice }) {
       if (yd > maxYDisp) maxYDisp = yd;
       if (v > maxVib) maxVib = v;
       tempSum += temp;
+
+      if (r.rockfallActive) rockfallAlarmCount++;
+      if (r.rockfallNewEvent) newEventCount++;
+      if (r.eventPending) pendingCount++;
     });
+
+    const latestRow = reportRows[0] || {};
 
     if (summaryStats && summaryStats.totalDataPoints > 0) {
       maxTilt = summaryStats.maxResultantTilt !== undefined ? summaryStats.maxResultantTilt : maxTilt;
@@ -284,6 +324,11 @@ export default function ReportsPage({ currentDevice }) {
       maxYDisp,
       maxVib,
       avgTemp: reportRows.length > 0 ? (tempSum / reportRows.length).toFixed(1) : (summaryStats?.averageTemperature_C || 0),
+      rockfallAlarmCount,
+      newEventCount,
+      pendingCount,
+      latestMotionClassification: latestRow.motionClassification || 'STABLE',
+      latestEventType: latestRow.motionEventType || latestRow.motionClassification || 'STABLE',
     };
   }, [reportRows, summaryStats]);
 
@@ -303,6 +348,12 @@ export default function ReportsPage({ currentDevice }) {
       'Timestamp_IST',
       'Timestamp_UTC',
       'Device_ID',
+      'Motion_Classification',
+      'Event_Type',
+      'Rockfall_Alarm_Active',
+      'Rockfall_New_Event',
+      'Rockfall_Sequence',
+      'Event_Pending',
       'XTilt_deg',
       'YTilt_deg',
       'ZTilt_deg',
@@ -326,6 +377,12 @@ export default function ReportsPage({ currentDevice }) {
         `"${formatFullDateTime(r.timestamp || r.time)}"`,
         r.timestamp || '',
         r.deviceId || selectedDevice,
+        `"${r.motionClassification || 'STABLE'}"`,
+        `"${r.motionEventType || r.motionClassification || 'STABLE'}"`,
+        Boolean(r.rockfallActive),
+        Boolean(r.rockfallNewEvent),
+        r.rockfallSequence !== null && r.rockfallSequence !== undefined ? r.rockfallSequence : '',
+        Boolean(r.eventPending),
         r.xTilt !== null && r.xTilt !== undefined ? Number(r.xTilt).toFixed(4) : '',
         r.yTilt !== null && r.yTilt !== undefined ? Number(r.yTilt).toFixed(4) : '',
         r.zTilt !== null && r.zTilt !== undefined ? Number(r.zTilt).toFixed(4) : '',
@@ -587,6 +644,34 @@ export default function ReportsPage({ currentDevice }) {
                     <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{stats.avgTemp} °C</td>
                   </tr>
                   <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Rockfall Alarms Latched</td>
+                    <td className="py-2 px-3 text-right">
+                      <span className={`px-2 py-0.5 rounded font-mono font-bold text-[10px] ${
+                        stats.rockfallAlarmCount > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {stats.rockfallAlarmCount} Events
+                      </span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">New Rockfall Triggers</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">
+                      {stats.newEventCount}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Active Motion State</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-indigo-700">
+                      {stats.latestMotionClassification} ({stats.latestEventType})
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-semibold text-slate-600">Queue Pending Packets</td>
+                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-700">
+                      {stats.pendingCount}
+                    </td>
+                  </tr>
+                  <tr>
                     <td className="py-2 px-3 font-semibold text-slate-600">Structural Stability</td>
                     <td className="py-2 px-3 text-right">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
@@ -611,7 +696,7 @@ export default function ReportsPage({ currentDevice }) {
         {/* ================= RIGHT SIDE: KPI METRICS & FULL TELEMETRY DATA TABLE ================= */}
         <div className="lg:col-span-8 space-y-4">
           {/* Summary KPI Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
             <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
               <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Readings</div>
               <div className="text-base font-bold text-slate-900 font-mono mt-0.5">{stats.count}</div>
@@ -635,6 +720,22 @@ export default function ReportsPage({ currentDevice }) {
               <div className="text-base font-bold text-amber-700 font-mono mt-0.5">{Number(stats.maxVib).toFixed(1)} g</div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Dynamic Shock</div>
             </div>
+
+            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rockfall Alarms</div>
+              <div className={`text-base font-bold font-mono mt-0.5 ${stats.rockfallAlarmCount > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+                {stats.rockfallAlarmCount}
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5">Latched States</div>
+            </div>
+
+            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Motion State</div>
+              <div className="text-sm font-bold font-mono mt-0.5 text-indigo-700 truncate">
+                {stats.latestMotionClassification}
+              </div>
+              <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">{stats.latestEventType}</div>
+            </div>
           </div>
 
           {/* Telemetry Data Table Card */}
@@ -645,8 +746,9 @@ export default function ReportsPage({ currentDevice }) {
                 <span className="text-xs font-extrabold text-slate-900 mr-1">Parameter:</span>
                 {[
                   { id: 'ALL', label: 'All Columns' },
-                  { id: 'TILT', label: 'Tilt Angle (X, Y, Z, Resultant °)' },
-                  { id: 'DISPLACEMENT', label: 'Displacement (X, Y, Total mm)' },
+                  { id: 'HAZARDS', label: 'Hazards & Rockfall' },
+                  { id: 'TILT', label: 'Tilt Angle (°)' },
+                  { id: 'DISPLACEMENT', label: 'Displacement (mm)' },
                   { id: 'VIBRATION', label: 'Vibration (g)' },
                   { id: 'ENVIRONMENT', label: 'Thermal & Stability' },
                 ].map(tab => (
@@ -689,6 +791,18 @@ export default function ReportsPage({ currentDevice }) {
                     <th className="py-2.5 px-3 text-left whitespace-nowrap">Timestamp (IST)</th>
                     <th className="py-2.5 px-3 text-left whitespace-nowrap font-mono">Node ID</th>
 
+                    {/* Data Columns (Hazards & Rockfall Alarm) */}
+                    {(paramCategory === 'ALL' || paramCategory === 'HAZARDS') && (
+                      <>
+                        <th className="py-2.5 px-3 text-left whitespace-nowrap text-indigo-700">Classification</th>
+                        <th className="py-2.5 px-3 text-left whitespace-nowrap text-indigo-600">Event Type</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap text-red-700">Rockfall Alarm</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap text-amber-700">New Event</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap text-slate-700">Sequence</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap text-slate-700">Queue Status</th>
+                      </>
+                    )}
+
                     {/* Right-Aligned Data Columns (Tilt: X, Y, Z, Resultant (°)) */}
                     {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
                       <>
@@ -729,7 +843,7 @@ export default function ReportsPage({ currentDevice }) {
                 <tbody className="divide-y divide-slate-100 text-slate-700 font-medium font-mono text-[11px]">
                   {paginatedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={14} className="py-12 text-center text-slate-400 font-sans text-xs">
+                      <td colSpan={20} className="py-12 text-center text-slate-400 font-sans text-xs">
                         {loading ? 'Querying records from PostgreSQL time-series store...' : 'No telemetry data points found for this range. Try adjusting the query range.'}
                       </td>
                     </tr>
@@ -750,6 +864,52 @@ export default function ReportsPage({ currentDevice }) {
                           <td className="py-2 px-3 text-left whitespace-nowrap text-slate-800 font-bold">
                             {r.deviceId || selectedDevice}
                           </td>
+
+                          {/* Data Columns (Hazards & Rockfall Alarm) */}
+                          {(paramCategory === 'ALL' || paramCategory === 'HAZARDS') && (
+                            <>
+                              <td className="py-2 px-3 text-left whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  r.motionClassification === 'ROCKFALL'
+                                    ? 'bg-red-100 text-red-800'
+                                    : r.motionClassification === 'HUMAN_TOUCH'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : r.motionClassification === 'LANDSLIDE'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {r.motionClassification || 'STABLE'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-left whitespace-nowrap text-slate-800 font-semibold font-mono text-[11px]">
+                                {r.motionEventType || r.motionClassification || 'STABLE'}
+                              </td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  r.rockfallActive ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600'
+                                }`}>
+                                  {r.rockfallActive ? 'ACTIVE' : 'OFF'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  r.rockfallNewEvent ? 'bg-amber-100 text-amber-800 animate-pulse' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {r.rockfallNewEvent ? 'YES' : 'NO'}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap font-mono text-slate-700">
+                                {r.rockfallSequence !== null && r.rockfallSequence !== undefined ? `#${r.rockfallSequence}` : '--'}
+                              </td>
+                              <td className="py-2 px-3 text-center whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  r.eventPending ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'
+                                }`}>
+                                  {r.eventPending ? 'PENDING' : 'SYNCED'}
+                                </span>
+                              </td>
+                            </>
+                          )}
 
                           {/* Right-aligned Numerical Tilt Columns (X, Y, Z, Resultant) */}
                           {(paramCategory === 'ALL' || paramCategory === 'TILT') && (

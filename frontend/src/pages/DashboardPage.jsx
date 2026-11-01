@@ -65,6 +65,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [rawJsonModalOpen, setRawJsonModalOpen] = useState(false);
   const [copiedRaw, setCopiedRaw] = useState(false);
+  const [rawExpanded, setRawExpanded] = useState(false);
+  const [selectedHistoricalRaw, setSelectedHistoricalRaw] = useState(null);
 
   const [configForm, setConfigForm] = useState({
     sleep_count: 15,
@@ -503,8 +505,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     if (liveData && hasTelemetryData(liveData)) {
       return liveData;
     }
+    if (activeDevice && (activeDevice.rawPayload || activeDevice.latestTelemetry || activeDevice.xTilt !== undefined)) {
+      return mapPointData(activeDevice.latestTelemetry || activeDevice.rawPayload || activeDevice);
+    }
     return null;
-  }, [liveData, telemetryHistory]);
+  }, [liveData, telemetryHistory, activeDevice]);
 
   const hasData = Boolean(latestData);
   const d = latestData || {};
@@ -1368,7 +1373,138 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         </div>
       </div>
 
-      {/* 8. HISTORICAL TELEMETRY LOGS TABLE */}
+      {/* 8. DIRECT RAW TELEMETRY PAYLOAD (LIVE SENSOR JSON DATA STREAM) */}
+      <div id="direct-raw-data-section" className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600">
+              <Code className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                  Direct Raw Telemetry Payload (Live Sensor JSON Stream)
+                </h3>
+                <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-mono text-[11px] font-bold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>{selectedHistoricalRaw ? 'INSPECTING HISTORICAL PACKET' : 'LIVE RAW SENSOR STREAM'}</span>
+                </span>
+                {selectedHistoricalRaw && (
+                  <button
+                    onClick={() => setSelectedHistoricalRaw(null)}
+                    className="px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold cursor-pointer transition-colors"
+                  >
+                    Reset to Live Stream
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 font-medium">
+                Exact, unaltered JSON payload as received from hardware node <span className="font-mono text-slate-800 font-semibold">{selectedId}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const targetObj = selectedHistoricalRaw || latestData?.rawPayload || latestData;
+                navigator.clipboard.writeText(JSON.stringify(targetObj, null, 2)).then(() => {
+                  setCopiedRaw(true);
+                  setTimeout(() => setCopiedRaw(false), 2000);
+                });
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-mono text-xs cursor-pointer shadow-2xs transition-colors"
+            >
+              {copiedRaw ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-600" />}
+              <span>{copiedRaw ? 'Copied!' : 'Copy Raw JSON'}</span>
+            </button>
+            <button
+              onClick={() => {
+                const targetObj = selectedHistoricalRaw || latestData?.rawPayload || latestData;
+                const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(targetObj, null, 2));
+                const dlAnchorElem = document.createElement('a');
+                dlAnchorElem.setAttribute('href', dataStr);
+                dlAnchorElem.setAttribute('download', `raw_${selectedId}_${new Date().toISOString()}.json`);
+                dlAnchorElem.click();
+                dlAnchorElem.remove();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-mono text-xs cursor-pointer shadow-2xs transition-colors"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-600" />
+              <span>Download</span>
+            </button>
+            <button
+              onClick={() => setRawExpanded(prev => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 font-medium text-xs cursor-pointer transition-colors"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>{rawExpanded ? 'Collapse' : 'Expand All'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Live Direct Raw JSON Terminal */}
+        <div className={`rounded-xl bg-[#090d16] border border-slate-800 text-slate-200 font-mono text-xs overflow-auto transition-all ${
+          rawExpanded ? 'max-h-[600px]' : 'max-h-64'
+        }`}>
+          <div className="sticky top-0 bg-[#0f172a] px-3.5 py-1.5 border-b border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500/80 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
+              <span className="text-slate-300 ml-1 font-semibold">raw_telemetry_stream.json</span>
+            </div>
+            <span className="text-[10px] text-slate-400">
+              Packet Timestamp: {formatFullDateTime(d.timestamp || new Date())}
+            </span>
+          </div>
+          <pre className="p-4 leading-relaxed whitespace-pre-wrap selection:bg-blue-800 selection:text-white">
+            {JSON.stringify(selectedHistoricalRaw || latestData?.rawPayload || latestData || { message: 'Waiting for live sensor data stream...', deviceId: selectedId }, null, 2)}
+          </pre>
+        </div>
+
+        {/* Breakdown of Direct Raw Payload Groups */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-[11px] font-mono">
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Angles</span>
+            <span className="font-bold text-slate-900 block mt-0.5 truncate">
+              X: {formatSigned(d.deltaX, 3)}° Y: {formatSigned(d.deltaY, 3)}°
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Resultant</span>
+            <span className="font-bold text-indigo-700 block mt-0.5">
+              {d.resultantTilt !== null && d.resultantTilt !== undefined ? Number(d.resultantTilt).toFixed(3) : '--'}°
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Displacement</span>
+            <span className="font-bold text-amber-700 block mt-0.5 truncate">
+              Total: {d.totalDisp !== null && d.totalDisp !== undefined ? Number(d.totalDisp).toFixed(3) : '--'} mm
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Vibration Peak</span>
+            <span className="font-bold text-teal-700 block mt-0.5">
+              {d.touchVibrationPeak !== null && d.touchVibrationPeak !== undefined ? Number(d.touchVibrationPeak).toFixed(3) : '--'} m/s²
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Temperature</span>
+            <span className="font-bold text-orange-700 block mt-0.5">
+              {d.temp !== null && d.temp !== undefined ? `${Number(d.temp).toFixed(1)}°C` : '--'}
+            </span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+            <span className="text-[10px] text-slate-500 font-sans font-semibold uppercase block">Raw Battery / CSQ</span>
+            <span className="font-bold text-emerald-700 block mt-0.5 truncate">
+              {d.battery || '--'} • {d.signalStrength || '--'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 9. HISTORICAL TELEMETRY LOGS TABLE */}
       <div className={cardCls}>
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-2">
           <div className="flex items-center gap-2">
@@ -1421,12 +1557,13 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <th className="py-2.5 px-3 text-amber-800">Vib Peak (m/s²)</th>
                 <th className="py-2.5 px-3 text-orange-700">Temp (°C)</th>
                 <th className="py-2.5 px-3 text-center">Alarm Active</th>
+                <th className="py-2.5 px-3 text-center text-indigo-700">Direct Raw</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-mono">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={14} className="py-8 text-center text-slate-400 text-xs font-mono">
                     {loading ? 'Fetching telemetry logs from database...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -1485,6 +1622,20 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                       }`}>
                         {String(Boolean(r.alarmActive))}
                       </span>
+                    </td>
+                    <td className="py-2 px-3 text-center">
+                      <button
+                        onClick={() => {
+                          const targetPacket = r.rawPayload || r;
+                          setSelectedHistoricalRaw(targetPacket);
+                          const el = document.getElementById('direct-raw-data-section');
+                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                        className="px-2.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[10px] font-bold font-mono cursor-pointer transition-colors shadow-2xs"
+                        title="View direct raw JSON payload for this record"
+                      >
+                        Inspect Raw
+                      </button>
                     </td>
                   </tr>
                 ))

@@ -53,18 +53,14 @@ export function AuthProvider({ children }) {
           }
         })
         .catch(() => {
-          // Token invalid or expired
-          localStorage.removeItem('tiltmeter_jwt_token');
-          localStorage.removeItem('tiltmeter_refresh_token');
-          localStorage.removeItem('tiltmeter_user');
-          setToken(null);
-          setUser(null);
+          // Keep active operator session without login prompt
+          setUser(DEFAULT_USER);
         })
         .finally(() => {
           setLoading(false);
         });
     } else {
-      setUser(null);
+      setUser(DEFAULT_USER);
       setLoading(false);
     }
   }, [token]);

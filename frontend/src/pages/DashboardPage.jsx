@@ -694,29 +694,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 )}
               </select>
 
-              {/* Schema Version Tag */}
-              <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono font-bold text-[11px]">
-                Schema v{d.schemaVersion || 2}
-              </span>
-
-              {/* Status Indicator */}
-              <span className={`px-2.5 py-0.5 rounded-full font-semibold text-[11px] inline-flex items-center gap-1 border ${
-                !hasData
-                  ? 'bg-slate-50 text-slate-600 border-slate-200'
-                  : isAlarmActive
-                  ? 'bg-red-50 text-red-700 border-red-300'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${!hasData ? 'bg-slate-400' : isAlarmActive ? 'bg-red-600 animate-ping' : 'bg-emerald-500 animate-pulse'}`} />
-                <span>{!hasData ? (deviceList.length === 0 ? 'NO DEVICES' : 'WAITING FOR DATA') : isAlarmActive ? 'HAZARD ALARM ACTIVE' : 'SYSTEM NORMAL'}</span>
-              </span>
-
-              {/* Server Timestamp */}
-              <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Received: {d.timestamp ? formatFullDateTime(d.timestamp) : '--'}</span>
-              </span>
-
               {/* Device Uptime */}
               <span className="flex items-center gap-1 text-[11px] font-mono text-slate-600 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200" title="Internal Sensor Uptime">
                 <Activity className="w-3.5 h-3.5 text-blue-500" />
@@ -739,26 +716,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             <Signal className="w-4 h-4 text-blue-600" />
             <span>{typeof d.csq === 'number' ? `${d.csq} CSQ` : '-- CSQ'}</span>
           </div>
-
-          {/* Add Device Button */}
-          <button
-            onClick={() => setAddDeviceModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
-            title="Register a new inclinometer hardware node"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Add Device</span>
-          </button>
-
-          {/* Configure Device Button */}
-          <button
-            onClick={() => setConfigModalOpen(true)}
-            disabled={!selectedId}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>Configure Settings</span>
-          </button>
         </div>
       </div>
 

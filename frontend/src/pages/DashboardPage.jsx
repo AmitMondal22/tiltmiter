@@ -6,11 +6,11 @@ import {
   CheckCircle2, AlertTriangle, AlertCircle, Radio, Clock, MapPin,
   Compass, Zap, Thermometer, Search, ExternalLink, Sun, Target,
   Bed, Crosshair, Database, Settings, Move, Copy, Check, Eye, Code,
-  Flame, Wind, Hand, Mountain, HardHat, Gauge, HelpCircle
+  Flame, Wind, Hand, Mountain, HardHat, Gauge, HelpCircle, Plus, X
 } from 'lucide-react';
 import {
   getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry,
-  setDeviceReference, resetDeviceReference, getWsUrl
+  setDeviceReference, resetDeviceReference, getWsUrl, createDevice, getSites, getStructures
 } from '../api/apiClient';
 import {
   parseTelemetry, hasTelemetryData, formatSigned, formatPresent,
@@ -58,15 +58,26 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const [fromDateTime, setFromDateTime] = useState(formatISTDatetimeLocal(initFrom));
   const [toDateTime, setToDateTime] = useState(formatISTDatetimeLocal(now));
 
-  const [tableSearch, setTableSearch] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 20;
-
   const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [rawJsonModalOpen, setRawJsonModalOpen] = useState(false);
-  const [copiedRaw, setCopiedRaw] = useState(false);
-  const [rawExpanded, setRawExpanded] = useState(false);
-  const [selectedHistoricalRaw, setSelectedHistoricalRaw] = useState(null);
+  const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false);
+  const [addDeviceLoading, setAddDeviceLoading] = useState(false);
+  const [structuresList, setStructuresList] = useState([]);
+  const [sitesList, setSitesList] = useState([]);
+  const [addDeviceForm, setAddDeviceForm] = useState({
+    id: '',
+    name: '',
+    sensorType: 'Inclinometer',
+    siteId: '',
+    structureId: '',
+    latitude: '',
+    longitude: '',
+    macAddress: '',
+    status: 'ONLINE',
+    gaugeLength_mm: 1000,
+    sleep_count: 15,
+    wake_count: 30,
+    calibrate: false,
+  });
 
   const [configForm, setConfigForm] = useState({
     sleep_count: 15,
@@ -117,6 +128,23 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         });
     }
   }, [devices]);
+
+  // Load sites and structures for Add Device modal
+  useEffect(() => {
+    let mounted = true;
+    Promise.allSettled([getSites(), getStructures()]).then(([sitesRes, structRes]) => {
+      if (!mounted) return;
+      if (sitesRes.status === 'fulfilled') {
+        const sData = sitesRes.value?.sites || sitesRes.value || [];
+        setSitesList(Array.isArray(sData) ? sData : []);
+      }
+      if (structRes.status === 'fulfilled') {
+        const stData = structRes.value?.structures || structRes.value || [];
+        setStructuresList(Array.isArray(stData) ? stData : []);
+      }
+    });
+    return () => { mounted = false; };
+  }, []);
 
   // Sync currentDevice prop
   useEffect(() => {
@@ -475,32 +503,63 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     }
   };
 
-  const handleExportCSV = () => {
-    if (telemetryHistory.length === 0) {
-      alert('No telemetry records available to export for the selected date range.');
+  const handleCreateDevice = async (e) => {
+    e.preventDefault();
+    if (!addDeviceForm.id.trim() || !addDeviceForm.name.trim()) {
+      setMsg({ type: 'error', text: 'Device ID and Name are required.' });
       return;
     }
-    const headers = 'Timestamp,Device_ID,Classification,Event_Type,Rockfall_Alarm_Active,Rockfall_New_Event,Rockfall_Sequence,Event_Pending,Rockfall_Delta_Peak_ms2,Tilt_X_deg,Tilt_Y_deg,Tilt_Z_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,Vib_Peak_ms2,Vib_RMS_ms2,Temp_C,Uptime_ms';
-    const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp)}",${selectedId},"${r.motionClassification || 'STABLE'}","${r.eventType || r.motionClassification || 'STABLE'}",${Boolean(r.alarmActive || r.rockfallActive)},${Boolean(r.rockfallNewEvent || r.newEvent)},${r.rockfallSequence ?? r.sequence ?? ''},${Boolean(r.eventPending || r.pending)},${r.rockfallDeltaPeak ?? ''},${r.deltaX ?? ''},${r.deltaY ?? ''},${r.deltaZ ?? ''},${r.xDisp ?? ''},${r.yDisp ?? ''},${r.zDisp ?? ''},${r.totalDisp ?? ''},${r.vibrationPeak ?? ''},${r.vibrationRMS ?? ''},${r.temp ?? ''},${r.sampleUptimeMs ?? ''}`
-    );
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `telemetry_${selectedId}_${activeFilter}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    setAddDeviceLoading(true);
+    const sleepVal = addDeviceForm.sleep_count ? Math.max(15, Number(addDeviceForm.sleep_count)) : 15;
+    const wakeVal = addDeviceForm.wake_count ? Math.max(1, Number(addDeviceForm.wake_count)) : 30;
+    const gaugeVal = parseFloat(addDeviceForm.gaugeLength_mm) || 1000;
+
+    const payload = {
+      ...addDeviceForm,
+      id: addDeviceForm.id.trim().toUpperCase(),
+      name: addDeviceForm.name.trim(),
+      sleep_count: sleepVal,
+      wake_count: wakeVal,
+      gaugeLength_mm: gaugeVal,
+      status: addDeviceForm.status || 'ONLINE',
+      structureId: addDeviceForm.structureId ? String(addDeviceForm.structureId).trim() : null,
+      siteId: addDeviceForm.siteId ? String(addDeviceForm.siteId).trim() : null,
+      latitude: addDeviceForm.latitude !== '' && !isNaN(parseFloat(addDeviceForm.latitude)) ? parseFloat(addDeviceForm.latitude) : null,
+      longitude: addDeviceForm.longitude !== '' && !isNaN(parseFloat(addDeviceForm.longitude)) ? parseFloat(addDeviceForm.longitude) : null,
+    };
+
+    try {
+      const res = await createDevice(payload);
+      const newDev = res?.device || { ...payload, battery: '100%', signal: '14' };
+      setDeviceList(prev => [...prev.filter(d => d.id !== newDev.id), newDev]);
+      setSelectedId(newDev.id);
+      onSelectDevice?.(newDev);
+      setAddDeviceModalOpen(false);
+      setAddDeviceForm({
+        id: '',
+        name: '',
+        sensorType: 'Inclinometer',
+        siteId: '',
+        structureId: '',
+        latitude: '',
+        longitude: '',
+        macAddress: '',
+        status: 'ONLINE',
+        gaugeLength_mm: 1000,
+        sleep_count: 15,
+        wake_count: 30,
+        calibrate: false,
+      });
+      setMsg({ type: 'success', text: `Device ${newDev.id} registered successfully!` });
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Failed to create device.' });
+    } finally {
+      setAddDeviceLoading(false);
+      setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+    }
   };
 
-  const handleCopyRaw = () => {
-    const rawObj = latestData?.rawPayload || latestData;
-    navigator.clipboard.writeText(JSON.stringify(rawObj, null, 2)).then(() => {
-      setCopiedRaw(true);
-      setTimeout(() => setCopiedRaw(false), 2000);
-    });
-  };
 
   // Resolve latest device telemetry packet
   const latestData = useMemo(() => {
@@ -563,9 +622,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const rockfallPeak = parseNum(d.rockfallDeltaPeak ?? rawP.accelerationDelta?.peak);
   const touchVibPeak = parseNum(d.vibrationPeak ?? rawP.vibration?.vibrationPeak);
   const vibRMS = parseNum(d.vibrationRMS ?? rawP.vibration?.vibrationRMS);
-  const deltaX = parseNum(d.deltaX ?? rawP.angleDelta?.x);
-  const deltaY = parseNum(d.deltaY ?? rawP.angleDelta?.y);
-  const deltaZ = parseNum(d.deltaZ ?? rawP.angleDelta?.z);
+  const deltaX = parseNum(d.deltaX ?? rawP.angleDelta?.x ?? d.xTilt ?? rawP.tilt?.roll ?? rawP.tilt?.x);
+  const deltaY = parseNum(d.deltaY ?? rawP.angleDelta?.y ?? d.yTilt ?? rawP.tilt?.pitch ?? rawP.tilt?.y);
+  const deltaZ = parseNum(d.deltaZ ?? rawP.angleDelta?.z ?? d.zTilt ?? rawP.tilt?.yaw ?? rawP.tilt?.z);
   const maxAngleDelta = (deltaX !== null && deltaY !== null) ? Math.max(Math.abs(deltaX), Math.abs(deltaY)) : (deltaX !== null ? Math.abs(deltaX) : (deltaY !== null ? Math.abs(deltaY) : null));
 
   // Thresholds
@@ -575,10 +634,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const windThresh = appliedSettings.air_wind_on || 0.8;
 
   // Displacement
-  const xDisp = parseNum(d.xDisp ?? rawP.displacement?.xDisplacement_mm);
-  const yDisp = parseNum(d.yDisp ?? rawP.displacement?.yDisplacement_mm);
-  const zDisp = parseNum(d.zDisp ?? rawP.displacement?.zDisplacement_mm);
-  const totalDisp = parseNum(d.totalDisp ?? rawP.displacement?.totalDisplacement_mm) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
+  const xDisp = parseNum(d.xDisp ?? rawP.displacement?.xDisplacement_mm ?? d.xDisplacement);
+  const yDisp = parseNum(d.yDisp ?? rawP.displacement?.yDisplacement_mm ?? d.yDisplacement);
+  const zDisp = parseNum(d.zDisp ?? rawP.displacement?.zDisplacement_mm ?? d.zDisplacement);
+  const totalDisp = parseNum(d.totalDisp ?? rawP.displacement?.totalDisplacement_mm ?? d.totalDisplacement) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
+  const temp = parseNum(d.temp ?? d.temperature ?? rawP.environment?.temperature ?? rawP.temperature);
 
   // Accel, Gyro, Angle vectors
   const accCurrent = rawP.accelerationCurrent || d.accelerationCurrent || rawP.acceleration || {};
@@ -590,25 +650,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const angDelta = rawP.angleDelta || d.angleDelta || {};
   const vibObj = rawP.vibration || d.vibration || {};
 
-  // Table filtering & pagination
-  const filteredRows = useMemo(() => {
-    const list = [...telemetryHistory].reverse();
-    if (!tableSearch) return list;
-    const q = tableSearch.toLowerCase();
-    return list.filter(r =>
-      r.fullTime?.toLowerCase().includes(q) ||
-      r.motionClassification?.toLowerCase().includes(q) ||
-      (r.deltaX !== null && String(r.deltaX).includes(q)) ||
-      (r.deltaY !== null && String(r.deltaY).includes(q)) ||
-      (r.rockfallDeltaPeak !== null && String(r.rockfallDeltaPeak).includes(q))
-    );
-  }, [telemetryHistory, tableSearch]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / rowsPerPage));
-  const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * rowsPerPage;
-    return filteredRows.slice(start, start + rowsPerPage);
-  }, [filteredRows, currentPage]);
 
   return (
     <div className="space-y-4 font-sans text-slate-800">
@@ -682,9 +723,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <span>Uptime: {d.sampleUptimeMs !== null && d.sampleUptimeMs !== undefined ? formatUptime(d.sampleUptimeMs) : '--'}</span>
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-1">
-              LSM6DSO 6-DoF Rockfall &amp; Landslide Monitoring Telemetry • Continuous 400 Hz Sampling
-            </p>
           </div>
         </div>
 
@@ -702,20 +740,14 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
             <span>{typeof d.csq === 'number' ? `${d.csq} CSQ` : '-- CSQ'}</span>
           </div>
 
-          {/* Calibrated Status */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium font-mono" title="Calibration Loaded">
-            <ShieldCheck className="w-4 h-4 text-indigo-600" />
-            <span>{rawP.calibration?.calibrated ?? d.calibrated ? 'Calibrated ✓' : (hasData ? 'Uncalibrated' : '--')}</span>
-          </div>
-
-          {/* Raw JSON Inspector Button */}
+          {/* Add Device Button */}
           <button
-            onClick={() => setRawJsonModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium text-xs rounded-xl border border-slate-300 transition-colors cursor-pointer shadow-2xs font-mono"
-            title="Inspect unaltered raw telemetry JSON payload"
+            onClick={() => setAddDeviceModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+            title="Register a new inclinometer hardware node"
           >
-            <Code className="w-3.5 h-3.5 text-slate-700" />
-            <span>Raw JSON</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Device</span>
           </button>
 
           {/* Configure Device Button */}
@@ -744,8 +776,15 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           </div>
           <div className="flex items-center justify-center gap-2 pt-1">
             <button
+              onClick={() => setAddDeviceModalOpen(true)}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Register New Device</span>
+            </button>
+            <button
               onClick={() => navigate('/devices')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 cursor-pointer"
             >
               Go to Devices Page
             </button>
@@ -764,87 +803,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         </div>
       )}
 
-      {/* 1. ACTIVE HAZARD BANNER (Section 11: Only true for rockfall/landslide cases) */}
-      <div className={`p-4 rounded-2xl border transition-all ${
-        !hasData
-          ? 'bg-slate-50 border-slate-200 text-slate-800 shadow-2xs'
-          : isAlarmActive
-          ? 'bg-red-50/90 border-red-300 text-red-950 shadow-sm'
-          : 'bg-emerald-50/70 border-emerald-200 text-emerald-950 shadow-2xs'
-      }`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-xl ${
-              !hasData
-                ? 'bg-slate-200 text-slate-700'
-                : isAlarmActive
-                ? 'bg-red-600 text-white animate-bounce'
-                : 'bg-emerald-100 text-emerald-700'
-            }`}>
-              {!hasData ? <Radio className="w-5 h-5" /> : isAlarmActive ? <AlertTriangle className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-bold tracking-tight">
-                  {!hasData
-                    ? (deviceList.length === 0 ? 'NO INCLINOMETER DEVICES CONFIGURED' : `MONITORING INITIALIZED • WAITING FOR TELEMETRY STREAM (${selectedId})`)
-                    : isAlarmActive
-                    ? 'ACTIVE ROCKFALL / LANDSLIDE HAZARD ALERT'
-                    : 'HAZARD STATUS: NO ACTIVE HAZARD ALARM'}
-                </h2>
-                <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-white/80 border border-slate-200 font-bold">
-                  {hasData ? `Sequence #${eventSequence}` : 'Sequence: --'}
-                </span>
-                {isNewEvent && (
-                  <span className="px-2 py-0.5 rounded-md bg-red-600 text-white font-mono text-[10px] font-bold animate-pulse">
-                    NEW EVENT
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-600 mt-0.5">
-                {!hasData
-                  ? (deviceList.length === 0 ? 'Register a device or stream telemetry to begin real-time monitoring.' : `Listening for live sensor packets for device ${selectedId}. Once received, hazard rules will evaluate in real time.`)
-                  : isAlarmActive
-                  ? 'A rockfall impact or landslide tilt deviation has exceeded emergency safety limits and latched an active alarm state.'
-                  : 'Sensor monitoring window is within safe operational thresholds. Alarm flag is reserved for rockfall/landslide hazards.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
-              <span className="text-slate-500 mr-1.5">rockfallAlarm.active:</span>
-              <strong className={!hasData ? 'text-slate-600' : isAlarmActive ? 'text-red-700 font-extrabold' : 'text-emerald-700'}>
-                {hasData ? String(isAlarmActive) : '--'}
-              </strong>
-            </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
-              <span className="text-slate-500 mr-1.5">rockfallAlarm.newEvent:</span>
-              <strong className={!hasData ? 'text-slate-600' : isNewEvent ? 'text-amber-700 font-bold' : 'text-slate-700'}>
-                {hasData ? String(isNewEvent) : '--'}
-              </strong>
-            </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
-              <span className="text-slate-500 mr-1.5">sequence:</span>
-              <strong className="text-slate-800 font-bold">
-                {hasData ? `#${eventSequence}` : '--'}
-              </strong>
-            </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
-              <span className="text-slate-500 mr-1.5">motionEvent:</span>
-              <strong className="text-indigo-700 font-bold">
-                {hasData ? `${motionClass} (${eventType})` : '--'}
-              </strong>
-            </div>
-            <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
-              <span className="text-slate-500 mr-1.5">Queue Status:</span>
-              <strong className={!hasData ? 'text-slate-600' : isPending ? 'text-amber-700' : 'text-emerald-700'}>
-                {hasData ? (isPending ? 'pending=true' : 'Synced') : '--'}
-              </strong>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Date-Time Range Quick Filters (1h, 6h, 24h, 7d, 30d, all, custom) */}
       <div className={cardCls}>
@@ -904,74 +862,151 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         </div>
       </div>
 
-      {/* 5. GYROSCOPE & DYNAMIC VIBRATION DEEP-DIVE */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* Gyroscope Rates (rad/s) */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-            <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-amber-600" />
-              <h3 className="font-bold text-slate-900 text-sm">
-                Gyroscope Angular Velocity (rad/s)
-              </h3>
+      {/* 5. LIVE INCLINOMETER & DISPLACEMENT */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+        {/* Top Header */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="text-blue-600 flex-shrink-0">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 20h18" />
+                <path d="M4 20L17 5" />
+                <path d="M15 8.5v5" />
+                <circle cx="15" cy="15.5" r="1.8" fill="currentColor" />
+              </svg>
             </div>
-            <span className="text-xs font-mono text-slate-500">
-              Mag: <strong className="text-slate-800">{gyro.gyroMag !== undefined ? Number(gyro.gyroMag).toFixed(6) : '--'}</strong>
-            </span>
+            <div className="h-5 w-px bg-slate-200" />
+            <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+              LIVE INCLINOMETER &amp; DISPLACEMENT
+            </h3>
           </div>
-
-          <div className="grid grid-cols-3 gap-3 font-mono text-center">
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] text-slate-500 uppercase">Gx (X-Rate)</span>
-              <div className="text-sm sm:text-base font-bold text-slate-800 mt-1">
-                {gyro.gx !== undefined ? Number(gyro.gx).toFixed(6) : '--'}
-              </div>
+          {hasData ? (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
+              <span>LIVE STREAM</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] text-slate-500 uppercase">Gy (Y-Rate)</span>
-              <div className="text-sm sm:text-base font-bold text-slate-800 mt-1">
-                {gyro.gy !== undefined ? Number(gyro.gy).toFixed(6) : '--'}
-              </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
+              <Radio className="w-3.5 h-3.5" />
+              <span>NO DATA</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] text-slate-500 uppercase">Gz (Z-Rate)</span>
-              <div className="text-sm sm:text-base font-bold text-slate-800 mt-1">
-                {gyro.gz !== undefined ? Number(gyro.gz).toFixed(6) : '--'}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Dynamic Vibration Components */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-teal-600" />
-              <h3 className="font-bold text-slate-900 text-sm">
-                Vibration Dynamics &amp; RMS Components (m/s²)
-              </h3>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* TILT ANGLE (X, Y, Z) - 7 cols on large screens */}
+          <div className="lg:col-span-7 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
+                <Layers className="w-4 h-4 text-slate-800" />
+                <span>TILT ANGLE</span>
+              </div>
+              <span className="text-[11px] font-mono font-medium text-slate-500">
+                Max Deviation: <strong className="text-slate-800">{maxAngleDelta !== null ? `${maxAngleDelta.toFixed(3)}°` : '--'}</strong>
+              </span>
             </div>
-            <span className="text-xs font-mono text-slate-500">
-              Combined RMS: <strong className="text-teal-700">{vibObj.vibrationRMS !== undefined ? Number(vibObj.vibrationRMS).toFixed(5) : '--'}</strong>
-            </span>
+
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {/* Tilt X */}
+              <div className="relative overflow-hidden p-4 rounded-2xl bg-blue-50/50 border border-blue-100 flex flex-col items-center justify-center min-h-[110px]">
+                <span className="px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
+                  Tilt X
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-blue-600 mt-2 font-mono tracking-tight">
+                  {formatSigned(deltaX, 1)}
+                </div>
+                <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                  <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
+                    <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Tilt Y */}
+              <div className="relative overflow-hidden p-4 rounded-2xl bg-purple-50/50 border border-purple-100 flex flex-col items-center justify-center min-h-[110px]">
+                <span className="px-3 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs tracking-tight">
+                  Tilt Y
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-purple-700 mt-2 font-mono tracking-tight">
+                  {formatSigned(deltaY, 1)}
+                </div>
+                <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                  <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
+                    <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#d8b4fe" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Tilt Z */}
+              <div className="relative overflow-hidden p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex flex-col items-center justify-center min-h-[110px]">
+                <span className="px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs tracking-tight">
+                  Tilt Z
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-emerald-600 mt-2 font-mono tracking-tight">
+                  {formatSigned(deltaZ, 1)}
+                </div>
+                <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
+                  <svg className="w-24 h-12" viewBox="0 0 100 50" preserveAspectRatio="none">
+                    <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#86efac" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 font-mono text-center text-xs">
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] text-slate-500 block">X-RMS</span>
-              <span className="font-bold text-slate-800 mt-1 block">{vibObj.xVibrationRMS !== undefined ? Number(vibObj.xVibrationRMS).toFixed(4) : '--'}</span>
+          {/* DISPLACEMENT & AMBIENT TEMPERATURE - 5 cols on large screens */}
+          <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center justify-between text-xs font-bold text-slate-900 tracking-wide mb-2.5">
+                <div className="flex items-center gap-2">
+                  <Move className="w-4 h-4 text-slate-800" />
+                  <span>X / Y DISPLACEMENT (MM)</span>
+                </div>
+                <span className="text-[11px] font-mono font-medium text-slate-500">
+                  Total: <strong className="text-slate-800">{hasData && typeof totalDisp === 'number' ? `${totalDisp.toFixed(2)} mm` : '--'}</strong>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-center">
+                {/* DX */}
+                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-blue-50/50 border border-blue-100 flex flex-col items-center justify-center min-h-[85px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+                    DX
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-xl sm:text-2xl font-extrabold text-blue-600 tracking-tight">
+                      {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                  </div>
+                </div>
+
+                {/* DY */}
+                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-amber-50/50 border border-amber-100 flex flex-col items-center justify-center min-h-[85px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
+                    DY
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-xl sm:text-2xl font-extrabold text-amber-600 tracking-tight">
+                      {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
+                    </span>
+                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] text-slate-500 block">Y-RMS</span>
-              <span className="font-bold text-slate-800 mt-1 block">{vibObj.yVibrationRMS !== undefined ? Number(vibObj.yVibrationRMS).toFixed(4) : '--'}</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] text-slate-500 block">Z-RMS</span>
-              <span className="font-bold text-slate-800 mt-1 block">{vibObj.zVibrationRMS !== undefined ? Number(vibObj.zVibrationRMS).toFixed(4) : '--'}</span>
-            </div>
-            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] text-slate-500 block">Dynamic Inst</span>
-              <span className="font-bold text-slate-800 mt-1 block">{vibObj.vibration !== undefined ? Number(vibObj.vibration).toFixed(4) : '--'}</span>
+
+            {/* Ambient Temperature Readout */}
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-900 font-sans">
+                <Thermometer className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <span>Ambient Temperature:</span>
+              </div>
+              <div className="px-3.5 py-1 rounded-full bg-amber-100/90 border border-amber-200/90 font-mono text-xs sm:text-sm font-bold text-amber-900 shadow-2xs">
+                {hasData && temp !== null && temp !== undefined
+                  ? `${Number(temp).toFixed(1)} °C`
+                  : '--'}
+              </div>
             </div>
           </div>
         </div>
@@ -980,225 +1015,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       {/* 6. MULTI-AXIS HISTORICAL CHARTS */}
       <TiltmeterChartsRow telemetryHistory={telemetryHistory} loading={loading} currentDevice={activeDevice} />
 
-      {/* 7. APPLIED DEVICE MONITORING SETTINGS PANEL */}
-      <div className={cardCls}>
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-          <div className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-indigo-600" />
-            <h3 className="font-bold text-slate-900 text-sm">
-              Applied Monitoring Settings &amp; Telemetry Timing (Reported by Device)
-            </h3>
-          </div>
-          <button
-            onClick={() => setConfigModalOpen(true)}
-            className="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
-          >
-            Edit Thresholds →
-          </button>
-        </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 font-mono text-xs">
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-500 uppercase block">Upload Interval</span>
-            <span className="font-bold text-slate-900 text-sm mt-0.5 block">{appliedSettings.uploadIntervalMinutes || 15} min</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-500 uppercase block">Sampling Window</span>
-            <span className="font-bold text-slate-900 text-sm mt-0.5 block">{appliedSettings.samplingWindowSeconds || 1} sec</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-500 uppercase block">Sample Rate</span>
-            <span className="font-bold text-slate-900 text-sm mt-0.5 block">{appliedSettings.samplingRateHz || 400} Hz</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-500 uppercase block">Rockfall ON/OFF</span>
-            <span className="font-bold text-red-700 text-sm mt-0.5 block">{appliedSettings.rockfall_on || 12.0} / {appliedSettings.rockfall_off || 3.0} m/s²</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-500 uppercase block">Landslide ON/OFF</span>
-            <span className="font-bold text-amber-700 text-sm mt-0.5 block">{appliedSettings.landslide_on || 15.0}° / {appliedSettings.landslide_off || 5.0}°</span>
-          </div>
-          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-            <span className="text-[10px] text-slate-500 uppercase block">Touch ON/OFF</span>
-            <span className="font-bold text-blue-700 text-sm mt-0.5 block">{appliedSettings.human_touch_on || 5.0} / {appliedSettings.human_touch_off || 1.5} m/s²</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 9. HISTORICAL TELEMETRY LOGS TABLE */}
-      <div className={cardCls}>
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider font-mono text-slate-800">
-              HISTORICAL TELEMETRY DATABASE LOGS • <span className="text-blue-600">{selectedId}</span> ({filteredRows.length} Points)
-            </span>
-            <div className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold font-mono">
-              <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
-              <input
-                type="text"
-                placeholder="Filter logs..."
-                value={tableSearch}
-                onChange={e => {
-                  setTableSearch(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="pl-8 pr-3 py-1 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 w-44 sm:w-56"
-              />
-            </div>
-            <button
-              onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs rounded-xl border border-slate-200 transition-colors cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-slate-600" />
-              <span>Export CSV</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto max-h-96 overflow-y-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
-            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 font-mono">
-              <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
-                <th className="py-2.5 px-3">Timestamp</th>
-                <th className="py-2.5 px-3 text-indigo-700">Classification</th>
-                <th className="py-2.5 px-3 text-indigo-600">Event Type</th>
-                <th className="py-2.5 px-3 text-center text-red-700">Rockfall Alarm</th>
-                <th className="py-2.5 px-3 text-red-700">Rockfall Peak (m/s²)</th>
-                <th className="py-2.5 px-3 text-blue-700">Tilt X (°)</th>
-                <th className="py-2.5 px-3 text-purple-700">Tilt Y (°)</th>
-                <th className="py-2.5 px-3 text-emerald-700">Tilt Z (°)</th>
-                <th className="py-2.5 px-3 text-cyan-700">X Disp (mm)</th>
-                <th className="py-2.5 px-3 text-amber-700">Y Disp (mm)</th>
-                <th className="py-2.5 px-3 text-pink-700">Z Disp (mm)</th>
-                <th className="py-2.5 px-3 text-purple-800">Total Disp (mm)</th>
-                <th className="py-2.5 px-3 text-amber-800">Vib Peak (m/s²)</th>
-                <th className="py-2.5 px-3 text-orange-700">Temp (°C)</th>
-                <th className="py-2.5 px-3 text-center">Pending</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-mono">
-              {paginatedRows.length === 0 ? (
-                <tr>
-                  <td colSpan={15} className="py-8 text-center text-slate-400 text-xs font-mono">
-                    {loading ? 'Fetching telemetry logs from database...' : 'No telemetry records found for this period.'}
-                  </td>
-                </tr>
-              ) : (
-                paginatedRows.map((r, i) => (
-                  <tr key={i} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-2 px-3 text-slate-600 font-medium font-sans">
-                      {r.fullTime || r.time}
-                    </td>
-                    <td className="py-2 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        r.motionClassification === 'ROCKFALL'
-                          ? 'bg-red-100 text-red-800'
-                          : r.motionClassification === 'HUMAN_TOUCH'
-                          ? 'bg-blue-100 text-blue-800'
-                          : r.motionClassification === 'LANDSLIDE'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {r.motionClassification}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 text-slate-800 font-semibold font-mono text-[11px]">
-                      {r.eventType || r.motionEventType || r.motionClassification || 'STABLE'}
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          (r.rockfallActive ?? r.alarmActive) ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          {(r.rockfallActive ?? r.alarmActive) ? 'ACTIVE' : 'OFF'}
-                        </span>
-                        {(r.rockfallNewEvent ?? r.newEvent) && (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold animate-pulse">
-                            NEW
-                          </span>
-                        )}
-                        {(r.rockfallSequence !== null && r.rockfallSequence !== undefined) && (
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            #{r.rockfallSequence}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-2 px-3 text-red-700 font-bold">
-                      {r.rockfallDeltaPeak !== null && r.rockfallDeltaPeak !== undefined ? Number(r.rockfallDeltaPeak).toFixed(4) : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-blue-700 font-bold">
-                      {formatSigned(r.deltaX, 3)}
-                    </td>
-                    <td className="py-2 px-3 text-purple-700 font-bold">
-                      {formatSigned(r.deltaY, 3)}
-                    </td>
-                    <td className="py-2 px-3 text-emerald-700 font-bold">
-                      {formatSigned(r.deltaZ, 3)}
-                    </td>
-                    <td className="py-2 px-3 text-cyan-700">
-                      {r.xDisp !== null && r.xDisp !== undefined ? Number(r.xDisp).toFixed(4) : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-amber-700">
-                      {r.yDisp !== null && r.yDisp !== undefined ? Number(r.yDisp).toFixed(4) : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-pink-700">
-                      {r.zDisp !== null && r.zDisp !== undefined ? Number(r.zDisp).toFixed(4) : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-purple-800 font-bold">
-                      {r.totalDisp !== null && r.totalDisp !== undefined ? Number(r.totalDisp).toFixed(4) : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-amber-800">
-                      {r.vibrationPeak !== null && r.vibrationPeak !== undefined ? Number(r.vibrationPeak).toFixed(4) : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-orange-700">
-                      {r.temp !== null && r.temp !== undefined ? `${Number(r.temp).toFixed(1)}` : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        (r.eventPending ?? r.pending) ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'
-                      }`}>
-                        {(r.eventPending ?? r.pending) ? 'PENDING' : 'SYNCED'}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Table Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-mono">
-            <span className="text-slate-500">
-              Page {currentPage} of {totalPages} ({filteredRows.length} total entries)
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-              <button
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Operational Widgets (Alarm Summary & Events) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1206,57 +1023,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         <RecentEventsWidget currentDevice={activeDevice} />
       </div>
 
-      {/* MODAL 1: RAW JSON TELEMETRY INSPECTOR */}
-      {rawJsonModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 font-sans">
-          <div className="w-full max-w-4xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex items-center gap-2">
-                <Code className="w-5 h-5 text-indigo-600" />
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Raw JSON Telemetry Payload Inspector
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Exact, unaltered telemetry payload stored in database for {selectedId}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleCopyRaw}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-mono text-xs cursor-pointer shadow-2xs"
-                >
-                  {copiedRaw ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-600" />}
-                  <span>{copiedRaw ? 'Copied!' : 'Copy JSON'}</span>
-                </button>
-                <button
-                  onClick={() => setRawJsonModalOpen(false)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer text-lg leading-none"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-auto p-4 bg-[#0f172a] text-[#f8fafc] font-mono text-xs">
-              <pre className="whitespace-pre-wrap">
-                {JSON.stringify(latestData?.rawPayload || latestData || { message: 'No telemetry record loaded yet' }, null, 2)}
-              </pre>
-            </div>
-
-            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-mono">
-              <span>Schema Version: {d.schemaVersion || 2}</span>
-              <button
-                onClick={() => setRawJsonModalOpen(false)}
-                className="px-4 py-1.5 rounded-xl bg-slate-800 text-white font-sans font-medium cursor-pointer"
-              >
-                Close Inspector
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL 2: CONFIGURE DEVICE SETTINGS */}
       {configModalOpen && (
@@ -1427,6 +1193,201 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs transition-colors cursor-pointer"
                 >
                   Deploy Settings to Device
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: ADD / REGISTER NEW DEVICE */}
+      {addDeviceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 font-sans">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Plus className="w-5 h-5 text-emerald-600" />
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Register New Inclinometer Node
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Add hardware sensor node to live monitoring telemetry
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAddDeviceModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDevice} className="p-5 overflow-y-auto space-y-3.5 text-xs flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Device ID / Hardware Serial *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addDeviceForm.id}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, id: e.target.value })}
+                    placeholder="e.g. INCL-001"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Device Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addDeviceForm.name}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, name: e.target.value })}
+                    placeholder="e.g. Slope Sensor West"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Sensor Type
+                  </label>
+                  <select
+                    value={addDeviceForm.sensorType}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, sensorType: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="Inclinometer">Inclinometer</option>
+                    <option value="Tiltmeter">Tiltmeter</option>
+                    <option value="Accelerometer">Accelerometer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Device Status
+                  </label>
+                  <select
+                    value={addDeviceForm.status}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, status: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="ONLINE">ONLINE</option>
+                    <option value="OFFLINE">OFFLINE</option>
+                    <option value="MAINTENANCE">MAINTENANCE</option>
+                    <option value="WARNING">WARNING</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Attach to Asset / Structure
+                  </label>
+                  <select
+                    value={addDeviceForm.structureId}
+                    onChange={e => {
+                      const stId = e.target.value;
+                      const st = structuresList.find(s => s.id === stId);
+                      setAddDeviceForm({
+                        ...addDeviceForm,
+                        structureId: stId,
+                        siteId: st?.siteId || addDeviceForm.siteId
+                      });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="">No Asset (Standalone)</option>
+                    {structuresList.map(st => (
+                      <option key={st.id} value={st.id}>{st.name} ({st.id})</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Location Site
+                  </label>
+                  <select
+                    value={addDeviceForm.siteId}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, siteId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="">Select Site Location</option>
+                    {sitesList.map(s => (
+                      <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name} ({s.id || s.siteId})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Gauge Length (mm)
+                  </label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={addDeviceForm.gaugeLength_mm}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, gaugeLength_mm: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 27.1751"
+                    value={addDeviceForm.latitude}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, latitude: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 78.0421"
+                    value={addDeviceForm.longitude}
+                    onChange={e => setAddDeviceForm({ ...addDeviceForm, longitude: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddDeviceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addDeviceLoading}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                >
+                  {addDeviceLoading ? 'Registering...' : 'Register Device'}
                 </button>
               </div>
             </form>

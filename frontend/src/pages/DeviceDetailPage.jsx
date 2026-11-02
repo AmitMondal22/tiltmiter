@@ -1,16 +1,270 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import L from 'leaflet';
 import {
   ArrowLeft, Battery, Signal, Sliders, Calendar,
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
-  Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move, X
+  Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move, X,
+  ShieldAlert, Camera, Image as ImageIcon, Upload, Trash2, ExternalLink
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+// 1. Interactive OpenStreetMap Component for Device Location using Free OpenStreetMap Tiles
+function DeviceLocationMap({ device, deviceId, d }) {
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markerRef = useRef(null);
+
+  const rawLat = device?.latitude ?? d?.latitude;
+  const rawLng = device?.longitude ?? d?.longitude;
+  const hasCustomCoords = rawLat !== null && rawLat !== undefined && rawLng !== null && rawLng !== undefined && !isNaN(parseFloat(rawLat)) && !isNaN(parseFloat(rawLng));
+
+  const lat = hasCustomCoords ? parseFloat(rawLat) : 22.5726;
+  const lng = hasCustomCoords ? parseFloat(rawLng) : 88.3639;
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    if (!mapInstanceRef.current) {
+      const map = L.map(mapRef.current, {
+        center: [lat, lng],
+        zoom: 14,
+        zoomControl: false,
+      });
+
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // OpenStreetMap Free Tile Layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
+      }).addTo(map);
+
+      const customPin = L.divIcon({
+        className: 'custom-sensor-pin',
+        html: `
+          <div style="position: relative; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%);">
+            <span style="position: absolute; width: 32px; height: 32px; border-radius: 9999px; background: rgba(59, 130, 246, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
+            <div style="width: 28px; height: 28px; border-radius: 9999px; background: #2563eb; border: 2.5px solid #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; color: white;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/>
+                <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+              </svg>
+            </div>
+          </div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+      });
+
+      const marker = L.marker([lat, lng], { icon: customPin }).addTo(map);
+      marker.bindPopup(`
+        <div style="font-family: inherit; font-size: 12px; line-height: 1.4; padding: 2px;">
+          <div style="font-weight: 700; color: #0f172a;">${device?.name || deviceId}</div>
+          <div style="color: #2563eb; font-family: monospace; font-size: 11px;">ID: ${deviceId}</div>
+          <div style="color: #64748b; font-size: 10px; margin-top: 2px;">GPS: ${lat.toFixed(5)}°N, ${lng.toFixed(5)}°E</div>
+          <div style="margin-top: 4px; display: inline-block; padding: 2px 6px; border-radius: 4px; background: #ecfdf5; color: #047857; font-weight: 600; font-size: 10px;">
+            ${device?.status || 'ONLINE'}
+          </div>
+        </div>
+      `);
+
+      markerRef.current = marker;
+      mapInstanceRef.current = map;
+    } else {
+      mapInstanceRef.current.setView([lat, lng], 14);
+      if (markerRef.current) {
+        markerRef.current.setLatLng([lat, lng]);
+      }
+    }
+  }, [lat, lng, device?.name, deviceId]);
+
+  useEffect(() => {
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  const handleRecenter = () => {
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.setView([lat, lng], 15, { animate: true });
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-3">
+        <div className="flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+              Device Location (OpenStreetMap)
+            </h3>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Geographical node position via Free OpenStreetMap
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+            <span>{lat.toFixed(4)}°N, {lng.toFixed(4)}°E</span>
+          </div>
+          <button
+            onClick={handleRecenter}
+            title="Recenter Map"
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+          >
+            <Crosshair className="w-3.5 h-3.5" />
+          </button>
+          <a
+            href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open in OpenStreetMap"
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      </div>
+
+      <div className="relative w-full h-[260px] rounded-xl overflow-hidden border border-slate-200 z-0">
+        <div ref={mapRef} className="w-full h-full" />
+        {!hasCustomCoords && (
+          <div className="absolute top-2 left-2 z-[400] bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-md border border-amber-200 text-[10px] font-semibold text-amber-800 shadow-xs">
+            Default Location (Device GPS Coordinates Unset)
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 2. Hardware Photo Section (shows device image or 'no image' icon fallback)
+function DeviceImageSection({ device, deviceId, setMsg }) {
+  const [deviceImage, setDeviceImage] = useState(() => {
+    return localStorage.getItem(`device_image_${deviceId}`) || device?.imageUrl || device?.image || null;
+  });
+
+  useEffect(() => {
+    const saved = localStorage.getItem(`device_image_${deviceId}`);
+    if (saved) {
+      setDeviceImage(saved);
+    } else if (device?.imageUrl || device?.image) {
+      setDeviceImage(device.imageUrl || device.image);
+    } else {
+      setDeviceImage(null);
+    }
+  }, [deviceId, device?.imageUrl, device?.image]);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      if (setMsg) setMsg({ type: 'error', text: 'Please select a valid image file (PNG, JPG, WebP).' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = reader.result;
+      setDeviceImage(b64);
+      localStorage.setItem(`device_image_${deviceId}`, b64);
+      if (setMsg) {
+        setMsg({ type: 'success', text: 'Device installation image updated successfully!' });
+        setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setDeviceImage(null);
+    localStorage.removeItem(`device_image_${deviceId}`);
+    if (setMsg) {
+      setMsg({ type: 'success', text: 'Device image removed.' });
+      setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+        <div className="flex items-center gap-2">
+          <Camera className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+              Device Image
+            </h3>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Physical hardware installation photo
+            </p>
+          </div>
+        </div>
+        {deviceImage && (
+          <button
+            onClick={handleRemoveImage}
+            className="text-[11px] text-red-600 hover:text-red-700 font-semibold cursor-pointer"
+          >
+            Remove
+          </button>
+        )}
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[260px]">
+        {deviceImage ? (
+          <div className="relative w-full h-[260px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group">
+            <img
+              src={deviceImage}
+              alt={device?.name || deviceId}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3">
+              <div className="text-white">
+                <div className="text-xs font-bold leading-tight">{device?.name || deviceId}</div>
+                <div className="text-[10px] text-slate-300 font-mono">Installed Hardware Unit</div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full h-[260px] rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 p-4 flex flex-col items-center justify-center text-center">
+            {/* Prominent icon showing 'no image' */}
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mb-2.5 text-slate-400 shadow-2xs">
+              <Camera className="w-8 h-8 text-slate-400" />
+            </div>
+            <span className="text-xs font-bold text-slate-700">
+              No Image Available
+            </span>
+            <p className="text-[11px] text-slate-400 max-w-[200px] mt-0.5 leading-tight">
+              No physical photo uploaded for this inclinometer node.
+            </p>
+
+            <label className="mt-3.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-xs transition-colors cursor-pointer">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Photo</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+            </label>
+          </div>
+        )}
+      </div>
+
+      <div className="pt-2 text-[10px] text-slate-400 font-mono text-center">
+        Device ID: {deviceId} • Sensor: LSM6DSO 6-DoF
+      </div>
+    </div>
+  );
+}
 
 export default function DeviceDetailPage() {
   const { deviceId } = useParams();
@@ -193,10 +447,31 @@ export default function DeviceDetailPage() {
       }
     }
 
+    // Motion & Hazard Classification mapping
+    const rawP = pt.rawPayload || {};
+    const rfAlarm = pt.rockfallAlarm || rawP.rockfallAlarm || null;
+    const mEvent = pt.motionEvent || rawP.motionEvent || null;
+    const mClassification = pt.motionClassification || mEvent?.classification || rawP.motionEvent?.classification || pt.classification || 'STABLE';
+    const evType = pt.eventType || mEvent?.eventType || rawP.motionEvent?.eventType || pt.motionEventType || (mClassification || 'NORMAL');
+    const alActive = Boolean(pt.alarmActive ?? rfAlarm?.active ?? rawP.rockfallAlarm?.active ?? false);
+    const nwEvent = Boolean(pt.newEvent ?? pt.rockfallNewEvent ?? rfAlarm?.newEvent ?? rawP.rockfallAlarm?.newEvent ?? false);
+    const seq = rfAlarm?.sequence ?? rawP.rockfallAlarm?.sequence ?? pt.rockfallSequence ?? pt.sequence ?? 0;
+
     return {
       time: formatHHMM(ts),
       fullTime: formatFullDateTime(ts),
       timestamp: ts,
+
+      // Motion & Rockfall Hazard Data
+      motionClassification: mClassification,
+      classification: mClassification,
+      eventType: evType,
+      rockfallAlarm: rfAlarm,
+      alarmActive: alActive,
+      newEvent: nwEvent,
+      rockfallSequence: seq,
+      sequence: seq,
+      rawPayload: rawP,
 
       // Pure actual device values directly from device without logic modifications
       presentX: presentX !== null ? Number(presentX.toFixed(1)) : null,
@@ -519,9 +794,9 @@ export default function DeviceDetailPage() {
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,Tilt_X_deg,Tilt_Y_deg,Tilt_Z_deg,XDisp_mm,YDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,Classification,Event_Type,Rockfall_Alarm_Active,Event_Sequence,Tilt_X_deg,Tilt_Y_deg,Tilt_Z_deg,XDisp_mm,YDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
     const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},${(r.xTilt ?? r.deltaX)?.toFixed(1) ?? ''},${(r.yTilt ?? r.deltaY)?.toFixed(1) ?? ''},${(r.zTilt ?? r.deltaZ)?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(2) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(3) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(3) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},"${r.motionClassification || 'STABLE'}","${r.eventType || 'NORMAL'}",${Boolean(r.alarmActive || r.rockfallAlarm?.active)},${r.rockfallSequence ?? r.sequence ?? 0},${(r.xTilt ?? r.deltaX)?.toFixed(1) ?? ''},${(r.yTilt ?? r.deltaY)?.toFixed(1) ?? ''},${(r.zTilt ?? r.deltaZ)?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(2) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(3) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(3) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -610,6 +885,16 @@ export default function DeviceDetailPage() {
   const zDisp = hasData && rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp)) ? parseFloat(rawZDisp) : null;
   const totalDisp = hasData && rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : null;
 
+  // Rockfall Hazard & Motion Event Classification resolution
+  const rawP = d.rawPayload || device?.rawPayload || {};
+  const rockfallAlarm = d.rockfallAlarm || rawP.rockfallAlarm || device?.rockfallAlarm || null;
+  const motionEvent = d.motionEvent || rawP.motionEvent || device?.motionEvent || null;
+  const motionClassification = d.motionClassification || d.classification || motionEvent?.classification || rawP.motionEvent?.classification || device?.motionClassification || (hasData ? 'STABLE' : '--');
+  const eventType = d.eventType || motionEvent?.eventType || rawP.motionEvent?.eventType || device?.eventType || (hasData ? 'NORMAL' : '--');
+  const isAlarmActive = Boolean(d.alarmActive ?? rockfallAlarm?.active ?? rawP.rockfallAlarm?.active ?? device?.alarmActive ?? false);
+  const isNewEvent = Boolean(d.newEvent ?? d.rockfallNewEvent ?? rockfallAlarm?.newEvent ?? rawP.rockfallAlarm?.newEvent ?? false);
+  const eventSequence = rockfallAlarm?.sequence ?? rawP.rockfallAlarm?.sequence ?? d.sequence ?? d.rockfallSequence ?? (hasData ? 0 : '--');
+
   // Filtered rows for the table: newest logs at the top
   const filteredRows = useMemo(() => {
     const list = [...telemetryHistory].reverse();
@@ -618,6 +903,9 @@ export default function DeviceDetailPage() {
     return list.filter(r =>
       r.fullTime?.toLowerCase().includes(q) ||
       r.stability?.toLowerCase().includes(q) ||
+      r.motionClassification?.toLowerCase().includes(q) ||
+      r.eventType?.toLowerCase().includes(q) ||
+      String(r.sequence).includes(q) ||
       String(r.resultant).includes(q) ||
       String(r.totalDisp).includes(q)
     );
@@ -659,6 +947,12 @@ export default function DeviceDetailPage() {
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[10px]">
                 {device?.status || 'ONLINE'}
+              </span>
+              <span className="flex items-center gap-1 text-[11px] font-mono text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-md border border-indigo-200 font-bold">
+                <span>Event Type: {eventType || motionClassification || 'NORMAL'}</span>
+              </span>
+              <span className="flex items-center gap-1 text-[11px] font-mono text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200 font-bold">
+                <span>Event Sequence: #{eventSequence}</span>
               </span>
               <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
                 <Clock className="w-3 h-3 text-slate-400" />
@@ -770,6 +1064,49 @@ export default function DeviceDetailPage() {
               {loading ? '...' : 'Apply'}
             </button>
           </form>
+        </div>
+      </div>
+
+      {/* Event Type & Event Sequence */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Event Type */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex-shrink-0">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+                Event Type
+              </span>
+              <span className="text-base font-extrabold text-indigo-700 font-mono">
+                {eventType || motionClassification || 'NORMAL'}
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
+            {hasData ? 'Active Flag' : '--'}
+          </span>
+        </div>
+
+        {/* Event Sequence */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 flex-shrink-0">
+              <Radio className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
+                Event Sequence
+              </span>
+              <span className="text-base font-extrabold text-slate-900 font-mono">
+                {hasData ? `#${eventSequence}` : '--'}
+              </span>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
+            Sequence Count
+          </span>
         </div>
       </div>
 
@@ -1025,6 +1362,16 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
+      {/* Row: Device Location (OpenStreetMap) & Hardware Image */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-2">
+          <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
+        </div>
+        <div>
+          <DeviceImageSection device={device} deviceId={deviceId} setMsg={setMsg} />
+        </div>
+      </div>
+
       {/* Row 2: Live Historical Multi-Axis Time-Series Charts (4 Panels matching exact layout) */}
       <TiltmeterChartsRow telemetryHistory={telemetryHistory} loading={loading} currentDevice={device} />
 
@@ -1070,6 +1417,9 @@ export default function DeviceDetailPage() {
             <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 font-mono">
               <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
                 <th className="py-2.5 px-3">Timestamp</th>
+                <th className="py-2.5 px-3 text-indigo-700">Classification</th>
+                <th className="py-2.5 px-3 text-indigo-600">Event Type</th>
+                <th className="py-2.5 px-3 text-red-700">Rockfall Alarm / Seq</th>
                 <th className="py-2.5 px-3 text-blue-700">Tilt X (°)</th>
                 <th className="py-2.5 px-3 text-purple-700">Tilt Y (°)</th>
                 <th className="py-2.5 px-3 text-emerald-700">Tilt Z (°)</th>
@@ -1084,7 +1434,7 @@ export default function DeviceDetailPage() {
             <tbody className="divide-y divide-slate-100 font-mono">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs font-mono">
                     {loading ? 'Fetching telemetry logs for this device...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -1093,6 +1443,30 @@ export default function DeviceDetailPage() {
                   <tr key={i} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-2 px-3 text-slate-600 font-medium font-sans">
                       {r.fullTime || r.time}
+                    </td>
+                    <td className="py-2 px-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        r.motionClassification === 'ROCKFALL'
+                          ? 'bg-red-100 text-red-800'
+                          : r.motionClassification === 'LANDSLIDE'
+                          ? 'bg-amber-100 text-amber-800'
+                          : r.motionClassification === 'HUMAN_TOUCH'
+                          ? 'bg-blue-100 text-blue-800'
+                          : r.motionClassification === 'AIR_WIND'
+                          ? 'bg-teal-100 text-teal-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {r.motionClassification || 'STABLE'}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-slate-800 font-semibold font-mono text-[11px]">
+                      {r.eventType || r.motionClassification || 'NORMAL'}
+                    </td>
+                    <td className="py-2 px-3 text-slate-700 font-mono text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${r.alarmActive || r.rockfallAlarm?.active ? 'bg-red-600 animate-pulse' : 'bg-emerald-500'}`} />
+                        <span>{r.rockfallSequence !== null && r.rockfallSequence !== undefined ? `Seq #${r.rockfallSequence}` : (r.sequence !== null && r.sequence !== undefined ? `Seq #${r.sequence}` : 'Seq #0')}</span>
+                      </div>
                     </td>
                     <td className="py-2 px-3 text-blue-700 font-bold">
                       {formatSigned(r.xTilt ?? r.deltaX, 1)}

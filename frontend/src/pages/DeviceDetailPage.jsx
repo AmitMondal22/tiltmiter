@@ -12,103 +12,79 @@ import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceRefer
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
-// 1. Interactive OpenStreetMap Component for Device Location (Matching exact screenshot design)
+// 1. Interactive OpenStreetMap Component for Device Location (Small size)
 function DeviceLocationMap({ device, deviceId, d }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const markerRef = useRef(null);
 
-  const rawLat = device?.latitude ?? d?.latitude;
-  const rawLng = device?.longitude ?? d?.longitude;
-  const hasCustomCoords = rawLat !== null && rawLat !== undefined && rawLng !== null && rawLng !== undefined && !isNaN(parseFloat(rawLat)) && !isNaN(parseFloat(rawLng));
-
-  const lat = hasCustomCoords ? parseFloat(rawLat) : 22.5726;
-  const lng = hasCustomCoords ? parseFloat(rawLng) : 88.3639;
+  const lat = parseFloat(device?.latitude ?? d?.latitude ?? 22.5726);
+  const lng = parseFloat(device?.longitude ?? d?.longitude ?? 88.3639);
+  const hasCustomCoords = Boolean(device?.latitude && device?.longitude);
 
   useEffect(() => {
     if (!mapRef.current) return;
-
-    if (!mapInstanceRef.current) {
-      const map = L.map(mapRef.current, {
-        center: [lat, lng],
-        zoom: 14,
-        zoomControl: false,
-      });
-
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors',
-      }).addTo(map);
-
-      const customPin = L.divIcon({
-        className: 'custom-sensor-pin',
-        html: `
-          <div style="position: relative; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%);">
-            <span style="position: absolute; width: 32px; height: 32px; border-radius: 9999px; background: rgba(59, 130, 246, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></span>
-            <div style="width: 28px; height: 28px; border-radius: 9999px; background: #2563eb; border: 2.5px solid #ffffff; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; color: white;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"/>
-                <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
-              </svg>
-            </div>
-          </div>
-        `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-      });
-
-      const marker = L.marker([lat, lng], { icon: customPin }).addTo(map);
-      marker.bindPopup(`
-        <div style="font-family: inherit; font-size: 12px; line-height: 1.4; padding: 2px;">
-          <div style="font-weight: 700; color: #0f172a;">${device?.name || (deviceId ? `Tiltmeter ${deviceId}` : 'Tiltmeter Node')}</div>
-          <div style="color: #2563eb; font-family: monospace; font-size: 11px;">ID: ${deviceId}</div>
-          <div style="color: #64748b; font-size: 10px; margin-top: 2px;">GPS: ${lat.toFixed(5)}°N, ${lng.toFixed(5)}°E</div>
-          <div style="margin-top: 4px; display: inline-block; padding: 2px 6px; border-radius: 4px; background: #ecfdf5; color: #047857; font-weight: 600; font-size: 10px;">
-            ${device?.status || 'ONLINE'}
-          </div>
-        </div>
-      `);
-
-      markerRef.current = marker;
-      mapInstanceRef.current = map;
-    } else {
-      mapInstanceRef.current.setView([lat, lng], 14);
-      if (markerRef.current) {
-        markerRef.current.setLatLng([lat, lng]);
-      }
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
     }
-  }, [lat, lng, device?.name, deviceId]);
 
-  useEffect(() => {
+    const map = L.map(mapRef.current, {
+      center: [lat, lng],
+      zoom: 14,
+      zoomControl: true,
+      attributionControl: false,
+    });
+    mapInstanceRef.current = map;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    }).addTo(map);
+
+    const customIcon = L.divIcon({
+      className: 'custom-map-marker',
+      html: `
+        <div style="background-color: #2563eb; width: 22px; height: 22px; border-radius: 50%; border: 3px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+          <div style="background-color: white; width: 6px; height: 6px; border-radius: 50%;"></div>
+        </div>
+      `,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+    });
+
+    const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+    marker.bindPopup(`<b>${device?.name || deviceId}</b><br/>Lat: ${lat.toFixed(4)}<br/>Lng: ${lng.toFixed(4)}`);
+
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [lat, lng, device?.name, deviceId]);
 
   return (
-    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-        <div className="flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0" />
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
-            Device Location (OpenStreetMap)
-          </h3>
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs flex flex-col justify-between h-full">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+          <h4 className="text-xs font-bold text-slate-900 truncate">
+            Device Location
+          </h4>
         </div>
-        <span className="font-mono text-[11px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
-          {lat.toFixed(4)}°N, {lng.toFixed(4)}°E
+        <span className="font-mono text-[10px] font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 flex-shrink-0">
+          {lat.toFixed(4)}°, {lng.toFixed(4)}°
         </span>
       </div>
 
-      <div className="relative w-full h-[240px] rounded-xl overflow-hidden border border-slate-200 z-0">
+      <div className="relative w-full h-[175px] rounded-lg overflow-hidden border border-slate-200 z-0">
         <div ref={mapRef} className="w-full h-full" />
         {!hasCustomCoords && (
-          <div className="absolute top-2 left-2 z-[400] bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-md border border-amber-200 text-[10px] font-semibold text-amber-800 shadow-xs">
-            Default Location (GPS Unset)
+          <div className="absolute top-1.5 left-1.5 z-[400] bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded border border-amber-200 text-[9px] font-semibold text-amber-800 shadow-xs">
+            Default Location
           </div>
         )}
       </div>
@@ -116,27 +92,27 @@ function DeviceLocationMap({ device, deviceId, d }) {
   );
 }
 
-// 2. Hardware Photo Section – Matches screenshot (Only show image, bottom overlay with device title & expand icon)
+// 2. Hardware Photo Section – Small size (Only show image, click to view full size)
 function DeviceImageSection({ device, deviceId }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const deviceImage = device?.imageUrl ? formatAssetUrl(device.imageUrl) : null;
   const displayName = device?.name || (deviceId ? `Tiltmeter ${deviceId}` : 'Tiltmeter Node');
 
   return (
-    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs flex flex-col justify-between h-full">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-        <div className="flex items-center gap-2">
-          <Camera className="w-5 h-5 text-purple-600 flex-shrink-0" />
-          <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Camera className="w-4 h-4 text-purple-600 flex-shrink-0" />
+          <h4 className="text-xs font-bold text-slate-900 truncate">
             Device Image
-          </h3>
+          </h4>
         </div>
         {deviceImage && (
           <button
             type="button"
             onClick={() => setLightboxOpen(true)}
-            className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 cursor-pointer flex items-center gap-1 transition-colors"
+            className="text-[10px] font-semibold text-purple-600 hover:text-purple-700 cursor-pointer flex items-center gap-0.5 transition-colors flex-shrink-0"
           >
             <span>View Full</span>
           </button>
@@ -144,7 +120,7 @@ function DeviceImageSection({ device, deviceId }) {
       </div>
 
       {/* Image Display */}
-      <div className="w-full h-[240px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative group">
+      <div className="w-full h-[175px] rounded-lg overflow-hidden border border-slate-200 bg-slate-50 relative group">
         {deviceImage ? (
           <>
             <img
@@ -152,34 +128,34 @@ function DeviceImageSection({ device, deviceId }) {
               alt={displayName}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
-            {/* Bottom Gradient Overlay matching user screenshot */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/25 to-transparent flex items-end justify-between p-3.5">
-              <div>
-                <div className="text-white text-xs sm:text-sm font-bold leading-tight">
+            {/* Bottom Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent flex items-end justify-between p-2.5">
+              <div className="min-w-0 pr-2">
+                <div className="text-white text-xs font-bold leading-tight truncate">
                   {displayName}
                 </div>
-                <div className="text-[11px] text-slate-300 font-mono mt-0.5">
-                  Installed Hardware Unit
+                <div className="text-[10px] text-slate-300 font-mono truncate">
+                  Hardware Unit
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setLightboxOpen(true)}
-                className="p-1.5 rounded-lg bg-black/50 hover:bg-black/70 text-white transition-colors cursor-pointer shadow-sm"
+                className="p-1 rounded-md bg-black/50 hover:bg-black/70 text-white transition-colors cursor-pointer shadow-sm flex-shrink-0"
                 title="Expand Image"
               >
-                <Maximize2 className="w-4 h-4" />
+                <Maximize2 className="w-3.5 h-3.5" />
               </button>
             </div>
           </>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mb-2 text-slate-400 shadow-2xs">
-              <Camera className="w-7 h-7 text-slate-400" />
+          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mb-1 text-slate-400 shadow-2xs">
+              <Camera className="w-5 h-5 text-slate-400" />
             </div>
-            <span className="text-xs font-bold text-slate-700">No Image Available</span>
-            <p className="text-[11px] text-slate-400 max-w-[200px] mt-0.5 leading-tight">
-              No physical photo uploaded for this inclinometer node.
+            <span className="text-[11px] font-bold text-slate-700">No Image Available</span>
+            <p className="text-[10px] text-slate-400 max-w-[150px] mt-0.5 leading-tight">
+              No physical photo uploaded.
             </p>
           </div>
         )}
@@ -211,7 +187,7 @@ function DeviceImageSection({ device, deviceId }) {
 }
 
 // 3. Device Sampling & Configuration Section (Exact design matching user mockup screenshot)
-function DeviceSamplingConfigSection({ device, d }) {
+function DeviceSamplingConfigSection({ device, d, embedded = false }) {
   const sleepVal = device?.sleep_count ?? d?.sleep_count ?? device?.monitoringSettings?.uploadIntervalMinutes ?? 15;
   const wakeVal = device?.wake_count ?? d?.wake_count ?? device?.monitoringSettings?.wakeCountSeconds ?? 30;
 
@@ -238,8 +214,8 @@ function DeviceSamplingConfigSection({ device, d }) {
 
   const isOnline = (device?.status || 'ONLINE').toUpperCase() === 'ONLINE';
 
-  return (
-    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs font-sans">
+  const cardBody = (
+    <>
       {/* Top Header */}
       <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-2">
         <div className="flex items-center gap-2">
@@ -309,6 +285,20 @@ function DeviceSamplingConfigSection({ device, d }) {
           </div>
         </div>
       </div>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="pt-4 border-t border-slate-100 font-sans">
+        {cardBody}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs font-sans">
+      {cardBody}
     </div>
   );
 }
@@ -1207,155 +1197,162 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-            {/* Live Primary Inclinometer & Vector Metrics Readout */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
-        {/* Top Header */}
-        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-3.5">
-          <div className="flex items-center gap-2.5">
-            <div className="text-blue-600 flex-shrink-0">
-              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 20h18" />
-                <path d="M4 20L17 5" />
-                <path d="M15 8.5v5" />
-                <circle cx="15" cy="15.5" r="1.8" fill="currentColor" />
-              </svg>
-            </div>
-            <div className="h-5 w-px bg-slate-200" />
-            <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
-              LIVE INCLINOMETER &amp; DISPLACEMENT
-            </h3>
+            {/* 2-Column Responsive Layout:
+          LEFT SIDE: [In ONE Card: Device Location (small size), Device Image (small size), and under: Device Sampling & Configuration]
+          RIGHT SIDE: LIVE INCLINOMETER & DISPLACEMENT */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        {/* LEFT SIDE: IN ONE CARD */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+          {/* Top row inside card: Location Map (small size) & Device Image (small size) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
+            <DeviceImageSection device={device} deviceId={deviceId} />
           </div>
-          {hasData ? (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
-              <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>LIVE STREAM</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
-              <Radio className="w-3.5 h-3.5" />
-              <span>NO DATA</span>
-            </div>
-          )}
+
+          {/* Underneath in the same card: Device Sampling & Configuration */}
+          <DeviceSamplingConfigSection device={device} d={d} embedded={true} />
         </div>
 
-        <div className="space-y-4">
-          {/* TILT ANGLE */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
-                <Layers className="w-4 h-4 text-slate-800" />
-                <span>TILT ANGLE</span>
+        {/* RIGHT SIDE: LIVE INCLINOMETER & DISPLACEMENT */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+          {/* Top Header */}
+          <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="text-blue-600 flex-shrink-0">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 20h18" />
+                  <path d="M4 20L17 5" />
+                  <path d="M15 8.5v5" />
+                  <circle cx="15" cy="15.5" r="1.8" fill="currentColor" />
+                </svg>
               </div>
-              <span className="text-[11px] font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                LSM6DSO 6-DoF
-              </span>
+              <div className="h-5 w-px bg-slate-200" />
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+                LIVE INCLINOMETER &amp; DISPLACEMENT
+              </h3>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
-              {/* X Tilt */}
-              <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/50 border border-blue-100/90 flex flex-col items-center justify-center min-h-[84px]">
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold text-xs">
-                  X TILT
-                </span>
-                <div className="flex items-baseline font-mono mt-1">
-                  <span className="text-xl sm:text-2xl font-extrabold text-blue-700 tracking-tight">
-                    {formatPresent(roll)}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
-                </div>
+            {hasData ? (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
+                <Radio className="w-3.5 h-3.5 animate-pulse" />
+                <span>LIVE STREAM</span>
               </div>
-
-              {/* Y Tilt */}
-              <div className="relative overflow-hidden p-3 rounded-2xl bg-emerald-50/50 border border-emerald-100/90 flex flex-col items-center justify-center min-h-[84px]">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
-                  Y TILT
-                </span>
-                <div className="flex items-baseline font-mono mt-1">
-                  <span className="text-xl sm:text-2xl font-extrabold text-emerald-700 tracking-tight">
-                    {formatPresent(pitch)}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
-                </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
+                <Radio className="w-3.5 h-3.5" />
+                <span>NO DATA</span>
               </div>
-
-              {/* Z Tilt */}
-              <div className="relative overflow-hidden p-3 rounded-2xl bg-purple-50/50 border border-purple-100/90 flex flex-col items-center justify-center min-h-[84px]">
-                <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs">
-                  Z TILT
-                </span>
-                <div className="flex items-baseline font-mono mt-1">
-                  <span className="text-xl sm:text-2xl font-extrabold text-purple-700 tracking-tight">
-                    {formatPresent(zTilt)}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
-                </div>
-              </div>
-
-              {/* Resultant */}
-              <div className="relative overflow-hidden p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100/90 flex flex-col items-center justify-center min-h-[84px]">
-                <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold text-xs">
-                  RESULTANT
-                </span>
-                <div className="flex items-baseline font-mono mt-1">
-                  <span className="text-xl sm:text-2xl font-extrabold text-indigo-700 tracking-tight">
-                    {hasData && typeof resultant === 'number' ? Number(resultant).toFixed(2) : '--'}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* DISPLACEMENT */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
-                <Move className="w-4 h-4 text-slate-800" />
-                <span>DISPLACEMENT</span>
-              </div>
-              <span className="text-[11px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                Gauge: {L} mm
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5 text-center">
-              {/* DX */}
-              <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center min-h-[80px]">
-                <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
-                  DX
+          <div className="space-y-4">
+            {/* TILT ANGLE */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
+                  <Layers className="w-4 h-4 text-slate-800" />
+                  <span>TILT ANGLE</span>
+                </div>
+                <span className="text-[11px] font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                  LSM6DSO 6-DoF
                 </span>
-                <div className="flex items-baseline font-mono mt-1">
-                  <span className="text-lg sm:text-xl font-extrabold text-blue-600 tracking-tight">
-                    {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+                {/* X Tilt */}
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/50 border border-blue-100/90 flex flex-col items-center justify-center min-h-[85px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold text-[11px]">
+                    X TILT
                   </span>
-                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-lg sm:text-xl font-extrabold text-blue-700 tracking-tight">
+                      {formatPresent(roll)}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                  </div>
+                </div>
+
+                {/* Y Tilt */}
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-emerald-50/50 border border-emerald-100/90 flex flex-col items-center justify-center min-h-[85px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px]">
+                    Y TILT
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-lg sm:text-xl font-extrabold text-emerald-700 tracking-tight">
+                      {formatPresent(pitch)}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                  </div>
+                </div>
+
+                {/* Z Tilt */}
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-purple-50/50 border border-purple-100/90 flex flex-col items-center justify-center min-h-[85px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold text-[11px]">
+                    Z TILT
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-lg sm:text-xl font-extrabold text-purple-700 tracking-tight">
+                      {formatPresent(zTilt)}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                  </div>
+                </div>
+
+                {/* Resultant */}
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100/90 flex flex-col items-center justify-center min-h-[85px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold text-[11px]">
+                    RESULTANT
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-lg sm:text-xl font-extrabold text-indigo-700 tracking-tight">
+                      {hasData && typeof resultant === 'number' ? Number(resultant).toFixed(2) : '--'}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              {/* DY */}
-              <div className="relative overflow-hidden p-3 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex flex-col items-center justify-center min-h-[80px]">
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
-                  DY
+            {/* DISPLACEMENT */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
+                  <Move className="w-4 h-4 text-slate-800" />
+                  <span>DISPLACEMENT</span>
+                </div>
+                <span className="text-[11px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                  Gauge: {L} mm
                 </span>
-                <div className="flex items-baseline font-mono mt-1">
-                  <span className="text-lg sm:text-xl font-extrabold text-amber-600 tracking-tight">
-                    {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 text-center">
+                {/* DX */}
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center min-h-[80px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px]">
+                    DX
                   </span>
-                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-base sm:text-lg font-extrabold text-blue-600 tracking-tight">
+                      {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                  </div>
+                </div>
+
+                {/* DY */}
+                <div className="relative overflow-hidden p-3 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex flex-col items-center justify-center min-h-[80px]">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-[11px]">
+                    DY
+                  </span>
+                  <div className="flex items-baseline font-mono mt-1">
+                    <span className="text-base sm:text-lg font-extrabold text-amber-600 tracking-tight">
+                      {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Row: Device Location (OpenStreetMap) & Device Image (2-Column Grid matching user mockup screenshot) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
-        <DeviceImageSection device={device} deviceId={deviceId} />
-      </div>
-
-      {/* Row: Device Sampling & Configuration (Matching exact user screenshot design) */}
-      <DeviceSamplingConfigSection device={device} d={d} />
-
 
       {/* Row 2: Live Historical Multi-Axis Time-Series Charts (4 Panels matching exact layout) */}
       <TiltmeterChartsRow telemetryHistory={telemetryHistory} loading={loading} currentDevice={device} />

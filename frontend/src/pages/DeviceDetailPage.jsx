@@ -1157,50 +1157,7 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {/* Event Type & Event Sequence */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Event Type */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex-shrink-0">
-              <Activity className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
-                Event Type
-              </span>
-              <span className="text-base font-extrabold text-indigo-700 font-mono">
-                {eventType || motionClassification || 'NORMAL'}
-              </span>
-            </div>
-          </div>
-          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 font-mono">
-            {hasData ? 'Active Flag' : '--'}
-          </span>
-        </div>
-
-        {/* Event Sequence */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 flex-shrink-0">
-              <Radio className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide block">
-                Event Sequence
-              </span>
-              <span className="text-base font-extrabold text-slate-900 font-mono">
-                {hasData ? `#${eventSequence}` : '--'}
-              </span>
-            </div>
-          </div>
-          <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 font-mono">
-            Sequence Count
-          </span>
-        </div>
-      </div>
-
-            {/* 2-Column Responsive Layout:
+      {/* 2-Column Responsive Layout:
           LEFT SIDE: LIVE INCLINOMETER & DISPLACEMENT
           RIGHT SIDE: [In ONE Card: Device Location (small size), Device Image (small size), and under: Device Sampling & Configuration] */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
@@ -1342,6 +1299,49 @@ export default function DeviceDetailPage() {
                 {hasData && tempVal !== null && tempVal !== undefined
                   ? `${Number(tempVal).toFixed(1)} °C`
                   : '-- °C'}
+              </div>
+            </div>
+
+            {/* Event Type & Event Sequence */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2.5 border-t border-slate-100">
+              {/* Event Type */}
+              <div className="rounded-xl border border-indigo-100/90 bg-indigo-50/40 p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 flex-shrink-0">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                      Event Type
+                    </span>
+                    <span className="text-sm sm:text-base font-extrabold text-indigo-700 font-mono">
+                      {eventType || motionClassification || 'NORMAL'}
+                    </span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200/60 font-mono">
+                  {hasData ? 'Active Flag' : '--'}
+                </span>
+              </div>
+
+              {/* Event Sequence */}
+              <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-white text-blue-600 border border-slate-200 flex-shrink-0 shadow-2xs">
+                    <Radio className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
+                      Event Sequence
+                    </span>
+                    <span className="text-sm sm:text-base font-extrabold text-slate-900 font-mono">
+                      {hasData ? `#${eventSequence}` : '--'}
+                    </span>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-700 border border-slate-200 font-mono shadow-2xs">
+                  Sequence Count
+                </span>
               </div>
             </div>
           </div>

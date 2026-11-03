@@ -382,6 +382,7 @@ export async function devicesRoutes(fastify) {
         sleep_count: parsedSleep,
         wake_count: wake_count !== undefined ? parseInt(wake_count) : 30,
         calibrate: calibrate !== undefined ? Boolean(calibrate) : false,
+        imageUrl: req.body.imageUrl && req.body.imageUrl.startsWith('data:image/') ? saveDeviceImageToDisk(id || TILTIND, req.body.imageUrl) : (req.body.imageUrl || null),
       });
 
       const loadedDevice = await Device.findByPk(device.id, {
@@ -461,6 +462,17 @@ export async function devicesRoutes(fastify) {
         updateData.elevation = updateData.elevation !== '' && updateData.elevation !== null && !isNaN(parseFloat(updateData.elevation))
           ? parseFloat(updateData.elevation)
           : null;
+      }
+
+
+      if (updateData.imageUrl !== undefined) {
+        if (updateData.imageUrl && updateData.imageUrl.startsWith('data:image/')) {
+          deleteOldDeviceImageFile(device.imageUrl);
+          updateData.imageUrl = saveDeviceImageToDisk(device.id, updateData.imageUrl);
+        } else if (!updateData.imageUrl) {
+          deleteOldDeviceImageFile(device.imageUrl);
+          updateData.imageUrl = null;
+        }
       }
 
       if (updateData.gaugeLength_mm !== undefined) {
@@ -1161,7 +1173,10 @@ export async function devicesRoutes(fastify) {
       }
       removeDeviceTelemetry(targetId);
 
-      // 3. Destroy the device
+      // Delete physical hardware photo from disk
+deleteOldDeviceImageFile(device.imageUrl);
+
+// 3. Destroy the device
       await device.destroy();
 
       return reply.send({

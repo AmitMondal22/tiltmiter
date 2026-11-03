@@ -40,64 +40,10 @@ function formatUptime(ms) {
   return `${seconds}s (${ms.toLocaleString()} ms)`;
 }
 
-// Compact Device Installation Image Widget for Main Dashboard
-function DashboardDeviceImage({ device, deviceId, setMsg }) {
-  const [deviceImage, setDeviceImage] = React.useState(null);
-  const [uploading, setUploading] = React.useState(false);
-  const [removing, setRemoving] = React.useState(false);
-
-  React.useEffect(() => {
-    if (device?.imageUrl) {
-      setDeviceImage(formatAssetUrl(device.imageUrl));
-      localStorage.removeItem(`device_image_${deviceId}`);
-    } else {
-      const cached = localStorage.getItem(`device_image_${deviceId}`);
-      setDeviceImage(cached || null);
-    }
-  }, [deviceId, device?.imageUrl]);
-
-  const handleUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    if (!file.type.startsWith('image/')) {
-      if (setMsg) setMsg({ type: 'error', text: 'Please select a valid image file.' });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      if (setMsg) setMsg({ type: 'error', text: 'Image must be smaller than 5 MB.' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const b64 = reader.result;
-      setUploading(true);
-      setDeviceImage(b64);
-      try {
-        const res = await uploadDeviceImage(deviceId, b64);
-        const serverUrl = formatAssetUrl(res?.imageUrl) || b64;
-        setDeviceImage(serverUrl);
-        localStorage.removeItem(`device_image_${deviceId}`);
-        if (setMsg) { setMsg({ type: 'success', text: 'Device image saved to server.' }); setTimeout(() => setMsg({ type: '', text: '' }), 3500); }
-      } catch (err) {
-        setDeviceImage(device?.imageUrl ? formatAssetUrl(device.imageUrl) : null);
-        if (setMsg) { setMsg({ type: 'error', text: err?.message || 'Upload failed.' }); setTimeout(() => setMsg({ type: '', text: '' }), 4000); }
-      } finally { setUploading(false); }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemove = async () => {
-    setRemoving(true);
-    try {
-      await deleteDeviceImage(deviceId);
-      setDeviceImage(null);
-      localStorage.removeItem(`device_image_${deviceId}`);
-      if (setMsg) { setMsg({ type: 'success', text: 'Device image removed.' }); setTimeout(() => setMsg({ type: '', text: '' }), 3000); }
-    } catch (err) {
-      if (setMsg) { setMsg({ type: 'error', text: err?.message || 'Remove failed.' }); setTimeout(() => setMsg({ type: '', text: '' }), 4000); }
-    } finally { setRemoving(false); }
-  };
+// Read-Only Device Installation Image Widget for Main Dashboard (No edit / remove buttons)
+function DashboardDeviceImage({ device, deviceId }) {
+  const [lightboxOpen, setLightboxOpen] = React.useState(false);
+  const deviceImage = device?.imageUrl ? formatAssetUrl(device.imageUrl) : null;
 
   return (
     <div className="rounded-2xl border border-slate-200/90 bg-white shadow-xs overflow-hidden">
@@ -107,54 +53,68 @@ function DashboardDeviceImage({ device, deviceId, setMsg }) {
           <span className="text-sm font-bold text-slate-900">Device Installation Photo</span>
           <span className="text-[11px] text-slate-400 font-mono">{deviceId}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {deviceImage && (
-            <>
-              <label className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-[11px] cursor-pointer transition-colors ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
-                <Upload className="w-3 h-3" />
-                {uploading ? 'Saving\u2026' : 'Replace'}
-                <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
-              </label>
-              <button onClick={handleRemove} disabled={removing} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-[11px] cursor-pointer disabled:opacity-60 transition-colors">
-                <Trash2 className="w-3 h-3" />
-                {removing ? 'Removing\u2026' : 'Remove'}
-              </button>
-            </>
-          )}
-          {!deviceImage && (
-            <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-xs cursor-pointer transition-colors ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
-              {uploading ? <><div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /><span>Uploading\u2026</span></> : <><Upload className="w-3.5 h-3.5" /><span>Upload Photo</span></>}
-              <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={uploading} />
-            </label>
-          )}
-        </div>
+        {deviceImage && (
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer flex items-center gap-1 transition-colors"
+          >
+            <span>View Full Image</span>
+          </button>
+        )}
       </div>
+
       {deviceImage ? (
-        <div className="relative w-full h-48 bg-slate-50">
-          {uploading && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-2">
-                <div className="w-7 h-7 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs font-semibold text-blue-700">Uploading\u2026</span>
-              </div>
+        <div
+          onClick={() => setLightboxOpen(true)}
+          className="relative w-full h-48 bg-slate-50 cursor-pointer group overflow-hidden"
+          title="Click to view full image"
+        >
+          <img
+            src={deviceImage}
+            alt={device?.name || deviceId}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900/80 via-slate-900/30 to-transparent px-4 py-2.5 flex items-end justify-between">
+            <div>
+              <div className="text-white text-xs font-bold">{device?.name || deviceId}</div>
+              <div className="text-slate-300 text-[10px] font-mono">Installed Hardware Unit</div>
             </div>
-          )}
-          <img src={deviceImage} alt={device?.name || deviceId} className="w-full h-full object-cover" />
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900/80 to-transparent px-4 py-2.5">
-            <div className="text-white text-xs font-bold">{device?.name || deviceId}</div>
-            <div className="text-slate-300 text-[10px] font-mono">Installed Hardware Unit</div>
+            <span className="text-[10px] text-white/90 bg-black/40 backdrop-blur-xs px-2 py-0.5 rounded font-mono">Click to enlarge</span>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center h-40 gap-2 text-slate-400 bg-slate-50/60">
-          <Camera className="w-10 h-10 text-slate-300" />
-          <span className="text-xs font-semibold text-slate-500">No installation photo</span>
-          <span className="text-[11px] text-slate-400">Upload a photo to document the installation site</span>
+        <div className="flex flex-col items-center justify-center h-36 gap-1.5 text-slate-400 bg-slate-50/60 p-4 text-center">
+          <Camera className="w-8 h-8 text-slate-300" />
+          <span className="text-xs font-semibold text-slate-600">No installation photo attached</span>
+          <span className="text-[11px] text-slate-400">Photo can be uploaded from the Device Edit section.</span>
+        </div>
+      )}
+
+      {/* Lightbox / Fullscreen Modal */}
+      {lightboxOpen && deviceImage && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setLightboxOpen(false)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 cursor-pointer transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img src={deviceImage} alt={device?.name || deviceId} className="max-w-full max-h-[82vh] object-contain rounded-xl mx-auto" />
+            <div className="text-center text-white text-xs font-mono py-2">
+              {device?.name || deviceId} ({deviceId})
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
 export default function DashboardPage({ devices = [], currentDevice, onSelectDevice }) {
   const navigate = useNavigate();
   const cardCls = 'rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs text-slate-800';

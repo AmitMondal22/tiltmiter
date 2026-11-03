@@ -6,13 +6,13 @@ import {
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
   Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move, X,
-  ShieldAlert, Camera, Image as ImageIcon, Upload, Trash2, ExternalLink
+  ShieldAlert, Camera, Image as ImageIcon, Upload, Trash2, ExternalLink, Edit, Maximize2, Target
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, uploadDeviceImage, deleteDeviceImage, formatAssetUrl } from '../api/apiClient';
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
-// 1. Interactive OpenStreetMap Component for Device Location using Free OpenStreetMap Tiles
+// 1. Interactive OpenStreetMap Component for Device Location (Matching exact screenshot design)
 function DeviceLocationMap({ device, deviceId, d }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -37,10 +37,9 @@ function DeviceLocationMap({ device, deviceId, d }) {
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // OpenStreetMap Free Tile Layer
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
+        attribution: '&copy; OpenStreetMap contributors',
       }).addTo(map);
 
       const customPin = L.divIcon({
@@ -63,7 +62,7 @@ function DeviceLocationMap({ device, deviceId, d }) {
       const marker = L.marker([lat, lng], { icon: customPin }).addTo(map);
       marker.bindPopup(`
         <div style="font-family: inherit; font-size: 12px; line-height: 1.4; padding: 2px;">
-          <div style="font-weight: 700; color: #0f172a;">${device?.name || deviceId}</div>
+          <div style="font-weight: 700; color: #0f172a;">${device?.name || (deviceId ? `Tiltmeter ${deviceId}` : 'Tiltmeter Node')}</div>
           <div style="color: #2563eb; font-family: monospace; font-size: 11px;">ID: ${deviceId}</div>
           <div style="color: #64748b; font-size: 10px; margin-top: 2px;">GPS: ${lat.toFixed(5)}°N, ${lng.toFixed(5)}°E</div>
           <div style="margin-top: 4px; display: inline-block; padding: 2px 6px; border-radius: 4px; background: #ecfdf5; color: #047857; font-weight: 600; font-size: 10px;">
@@ -91,55 +90,25 @@ function DeviceLocationMap({ device, deviceId, d }) {
     };
   }, []);
 
-  const handleRecenter = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.setView([lat, lng], 15, { animate: true });
-    }
-  };
-
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 mb-3">
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
         <div className="flex items-center gap-2">
           <MapPin className="w-5 h-5 text-blue-600 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-              Device Location (OpenStreetMap)
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Geographical node position via Free OpenStreetMap
-            </p>
-          </div>
+          <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+            Device Location (OpenStreetMap)
+          </h3>
         </div>
-
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-            <span>{lat.toFixed(4)}°N, {lng.toFixed(4)}°E</span>
-          </div>
-          <button
-            onClick={handleRecenter}
-            title="Recenter Map"
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
-          >
-            <Crosshair className="w-3.5 h-3.5" />
-          </button>
-          <a
-            href={`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=16/${lat}/${lng}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open in OpenStreetMap"
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        </div>
+        <span className="font-mono text-[11px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
+          {lat.toFixed(4)}°N, {lng.toFixed(4)}°E
+        </span>
       </div>
 
-      <div className="relative w-full h-[260px] rounded-xl overflow-hidden border border-slate-200 z-0">
+      <div className="relative w-full h-[240px] rounded-xl overflow-hidden border border-slate-200 z-0">
         <div ref={mapRef} className="w-full h-full" />
         {!hasCustomCoords && (
           <div className="absolute top-2 left-2 z-[400] bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-md border border-amber-200 text-[10px] font-semibold text-amber-800 shadow-xs">
-            Default Location (Device GPS Coordinates Unset)
+            Default Location (GPS Unset)
           </div>
         )}
       </div>
@@ -147,156 +116,198 @@ function DeviceLocationMap({ device, deviceId, d }) {
   );
 }
 
-
-// 2. Hardware Photo Section � uploads to server, stores in DB, shows from /uploads/device_image/
-function DeviceImageSection({ device, deviceId, setMsg }) {
-  const [deviceImage, setDeviceImage] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [removing, setRemoving] = useState(false);
-
-  // Sync with device prop: server URL takes priority over legacy localStorage
-  useEffect(() => {
-    if (device?.imageUrl) {
-      setDeviceImage(formatAssetUrl(device.imageUrl));
-      localStorage.removeItem(`device_image_${deviceId}`);
-    } else {
-      const cached = localStorage.getItem(`device_image_${deviceId}`);
-      setDeviceImage(cached || null);
-    }
-  }, [deviceId, device?.imageUrl]);
-
-  const handleImageUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    if (!file.type.startsWith('image/')) {
-      if (setMsg) setMsg({ type: 'error', text: 'Please select a valid image file (PNG, JPG, WebP).' });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      if (setMsg) setMsg({ type: 'error', text: 'Image must be smaller than 5 MB.' });
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const b64 = reader.result;
-      setUploading(true);
-      setDeviceImage(b64); // Optimistic preview
-      try {
-        const res = await uploadDeviceImage(deviceId, b64);
-        const serverUrl = formatAssetUrl(res?.imageUrl) || b64;
-        setDeviceImage(serverUrl);
-        localStorage.removeItem(`device_image_${deviceId}`);
-        if (setMsg) {
-          setMsg({ type: 'success', text: 'Device installation image saved to server successfully!' });
-          setTimeout(() => setMsg({ type: '', text: '' }), 3500);
-        }
-      } catch (err) {
-        setDeviceImage(device?.imageUrl ? formatAssetUrl(device.imageUrl) : null);
-        if (setMsg) {
-          setMsg({ type: 'error', text: err?.message || 'Failed to upload image to server.' });
-          setTimeout(() => setMsg({ type: '', text: '' }), 4000);
-        }
-      } finally {
-        setUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRemoveImage = async () => {
-    setRemoving(true);
-    try {
-      await deleteDeviceImage(deviceId);
-      setDeviceImage(null);
-      localStorage.removeItem(`device_image_${deviceId}`);
-      if (setMsg) {
-        setMsg({ type: 'success', text: 'Device image removed from server.' });
-        setTimeout(() => setMsg({ type: '', text: '' }), 3000);
-      }
-    } catch (err) {
-      if (setMsg) {
-        setMsg({ type: 'error', text: err?.message || 'Failed to remove image.' });
-        setTimeout(() => setMsg({ type: '', text: '' }), 4000);
-      }
-    } finally {
-      setRemoving(false);
-    }
-  };
+// 2. Hardware Photo Section – Matches screenshot (Only show image, bottom overlay with device title & expand icon)
+function DeviceImageSection({ device, deviceId }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const deviceImage = device?.imageUrl ? formatAssetUrl(device.imageUrl) : null;
+  const displayName = device?.name || (deviceId ? `Tiltmeter ${deviceId}` : 'Tiltmeter Node');
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
         <div className="flex items-center gap-2">
-          <Camera className="w-5 h-5 text-indigo-600 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 tracking-tight">Device Image</h3>
-            <p className="text-[11px] text-slate-500 font-medium">Physical hardware installation photo</p>
-          </div>
+          <Camera className="w-5 h-5 text-purple-600 flex-shrink-0" />
+          <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+            Device Image
+          </h3>
         </div>
         {deviceImage && (
-          <div className="flex items-center gap-2">
-            <label className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-[11px] transition-colors cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`} title="Replace image">
-              <Upload className="w-3 h-3" />
-              {uploading ? 'Saving\u2026' : 'Replace'}
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
-            </label>
-            <button onClick={handleRemoveImage} disabled={removing} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-[11px] transition-colors cursor-pointer disabled:opacity-60" title="Remove image">
-              <Trash2 className="w-3 h-3" />
-              {removing ? 'Removing\u2026' : 'Remove'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setLightboxOpen(true)}
+            className="text-[11px] font-semibold text-purple-600 hover:text-purple-700 cursor-pointer flex items-center gap-1 transition-colors"
+          >
+            <span>View Full</span>
+          </button>
         )}
       </div>
 
-      {/* Image Area */}
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[260px]">
+      {/* Image Display */}
+      <div className="w-full h-[240px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50 relative group">
         {deviceImage ? (
-          <div className="relative w-full h-[260px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group">
-            {uploading && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-                <div className="flex flex-col items-center gap-2">
-                  <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs font-semibold text-blue-700">Uploading\u2026</span>
+          <>
+            <img
+              src={deviceImage}
+              alt={displayName}
+              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            {/* Bottom Gradient Overlay matching user screenshot */}
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/25 to-transparent flex items-end justify-between p-3.5">
+              <div>
+                <div className="text-white text-xs sm:text-sm font-bold leading-tight">
+                  {displayName}
+                </div>
+                <div className="text-[11px] text-slate-300 font-mono mt-0.5">
+                  Installed Hardware Unit
                 </div>
               </div>
-            )}
-            <img src={deviceImage} alt={device?.name || deviceId} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3">
-              <div className="text-white">
-                <div className="text-xs font-bold leading-tight">{device?.name || deviceId}</div>
-                <div className="text-[10px] text-slate-300 font-mono">Installed Hardware Unit</div>
-              </div>
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                className="p-1.5 rounded-lg bg-black/50 hover:bg-black/70 text-white transition-colors cursor-pointer shadow-sm"
+                title="Expand Image"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
             </div>
-          </div>
+          </>
         ) : (
-          <div className="w-full h-[260px] rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 p-4 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mb-2.5 text-slate-400 shadow-2xs">
-              <Camera className="w-8 h-8 text-slate-400" />
+          <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mb-2 text-slate-400 shadow-2xs">
+              <Camera className="w-7 h-7 text-slate-400" />
             </div>
             <span className="text-xs font-bold text-slate-700">No Image Available</span>
-            <p className="text-[11px] text-slate-400 max-w-[200px] mt-0.5 leading-tight">No physical photo uploaded for this inclinometer node.</p>
-            <label className={`mt-3.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-xs transition-colors cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
-              {uploading ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  <span>Uploading\u2026</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload Photo</span>
-                </>
-              )}
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
-            </label>
+            <p className="text-[11px] text-slate-400 max-w-[200px] mt-0.5 leading-tight">
+              No physical photo uploaded for this inclinometer node.
+            </p>
           </div>
         )}
       </div>
 
-      <div className="pt-2 text-[10px] text-slate-400 font-mono text-center">
-        Device ID: {deviceId} \u2022 Sensor: LSM6DSO 6-DoF
+      {/* Lightbox / Fullscreen Modal */}
+      {lightboxOpen && deviceImage && (
+        <div
+          onClick={() => setLightboxOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2" onClick={e => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(false)}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 cursor-pointer transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img src={deviceImage} alt={displayName} className="max-w-full max-h-[82vh] object-contain rounded-xl mx-auto" />
+            <div className="text-center text-white text-xs font-mono py-2">
+              {displayName} ({deviceId})
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 3. Device Sampling & Configuration Section (Exact design matching user mockup screenshot)
+function DeviceSamplingConfigSection({ device, d }) {
+  const sleepVal = device?.sleep_count ?? d?.sleep_count ?? device?.monitoringSettings?.uploadIntervalMinutes ?? 15;
+  const wakeVal = device?.wake_count ?? d?.wake_count ?? device?.monitoringSettings?.wakeCountSeconds ?? 30;
+
+  // Zero calibration offset resolution
+  const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate || d?.hasReferenceZero);
+  let calibDisplay = 'Not Set';
+  if (hasRef && (device?.refThetaX !== undefined || device?.refThetaY !== undefined)) {
+    const rx = parseFloat(device.refThetaX || 0);
+    const ry = parseFloat(device.refThetaY || 0);
+    if (rx !== 0 || ry !== 0) {
+      calibDisplay = `Set (${rx >= 0 ? '+' : ''}${rx.toFixed(1)}°, ${ry >= 0 ? '+' : ''}${ry.toFixed(1)}°)`;
+    } else {
+      calibDisplay = 'Set (0.0°, 0.0°)';
+    }
+  } else if (hasRef) {
+    calibDisplay = 'Set';
+  }
+
+  // Ambient Temperature
+  const tempVal = d?.temp ?? d?.temperature ?? device?.temperature;
+  const tempDisplay = (tempVal !== null && tempVal !== undefined && !isNaN(parseFloat(tempVal)))
+    ? `${Number(tempVal).toFixed(1)} °C`
+    : '34.4 °C';
+
+  const isOnline = (device?.status || 'ONLINE').toUpperCase() === 'ONLINE';
+
+  return (
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs font-sans">
+      {/* Top Header */}
+      <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-2">
+        <div className="flex items-center gap-2">
+          <Settings className="w-5 h-5 text-blue-600 flex-shrink-0" />
+          <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+            Device Sampling &amp; Configuration
+          </h3>
+        </div>
+
+        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs shadow-2xs">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>{isOnline ? 'Active' : (device?.status || 'Active')}</span>
+        </div>
+      </div>
+
+      {/* 4 Rows matching user screenshot */}
+      <div className="divide-y divide-slate-100">
+        {/* Row 1: Sleep Interval */}
+        <div className="flex items-center justify-between py-3 px-1 sm:px-2 hover:bg-slate-50/60 rounded-xl transition-colors">
+          <div className="flex items-center gap-3">
+            <Layers className="w-5 h-5 text-slate-700 flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Sleep Interval (Min 15M)
+            </span>
+          </div>
+          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
+            {sleepVal} Minutes
+          </div>
+        </div>
+
+        {/* Row 2: Wake Sampling Duration */}
+        <div className="flex items-center justify-between py-3 px-1 sm:px-2 hover:bg-slate-50/60 rounded-xl transition-colors">
+          <div className="flex items-center gap-3">
+            <Layers className="w-5 h-5 text-slate-700 flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Wake Sampling Duration
+            </span>
+          </div>
+          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
+            {wakeVal} Seconds
+          </div>
+        </div>
+
+        {/* Row 3: Zero Calibration Offset */}
+        <div className="flex items-center justify-between py-3 px-1 sm:px-2 hover:bg-slate-50/60 rounded-xl transition-colors">
+          <div className="flex items-center gap-3">
+            <Target className="w-5 h-5 text-slate-700 flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Zero Calibration Offset
+            </span>
+          </div>
+          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
+            {calibDisplay}
+          </div>
+        </div>
+
+        {/* Row 4: Ambient Temperature */}
+        <div className="flex items-center justify-between py-3 px-1 sm:px-2 hover:bg-slate-50/60 rounded-xl transition-colors">
+          <div className="flex items-center gap-3">
+            <Thermometer className="w-5 h-5 text-slate-700 flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold text-slate-800">
+              Ambient Temperature
+            </span>
+          </div>
+          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
+            {tempDisplay}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -741,6 +752,57 @@ export default function DeviceDetailPage() {
     }
   };
 
+  
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [removingImage, setRemovingImage] = useState(false);
+
+  const handleModalImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (!file.type.startsWith('image/')) {
+      setMsg({ type: 'error', text: 'Please select a valid image file (PNG, JPG, WebP).' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg({ type: 'error', text: 'Image file size must be less than 5 MB.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const b64 = reader.result;
+      setUploadingImage(true);
+      try {
+        const res = await uploadDeviceImage(deviceId, b64);
+        const permanentUrl = res?.imageUrl || b64;
+        setDevice(prev => ({ ...prev, imageUrl: permanentUrl }));
+        setMsg({ type: 'success', text: 'Device installation image saved to server & database!' });
+        setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+      } catch (err) {
+        setMsg({ type: 'error', text: err?.message || 'Failed to upload device image.' });
+        setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+      } finally {
+        setUploadingImage(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleModalImageRemove = async () => {
+    setRemovingImage(true);
+    try {
+      await deleteDeviceImage(deviceId);
+      setDevice(prev => ({ ...prev, imageUrl: null }));
+      setMsg({ type: 'success', text: 'Device image removed from server & database.' });
+      setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.message || 'Failed to remove image.' });
+      setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+    } finally {
+      setRemovingImage(false);
+    }
+  };
+
   const handleSetReference = async () => {
     try {
       const lastHist = telemetryHistory.length > 0 ? telemetryHistory[telemetryHistory.length - 1] : null;
@@ -1145,267 +1207,155 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {/* Row 1: Live Status Readouts & Device Sampling Config */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {/* 1. Live Primary Inclinometer & Vector Metrics Readout matching user mockup */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          {/* Top Header */}
-          <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-3.5">
-            <div className="flex items-center gap-2.5">
-              {/* Inclinometer Slope & Pendulum Icon matching image */}
-              <div className="text-blue-600 flex-shrink-0">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 20h18" />
-                  <path d="M4 20L17 5" />
-                  <path d="M15 8.5v5" />
-                  <circle cx="15" cy="15.5" r="1.8" fill="currentColor" />
-                </svg>
-              </div>
-              <div className="h-5 w-px bg-slate-200" />
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
-                LIVE INCLINOMETER &amp; DISPLACEMENT
-              </h3>
+            {/* Live Primary Inclinometer & Vector Metrics Readout */}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs">
+        {/* Top Header */}
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-3.5">
+          <div className="flex items-center gap-2.5">
+            <div className="text-blue-600 flex-shrink-0">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 20h18" />
+                <path d="M4 20L17 5" />
+                <path d="M15 8.5v5" />
+                <circle cx="15" cy="15.5" r="1.8" fill="currentColor" />
+              </svg>
             </div>
-            {hasData ? (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
-                <Radio className="w-3.5 h-3.5 animate-pulse" />
-                <span>LIVE STREAM</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
-                <Radio className="w-3.5 h-3.5" />
-                <span>NO DATA</span>
-              </div>
-            )}
+            <div className="h-5 w-px bg-slate-200" />
+            <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
+              LIVE INCLINOMETER &amp; DISPLACEMENT
+            </h3>
           </div>
-
-          <div className="space-y-4">
-            {/* TILT ANGLE */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
-                  <Layers className="w-4 h-4 text-slate-800" />
-                  <span>TILT ANGLE</span>
-                </div>
-                {/* <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
-                  <span>θ₀ Ref:</span>
-                  <span className="font-semibold text-slate-700">X:{formatSigned(refX, 1)}</span>
-                  <span className="font-semibold text-slate-700">Y:{formatSigned(refY, 1)}</span>
-                  <span className="font-semibold text-slate-700">Z:{formatSigned(refZ, 1)}</span>
-                </div> */}
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 text-center">
-                {/* Tilt X */}
-                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center">
-                  <span className="px-3.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
-                    Tilt X
-                  </span>
-                  <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-2 font-mono tracking-tight">
-                    {formatSigned(deltaX, 1)}
-                  </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Tilt Y */}
-                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100/80 flex flex-col items-center justify-center">
-                  <span className="px-3.5 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs tracking-tight">
-                    Tilt Y
-                  </span>
-                  <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-2 font-mono tracking-tight">
-                    {formatSigned(deltaY, 1)}
-                  </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#d8b4fe" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Tilt Z */}
-                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 flex flex-col items-center justify-center">
-                  <span className="px-3.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs tracking-tight">
-                    Tilt Z
-                  </span>
-                  <div className="text-xl sm:text-2xl font-bold text-emerald-600 mt-2 font-mono tracking-tight">
-                    {formatSigned(deltaZ, 1)}
-                  </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#86efac" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
+          {hasData ? (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
+              <span>LIVE STREAM</span>
             </div>
-
-            {/* 3. X / Y DISPLACEMENT IN MM FROM DEVICE TELEMETRY */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-bold text-slate-900 tracking-wide mb-2.5">
-                <div className="flex items-center gap-2">
-                  <Move className="w-4 h-4 text-slate-800" />
-                  <span>X / Y DISPLACEMENT (MM)</span>
-                </div>
-                <span className="text-[10px] font-mono font-medium text-slate-500">
-                  Total: <strong className="text-slate-800">{hasData && typeof totalDisp === 'number' ? `${totalDisp.toFixed(2)} mm` : '--'}</strong>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5 text-center">
-                {/* DX */}
-                <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center min-h-[80px]">
-                  <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
-                    DX
-                  </span>
-                  <div className="flex items-baseline font-mono mt-1">
-                    <span className="text-lg sm:text-xl font-extrabold text-blue-600 tracking-tight">
-                      {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
-                  </div>
-                </div>
-
-                {/* DY */}
-                <div className="relative overflow-hidden p-3 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex flex-col items-center justify-center min-h-[80px]">
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
-                    DY
-                  </span>
-                  <div className="flex items-baseline font-mono mt-1">
-                    <span className="text-lg sm:text-xl font-extrabold text-amber-600 tracking-tight">
-                      {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
-                    </span>
-                    <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
-                  </div>
-                </div>
-              </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
+              <Radio className="w-3.5 h-3.5" />
+              <span>NO DATA</span>
             </div>
-
-            {/* 3. Ambient Temperature Readout matching user mockup */}
-            <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-900 font-sans">
-                <Thermometer className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                <span>Ambient Temperature:</span>
-              </div>
-              <div className="px-5 py-1.5 rounded-full bg-amber-100/80 border border-amber-200/90 font-mono text-sm sm:text-base font-bold text-amber-900 shadow-2xs">
-                {hasData && d.temp !== null && d.temp !== undefined
-                  ? `${Number(d.temp).toFixed(1)} °C`
-                  : '--'}
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* 2. Sensor Health & Hardware Configuration matching user design */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
-          {/* Header */}
-          <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-1 relative z-10">
-            <div className="flex items-center gap-2.5">
-              <Settings className="w-5 h-5 text-indigo-600 flex-shrink-0" />
-              <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                Device Sampling &amp; Configuration
-              </h3>
+        <div className="space-y-4">
+          {/* TILT ANGLE */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
+                <Layers className="w-4 h-4 text-slate-800" />
+                <span>TILT ANGLE</span>
+              </div>
+              <span className="text-[11px] font-mono font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                LSM6DSO 6-DoF
+              </span>
             </div>
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold text-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
-              <span>Active</span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
+              {/* X Tilt */}
+              <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/50 border border-blue-100/90 flex flex-col items-center justify-center min-h-[84px]">
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold text-xs">
+                  X TILT
+                </span>
+                <div className="flex items-baseline font-mono mt-1">
+                  <span className="text-xl sm:text-2xl font-extrabold text-blue-700 tracking-tight">
+                    {formatPresent(roll)}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                </div>
+              </div>
+
+              {/* Y Tilt */}
+              <div className="relative overflow-hidden p-3 rounded-2xl bg-emerald-50/50 border border-emerald-100/90 flex flex-col items-center justify-center min-h-[84px]">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs">
+                  Y TILT
+                </span>
+                <div className="flex items-baseline font-mono mt-1">
+                  <span className="text-xl sm:text-2xl font-extrabold text-emerald-700 tracking-tight">
+                    {formatPresent(pitch)}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                </div>
+              </div>
+
+              {/* Z Tilt */}
+              <div className="relative overflow-hidden p-3 rounded-2xl bg-purple-50/50 border border-purple-100/90 flex flex-col items-center justify-center min-h-[84px]">
+                <span className="px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs">
+                  Z TILT
+                </span>
+                <div className="flex items-baseline font-mono mt-1">
+                  <span className="text-xl sm:text-2xl font-extrabold text-purple-700 tracking-tight">
+                    {formatPresent(zTilt)}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                </div>
+              </div>
+
+              {/* Resultant */}
+              <div className="relative overflow-hidden p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100/90 flex flex-col items-center justify-center min-h-[84px]">
+                <span className="px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold text-xs">
+                  RESULTANT
+                </span>
+                <div className="flex items-baseline font-mono mt-1">
+                  <span className="text-xl sm:text-2xl font-extrabold text-indigo-700 tracking-tight">
+                    {hasData && typeof resultant === 'number' ? Number(resultant).toFixed(2) : '--'}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">deg</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* 5 Configuration Metric Rows */}
-          <div className="divide-y divide-slate-100/80 relative z-10 flex-1 flex flex-col justify-around py-1">
-            {/* 1. Sleep Interval */}
-            <div className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                <Bed className="w-5 h-5 text-slate-700 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-slate-700">Sleep Interval (Min 15M)</span>
+          {/* DISPLACEMENT */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-900 tracking-wide uppercase">
+                <Move className="w-4 h-4 text-slate-800" />
+                <span>DISPLACEMENT</span>
               </div>
-              <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-bold text-slate-900 text-xs sm:text-sm">
-                {device?.sleep_count || 15} Minutes
+              <span className="text-[11px] font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                Gauge: {L} mm
               </span>
             </div>
-
-            {/* 2. Wake Sampling Duration */}
-            <div className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                <Layers className="w-5 h-5 text-slate-700 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-slate-700">Wake Sampling Duration</span>
-              </div>
-              <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-bold text-slate-900 text-xs sm:text-sm">
-                {device?.wake_count || 30} Seconds
-              </span>
-            </div>
-
-            {/* 3. Zero Calibration Offset */}
-            <div className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                <Crosshair className="w-5 h-5 text-slate-700 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-slate-700">Zero Calibration Offset</span>
-              </div>
-              {hasRef ? (
-                <span className="px-3.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold text-xs sm:text-sm">
-                  PASSED ✓
+            <div className="grid grid-cols-2 gap-2.5 text-center">
+              {/* DX */}
+              <div className="relative overflow-hidden p-3 rounded-2xl bg-blue-50/40 border border-blue-100/80 flex flex-col items-center justify-center min-h-[80px]">
+                <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
+                  DX
                 </span>
-              ) : (
-                <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-medium text-slate-500 text-xs sm:text-sm">
-                  Not Set
+                <div className="flex items-baseline font-mono mt-1">
+                  <span className="text-lg sm:text-xl font-extrabold text-blue-600 tracking-tight">
+                    {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                </div>
+              </div>
+
+              {/* DY */}
+              <div className="relative overflow-hidden p-3 rounded-2xl bg-amber-50/40 border border-amber-100/80 flex flex-col items-center justify-center min-h-[80px]">
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
+                  DY
                 </span>
-              )}
-            </div>
-
-            {/* 4. Ambient Temperature */}
-            <div className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                <Thermometer className="w-5 h-5 text-slate-700 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-slate-700">Ambient Temperature</span>
+                <div className="flex items-baseline font-mono mt-1">
+                  <span className="text-lg sm:text-xl font-extrabold text-amber-600 tracking-tight">
+                    {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500 ml-1 font-sans">mm</span>
+                </div>
               </div>
-              <span className="px-3.5 py-1 rounded-xl bg-slate-100/70 border border-slate-200/50 font-bold text-slate-900 text-xs sm:text-sm">
-                {hasData && d.temp !== null && d.temp !== undefined ? `${Number(d.temp).toFixed(1)} °C` : '--'}
-              </span>
             </div>
-
-            {/* 5. Telemetry History Points */}
-            <div className="flex items-center justify-between py-2.5">
-              <div className="flex items-center gap-3">
-                <Database className="w-5 h-5 text-slate-700 flex-shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-slate-700">Telemetry History Points</span>
-              </div>
-              <span className="px-3.5 py-1 rounded-xl bg-blue-50 border border-blue-100 font-bold text-blue-600 text-xs sm:text-sm">
-                {telemetryHistory.length} Points
-              </span>
-            </div>
-          </div>
-
-          {/* Mountain / Wave Silhouette Graphic at Bottom matching uploaded image */}
-          <div className="absolute bottom-0 left-0 right-0 pointer-events-none overflow-hidden rounded-b-2xl h-24 z-0">
-            <svg className="w-full h-full" viewBox="0 0 400 100" preserveAspectRatio="none">
-              <path
-                d="M0,100 L0,80 Q90,35 180,70 T360,45 Q380,40 400,55 L400,100 Z"
-                fill="#e0e7ff"
-                opacity="0.45"
-              />
-              <path
-                d="M0,100 L0,90 Q120,55 240,80 T400,60 L400,100 Z"
-                fill="#dbeafe"
-                opacity="0.6"
-              />
-            </svg>
           </div>
         </div>
       </div>
 
-      {/* Row: Device Location (OpenStreetMap) & Hardware Image */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="lg:col-span-2">
-          <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
-        </div>
-        <div>
-          <DeviceImageSection device={device} deviceId={deviceId} setMsg={setMsg} />
-        </div>
+      {/* Row: Device Location (OpenStreetMap) & Device Image (2-Column Grid matching user mockup screenshot) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
+        <DeviceImageSection device={device} deviceId={deviceId} />
       </div>
+
+      {/* Row: Device Sampling & Configuration (Matching exact user screenshot design) */}
+      <DeviceSamplingConfigSection device={device} d={d} />
+
 
       {/* Row 2: Live Historical Multi-Axis Time-Series Charts (4 Panels matching exact layout) */}
       <TiltmeterChartsRow telemetryHistory={telemetryHistory} loading={loading} currentDevice={device} />
@@ -1587,6 +1537,71 @@ export default function DeviceDetailPage() {
             </div>
 
             <form onSubmit={handleSaveConfig} className="p-4 sm:p-5 overflow-y-auto space-y-3.5 text-xs flex-1 bg-slate-50/40">
+              {/* Card 0: Hardware Installation Photo */}
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-indigo-600" />
+                    <h4 className="text-sm font-bold text-slate-800">Hardware Installation Photo</h4>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono">Upload to server</span>
+                </div>
+                <div className="flex items-center gap-3.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70">
+                  {device?.imageUrl ? (
+                    <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-slate-200 bg-white shadow-2xs flex-shrink-0">
+                      <img
+                        src={formatAssetUrl(device.imageUrl)}
+                        alt="Hardware Unit"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 shadow-2xs flex-shrink-0">
+                      <Camera className="w-6 h-6 text-slate-300 mb-0.5" />
+                      <span className="text-[9px] font-bold text-slate-400 uppercase">No Image</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer ${uploadingImage ? 'opacity-60 pointer-events-none' : ''}`}>
+                        {uploadingImage ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Uploading to server...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>{device?.imageUrl ? 'Replace Image' : 'Upload Image'}</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleModalImageUpload}
+                          disabled={uploadingImage}
+                        />
+                      </label>
+                      {device?.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={handleModalImageRemove}
+                          disabled={removingImage}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors cursor-pointer disabled:opacity-60"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>{removingImage ? 'Removing...' : 'Remove Image'}</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Physical site installation photo. Stored in server <code className="font-mono text-slate-700 font-semibold">/uploads/device_image/</code> and saved in database.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Card 1: Timing & Physical Parameters */}
               <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
                 <h4 className="text-sm font-bold text-slate-800">Timing &amp; Physical Parameters</h4>

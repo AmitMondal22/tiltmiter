@@ -1201,22 +1201,10 @@ export default function DeviceDetailPage() {
       </div>
 
             {/* 2-Column Responsive Layout:
-          LEFT SIDE: [In ONE Card: Device Location (small size), Device Image (small size), and under: Device Sampling & Configuration]
-          RIGHT SIDE: LIVE INCLINOMETER & DISPLACEMENT */}
+          LEFT SIDE: LIVE INCLINOMETER & DISPLACEMENT
+          RIGHT SIDE: [In ONE Card: Device Location (small size), Device Image (small size), and under: Device Sampling & Configuration] */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        {/* LEFT SIDE: IN ONE CARD */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-4">
-          {/* Top row inside card: Location Map (small size) & Device Image (small size) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
-            <DeviceImageSection device={device} deviceId={deviceId} />
-          </div>
-
-          {/* Underneath in the same card: Device Sampling & Configuration */}
-          <DeviceSamplingConfigSection device={device} d={d} embedded={true} />
-        </div>
-
-        {/* RIGHT SIDE: LIVE INCLINOMETER & DISPLACEMENT */}
+        {/* LEFT SIDE: LIVE INCLINOMETER & DISPLACEMENT */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs space-y-4">
           {/* Top Header */}
           <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
@@ -1357,6 +1345,18 @@ export default function DeviceDetailPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* RIGHT SIDE: IN ONE CARD (Location Map + Device Image + Sampling Config) */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-4">
+          {/* Top row inside card: Location Map (small size) & Device Image (small size) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
+            <DeviceImageSection device={device} deviceId={deviceId} />
+          </div>
+
+          {/* Underneath in the same card: Device Sampling & Configuration */}
+          <DeviceSamplingConfigSection device={device} d={d} embedded={true} />
         </div>
       </div>
 

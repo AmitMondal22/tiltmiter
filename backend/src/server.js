@@ -97,10 +97,12 @@ await fastify.register(fastifyStatic, {
   root: uploadsDir,
   prefix: '/uploads/',
   decorateReply: false,
-  setHeaders: (res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.setHeader('Cache-Control', 'no-cache, public, max-age=0');
+  setHeaders: (res, path) => {
+    // res may be a raw Node ServerResponse or a wrap object depending on @fastify/static version
+    const setHdr = res.setHeader ? res.setHeader.bind(res) : (res.header ? res.header.bind(res) : () => {});
+    setHdr('Access-Control-Allow-Origin', '*');
+    setHdr('Cross-Origin-Resource-Policy', 'cross-origin');
+    setHdr('Cache-Control', 'no-cache, public, max-age=0');
   },
 });
 
@@ -115,6 +117,17 @@ fastify.setErrorHandler((error, request, reply) => {
     error: error.name || 'Internal Server Error',
     message: error.message || 'An unexpected error occurred',
   });
+});
+
+// Belt-and-suspenders: guarantee CORS headers on every /uploads/* static response
+// (covers all @fastify/static versions regardless of setHeaders callback behaviour)
+fastify.addHook('onSend', (request, reply, payload, done) => {
+  if (request.url && request.url.startsWith('/uploads/')) {
+    reply.header('Access-Control-Allow-Origin', '*');
+    reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    reply.header('Cache-Control', 'no-cache, public, max-age=0');
+  }
+  done();
 });
 
 await fastify.register(fastifyJwt, { secret: process.env.JWT_SECRET || 'super_secret_jwt_key_tiltmeter_360_prod_2026' });

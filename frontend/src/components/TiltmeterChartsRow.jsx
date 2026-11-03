@@ -142,7 +142,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
       const xD = parseNum(rawXDisp);
       const yD = parseNum(rawYDisp);
       const zD = parseNum(rawZDisp);
-      const totalD = parseNum(rawTotalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
+      const totalD = parseNum(rawTotalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD) : null);
 
       // Raw acceleration directly from device without division
       const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
@@ -237,26 +237,16 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     return offsets;
   }, [lastPt]);
 
-  // Chart 2: Dynamic smart vertical offsets for Displacement (X, Y, Z)
+  // Chart 2: Dynamic smart vertical offsets for Displacement (X, Y)
   const dispOffsets = useMemo(() => {
-    if (!lastPt) return { x: 0, y: 0, z: 0 };
-    const items = [
-      { key: 'x', val: lastPt.xDisp || 0 },
-      { key: 'y', val: lastPt.yDisp || 0 },
-      { key: 'z', val: lastPt.zDisp || 0 },
-    ].sort((a, b) => b.val - a.val);
-
-    const offsets = { x: 0, y: 0, z: 0 };
-    if (Math.abs(items[0].val - items[1].val) < 0.5 || Math.abs(items[1].val - items[2].val) < 0.5) {
-      offsets[items[0].key] = -7;
-      offsets[items[1].key] = 0;
-      offsets[items[2].key] = 8;
-    } else {
-      offsets.x = -2;
-      offsets.y = 2;
-      offsets.z = 0;
+    if (!lastPt) return { x: -2, y: 2 };
+    const diff = Math.abs((lastPt.xDisp || 0) - (lastPt.yDisp || 0));
+    if (diff < 0.35) {
+      return (lastPt.xDisp || 0) >= (lastPt.yDisp || 0)
+        ? { x: -6, y: 7 }
+        : { x: 7, y: -6 };
     }
-    return offsets;
+    return { x: -2, y: 2 };
   }, [lastPt]);
 
   // Chart 3: Dynamic smart vertical offsets for Acceleration (X, Y, Z)
@@ -407,10 +397,6 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
             <span className="w-2.5 h-2.5 rounded-full bg-[#0d9488]" />
             <span className="text-slate-700">DY</span>
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#8b5cf6]" />
-            <span className="text-slate-700">DZ</span>
-          </span>
         </div>
 
         {/* Chart Body */}
@@ -462,15 +448,6 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   strokeWidth={2}
                   isAnimationActive={false}
                   dot={renderCalloutDot('yDisp', totalPoints, '#0d9488', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.y)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="zDisp"
-                  name="DZ"
-                  stroke="#8b5cf6"
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                  dot={renderCalloutDot('zDisp', totalPoints, '#8b5cf6', (v) => `${Number(v).toFixed(2)} mm`, 0)}
                 />
               </LineChart>
             </ResponsiveContainer>

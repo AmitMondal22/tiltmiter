@@ -191,20 +191,7 @@ function DeviceSamplingConfigSection({ device, d, embedded = false }) {
   const sleepVal = device?.sleep_count ?? d?.sleep_count ?? device?.monitoringSettings?.uploadIntervalMinutes ?? 15;
   const wakeVal = device?.wake_count ?? d?.wake_count ?? device?.monitoringSettings?.wakeCountSeconds ?? 30;
 
-  // Zero calibration offset resolution
-  const hasRef = Boolean(device?.hasReferenceZero || device?.calibrate || d?.hasReferenceZero);
-  let calibDisplay = 'Not Set';
-  if (hasRef && (device?.refThetaX !== undefined || device?.refThetaY !== undefined)) {
-    const rx = parseFloat(device.refThetaX || 0);
-    const ry = parseFloat(device.refThetaY || 0);
-    if (rx !== 0 || ry !== 0) {
-      calibDisplay = `Set (${rx >= 0 ? '+' : ''}${rx.toFixed(1)}°, ${ry >= 0 ? '+' : ''}${ry.toFixed(1)}°)`;
-    } else {
-      calibDisplay = 'Set (0.0°, 0.0°)';
-    }
-  } else if (hasRef) {
-    calibDisplay = 'Set';
-  }
+  
 
   // Ambient Temperature
   const tempVal = d?.temp ?? d?.temperature ?? device?.temperature;
@@ -259,18 +246,7 @@ function DeviceSamplingConfigSection({ device, d, embedded = false }) {
           </div>
         </div>
 
-        {/* Row 3: Zero Calibration Offset */}
-        <div className="flex items-center justify-between py-3 px-1 sm:px-2 hover:bg-slate-50/60 rounded-xl transition-colors">
-          <div className="flex items-center gap-3">
-            <Target className="w-5 h-5 text-slate-700 flex-shrink-0" />
-            <span className="text-xs sm:text-sm font-semibold text-slate-800">
-              Zero Calibration Offset
-            </span>
-          </div>
-          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
-            {calibDisplay}
-          </div>
-        </div>
+
 
         {/* Row 4: Ambient Temperature */}
         <div className="flex items-center justify-between py-3 px-1 sm:px-2 hover:bg-slate-50/60 rounded-xl transition-colors">

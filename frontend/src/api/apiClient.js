@@ -387,6 +387,21 @@ export async function deleteDevice(id) {
   });
 }
 
+// ─── Device Installation Photo ────────────────────────────────────────────────
+export async function uploadDeviceImage(id, imageUrl) {
+  return await request(`/devices/${id}/image`, {
+    method: 'POST',
+    body: JSON.stringify({ imageUrl }),
+  });
+}
+
+export async function deleteDeviceImage(id) {
+  return await request(`/devices/${id}/image`, {
+    method: 'DELETE',
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function configureDeviceTelemetry(id, config) {
   return await request(`/devices/${id}`, {
     method: 'PUT',

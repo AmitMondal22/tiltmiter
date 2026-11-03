@@ -213,6 +213,10 @@ export const Device = sequelize.define('Device', {
     type: DataTypes.JSONB,
     defaultValue: null,
   },
+  imageUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   tableName: 'devices',
   timestamps: true,

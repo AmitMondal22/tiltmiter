@@ -6,6 +6,45 @@ import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
 import { broadcastTelemetry, removeDeviceTelemetry } from '../../websocket/websocket.service.js';
 import { inMemoryTelemetryStore } from '../../services/telemetryStore.js';
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename_dev = fileURLToPath(import.meta.url);
+const __dirname_dev = path.dirname(__filename_dev);
+const deviceImagesDir = path.join(__dirname_dev, '..', '..', '..', 'uploads', 'device_image');
+const MAX_DEVICE_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB max
+
+function deleteOldDeviceImageFile(oldImageUrl) {
+  if (!oldImageUrl || typeof oldImageUrl !== 'string') return;
+  try {
+    if (oldImageUrl.includes('/uploads/device_image/')) {
+      const fileName = oldImageUrl.split('/uploads/device_image/').pop();
+      if (fileName) {
+        const filePath = path.join(deviceImagesDir, fileName);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    }
+  } catch (err) {
+    console.error('Error deleting old device image file from disk:', err.message);
+  }
+}
+
+function saveDeviceImageToDisk(deviceId, base64DataUrl) {
+  if (!base64DataUrl.startsWith('data:image/')) return base64DataUrl;
+  if (!fs.existsSync(deviceImagesDir)) fs.mkdirSync(deviceImagesDir, { recursive: true });
+  const matches = base64DataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!matches || matches.length < 3) return base64DataUrl;
+  let ext = matches[1].toLowerCase();
+  if (ext === 'svg+xml') ext = 'svg';
+  if (ext === 'jpeg') ext = 'jpg';
+  const buffer = Buffer.from(matches[2], 'base64');
+  const filename = `device_${deviceId}_${Date.now()}.${ext}`;
+  const filePath = path.join(deviceImagesDir, filename);
+  fs.writeFileSync(filePath, buffer);
+  return `/uploads/device_image/${filename}`;
+}
+
 export async function devicesRoutes(fastify) {
   // Query devices scoped by organization (supports direct access with authenticateOptional)
   fastify.get('/api/devices', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
@@ -483,6 +522,58 @@ export async function devicesRoutes(fastify) {
     }
   });
 
+
+  // --- Upload or Replace Device Installation Photo ------------------------------
+  fastify.post('/api/devices/:id/image', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      let device = await Device.findByPk(id);
+      if (!device) {
+        device = await Device.findOne({ where: { [Op.or]: [{ id }, { id: String(id).toUpperCase() }, { id: String(id).toLowerCase() }] } });
+      }
+      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+
+      const { imageUrl } = req.body || {};
+      if (!imageUrl) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'imageUrl (base64 data URL) is required.' });
+
+      const approxBytes = Math.round((imageUrl.length * 3) / 4);
+      if (approxBytes > MAX_DEVICE_IMAGE_BYTES) {
+        return reply.status(400).send({ statusCode: 400, error: 'Payload Too Large', message: 'Image exceeds the 5 MB limit. Please upload a smaller file.' });
+      }
+
+      // Delete previous disk file if it exists
+      deleteOldDeviceImageFile(device.imageUrl);
+
+      // Save new image permanently to uploads/device_image/
+      const permanentUrl = saveDeviceImageToDisk(device.id, imageUrl);
+
+      // Persist URL in database
+      await device.update({ imageUrl: permanentUrl });
+
+      return reply.send({ statusCode: 200, message: 'Device image saved successfully.', imageUrl: permanentUrl, device });
+    } catch (err) {
+      return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
+    }
+  });
+
+  // --- Delete Device Installation Photo -----------------------------------------
+  fastify.delete('/api/devices/:id/image', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      let device = await Device.findByPk(id);
+      if (!device) {
+        device = await Device.findOne({ where: { [Op.or]: [{ id }, { id: String(id).toUpperCase() }, { id: String(id).toLowerCase() }] } });
+      }
+      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+
+      deleteOldDeviceImageFile(device.imageUrl);
+      await device.update({ imageUrl: null });
+
+      return reply.send({ statusCode: 200, message: 'Device image removed.', imageUrl: null });
+    } catch (err) {
+      return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
+    }
+  });
   // Set Zero Reference (ClinoX Method: D = L * tan(delta_theta * pi / 180))
   fastify.post('/api/devices/:id/set-reference', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {

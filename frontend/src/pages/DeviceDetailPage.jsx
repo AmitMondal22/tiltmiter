@@ -8,7 +8,7 @@ import {
   Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move, X,
   ShieldAlert, Camera, Image as ImageIcon, Upload, Trash2, ExternalLink
 } from 'lucide-react';
-import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference } from '../api/apiClient';
+import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, uploadDeviceImage, deleteDeviceImage, formatAssetUrl } from '../api/apiClient';
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
@@ -147,84 +147,122 @@ function DeviceLocationMap({ device, deviceId, d }) {
   );
 }
 
-// 2. Hardware Photo Section (shows device image or 'no image' icon fallback)
-function DeviceImageSection({ device, deviceId, setMsg }) {
-  const [deviceImage, setDeviceImage] = useState(() => {
-    return localStorage.getItem(`device_image_${deviceId}`) || device?.imageUrl || device?.image || null;
-  });
 
+// 2. Hardware Photo Section � uploads to server, stores in DB, shows from /uploads/device_image/
+function DeviceImageSection({ device, deviceId, setMsg }) {
+  const [deviceImage, setDeviceImage] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+
+  // Sync with device prop: server URL takes priority over legacy localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(`device_image_${deviceId}`);
-    if (saved) {
-      setDeviceImage(saved);
-    } else if (device?.imageUrl || device?.image) {
-      setDeviceImage(device.imageUrl || device.image);
+    if (device?.imageUrl) {
+      setDeviceImage(formatAssetUrl(device.imageUrl));
+      localStorage.removeItem(`device_image_${deviceId}`);
     } else {
-      setDeviceImage(null);
+      const cached = localStorage.getItem(`device_image_${deviceId}`);
+      setDeviceImage(cached || null);
     }
-  }, [deviceId, device?.imageUrl, device?.image]);
+  }, [deviceId, device?.imageUrl]);
 
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = '';
     if (!file.type.startsWith('image/')) {
       if (setMsg) setMsg({ type: 'error', text: 'Please select a valid image file (PNG, JPG, WebP).' });
       return;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      if (setMsg) setMsg({ type: 'error', text: 'Image must be smaller than 5 MB.' });
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const b64 = reader.result;
-      setDeviceImage(b64);
-      localStorage.setItem(`device_image_${deviceId}`, b64);
-      if (setMsg) {
-        setMsg({ type: 'success', text: 'Device installation image updated successfully!' });
-        setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+      setUploading(true);
+      setDeviceImage(b64); // Optimistic preview
+      try {
+        const res = await uploadDeviceImage(deviceId, b64);
+        const serverUrl = formatAssetUrl(res?.imageUrl) || b64;
+        setDeviceImage(serverUrl);
+        localStorage.removeItem(`device_image_${deviceId}`);
+        if (setMsg) {
+          setMsg({ type: 'success', text: 'Device installation image saved to server successfully!' });
+          setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+        }
+      } catch (err) {
+        setDeviceImage(device?.imageUrl ? formatAssetUrl(device.imageUrl) : null);
+        if (setMsg) {
+          setMsg({ type: 'error', text: err?.message || 'Failed to upload image to server.' });
+          setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+        }
+      } finally {
+        setUploading(false);
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const handleRemoveImage = () => {
-    setDeviceImage(null);
-    localStorage.removeItem(`device_image_${deviceId}`);
-    if (setMsg) {
-      setMsg({ type: 'success', text: 'Device image removed.' });
-      setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+  const handleRemoveImage = async () => {
+    setRemoving(true);
+    try {
+      await deleteDeviceImage(deviceId);
+      setDeviceImage(null);
+      localStorage.removeItem(`device_image_${deviceId}`);
+      if (setMsg) {
+        setMsg({ type: 'success', text: 'Device image removed from server.' });
+        setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+      }
+    } catch (err) {
+      if (setMsg) {
+        setMsg({ type: 'error', text: err?.message || 'Failed to remove image.' });
+        setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+      }
+    } finally {
+      setRemoving(false);
     }
   };
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs flex flex-col justify-between">
+      {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
         <div className="flex items-center gap-2">
           <Camera className="w-5 h-5 text-indigo-600 flex-shrink-0" />
           <div>
-            <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-              Device Image
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Physical hardware installation photo
-            </p>
+            <h3 className="text-sm font-bold text-slate-900 tracking-tight">Device Image</h3>
+            <p className="text-[11px] text-slate-500 font-medium">Physical hardware installation photo</p>
           </div>
         </div>
         {deviceImage && (
-          <button
-            onClick={handleRemoveImage}
-            className="text-[11px] text-red-600 hover:text-red-700 font-semibold cursor-pointer"
-          >
-            Remove
-          </button>
+          <div className="flex items-center gap-2">
+            <label className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-[11px] transition-colors cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`} title="Replace image">
+              <Upload className="w-3 h-3" />
+              {uploading ? 'Saving\u2026' : 'Replace'}
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
+            </label>
+            <button onClick={handleRemoveImage} disabled={removing} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-[11px] transition-colors cursor-pointer disabled:opacity-60" title="Remove image">
+              <Trash2 className="w-3 h-3" />
+              {removing ? 'Removing\u2026' : 'Remove'}
+            </button>
+          </div>
         )}
       </div>
 
+      {/* Image Area */}
       <div className="flex-1 flex flex-col items-center justify-center min-h-[260px]">
         {deviceImage ? (
           <div className="relative w-full h-[260px] rounded-xl overflow-hidden border border-slate-200 bg-slate-50 group">
-            <img
-              src={deviceImage}
-              alt={device?.name || deviceId}
-              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
+            {uploading && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-8 h-8 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs font-semibold text-blue-700">Uploading\u2026</span>
+                </div>
+              </div>
+            )}
+            <img src={deviceImage} alt={device?.name || deviceId} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent flex items-end p-3">
               <div className="text-white">
                 <div className="text-xs font-bold leading-tight">{device?.name || deviceId}</div>
@@ -234,38 +272,35 @@ function DeviceImageSection({ device, deviceId, setMsg }) {
           </div>
         ) : (
           <div className="w-full h-[260px] rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/60 p-4 flex flex-col items-center justify-center text-center">
-            {/* Prominent icon showing 'no image' */}
             <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mb-2.5 text-slate-400 shadow-2xs">
               <Camera className="w-8 h-8 text-slate-400" />
             </div>
-            <span className="text-xs font-bold text-slate-700">
-              No Image Available
-            </span>
-            <p className="text-[11px] text-slate-400 max-w-[200px] mt-0.5 leading-tight">
-              No physical photo uploaded for this inclinometer node.
-            </p>
-
-            <label className="mt-3.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-xs transition-colors cursor-pointer">
-              <Upload className="w-3.5 h-3.5" />
-              <span>Upload Photo</span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageUpload}
-              />
+            <span className="text-xs font-bold text-slate-700">No Image Available</span>
+            <p className="text-[11px] text-slate-400 max-w-[200px] mt-0.5 leading-tight">No physical photo uploaded for this inclinometer node.</p>
+            <label className={`mt-3.5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-semibold text-xs transition-colors cursor-pointer ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+              {uploading ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Uploading\u2026</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Upload Photo</span>
+                </>
+              )}
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
             </label>
           </div>
         )}
       </div>
 
       <div className="pt-2 text-[10px] text-slate-400 font-mono text-center">
-        Device ID: {deviceId} • Sensor: LSM6DSO 6-DoF
+        Device ID: {deviceId} \u2022 Sensor: LSM6DSO 6-DoF
       </div>
     </div>
   );
 }
-
 export default function DeviceDetailPage() {
   const { deviceId } = useParams();
   const navigate = useNavigate();

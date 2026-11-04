@@ -190,7 +190,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     let minVal = Infinity;
     let maxVal = -Infinity;
     chartData.forEach(p => {
-      [p.xTilt, p.yTilt, p.zTilt].forEach(v => {
+      [p.xTilt, p.yTilt].forEach(v => {
         if (v !== undefined && v !== null && !isNaN(v)) {
           if (v < minVal) minVal = v;
           if (v > maxVal) maxVal = v;
@@ -215,26 +215,16 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
     return chartData.some(p => p.temp !== null);
   }, [chartData]);
 
-  // Chart 1: Dynamic smart vertical offsets for Tilt (X, Y, Z) to prevent text collision
+  // Chart 1: Dynamic smart vertical offsets for Tilt (X, Y) to prevent text collision
   const tiltOffsets = useMemo(() => {
-    if (!lastPt) return { x: -2, y: 2, z: 0 };
-    const items = [
-      { key: 'x', val: lastPt.xTilt },
-      { key: 'y', val: lastPt.yTilt },
-      { key: 'z', val: lastPt.zTilt },
-    ].sort((a, b) => b.val - a.val); // Descending
-
-    const offsets = { x: 0, y: 0, z: 0 };
-    if (Math.abs(items[0].val - items[1].val) < 0.25 || Math.abs(items[1].val - items[2].val) < 0.25) {
-      offsets[items[0].key] = -7;
-      offsets[items[1].key] = 0;
-      offsets[items[2].key] = 8;
-    } else {
-      offsets.x = -2;
-      offsets.y = 2;
-      offsets.z = 0;
+    if (!lastPt) return { x: -2, y: 2 };
+    const diff = Math.abs((lastPt.xTilt || 0) - (lastPt.yTilt || 0));
+    if (diff < 0.25) {
+      return (lastPt.xTilt || 0) >= (lastPt.yTilt || 0)
+        ? { x: -6, y: 7 }
+        : { x: 7, y: -6 };
     }
-    return offsets;
+    return { x: -2, y: 2 };
   }, [lastPt]);
 
   // Chart 2: Dynamic smart vertical offsets for Displacement (X, Y)
@@ -269,7 +259,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* ─────────────────────────────────────────────────────────────
-          CHART 1: X / Y / Z Tilt Change (°)
+          CHART 1: X / Y Tilt Change (°)
       ───────────────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-xs flex flex-col justify-between">
         {/* Card Header: Icon & Title & Reference Status */}
@@ -277,7 +267,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
           <div className="flex items-center gap-2">
             <TiltSensorIcon />
             <h3 className="font-bold text-slate-800 text-[13px] tracking-tight">
-              X / Y / Z Tilt Change (°)
+              X / Y Tilt Change (°)
             </h3>
           </div>
           {hasRef && (
@@ -296,10 +286,6 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#0d9488]" />
             <span className="text-slate-700">Y</span>
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#ea580c]" />
-            <span className="text-slate-700">Z</span>
           </span>
         </div>
 
@@ -352,15 +338,6 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   strokeWidth={2}
                   isAnimationActive={false}
                   dot={renderCalloutDot('yTilt', totalPoints, '#0d9488', (v) => `${v >= 0 ? '+' : ''}${Number(v).toFixed(1)}°`, tiltOffsets.y)}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="zTilt"
-                  name="Z"
-                  stroke="#ea580c"
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                  dot={renderCalloutDot('zTilt', totalPoints, '#ea580c', (v) => `${v >= 0 ? '+' : ''}${Number(v).toFixed(1)}°`, tiltOffsets.z)}
                 />
               </LineChart>
             </ResponsiveContainer>

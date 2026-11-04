@@ -1130,7 +1130,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 <span className="text-xs font-bold text-slate-900 tracking-wide uppercase">TILT ANGLE</span>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-2 gap-3 text-center">
                 {/* Tilt X */}
                 <div className="relative overflow-hidden p-3.5 sm:p-4 rounded-2xl bg-blue-50/40 border border-blue-100 flex flex-col items-center justify-center min-h-[95px]">
                   <span className="px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
@@ -1157,21 +1157,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
                     <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
                       <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#d8b4fe" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Tilt Z */}
-                <div className="relative overflow-hidden p-3.5 sm:p-4 rounded-2xl bg-emerald-50/40 border border-emerald-100 flex flex-col items-center justify-center min-h-[95px]">
-                  <span className="px-3 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold text-xs tracking-tight">
-                    Tilt Z
-                  </span>
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-emerald-600 mt-2 font-mono tracking-tight">
-                    {hasData ? formatSigned(deltaZ, 1) : '--'}
-                  </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#86efac" />
                     </svg>
                   </div>
                 </div>

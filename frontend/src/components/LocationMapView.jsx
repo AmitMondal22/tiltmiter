@@ -90,42 +90,6 @@ const MAP_STYLES = {
       ]
     }
   },
-  street: {
-    id: 'street',
-    name: 'Street Map',
-    style: {
-      version: 8,
-      sources: {
-        'osm-tiles': {
-          type: 'raster',
-          tiles: [
-            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-          ],
-          tileSize: 256,
-          maxzoom: 19,
-          attribution: '&copy; OpenStreetMap contributors'
-        },
-        'terrain-dem': {
-          type: 'raster-dem',
-          tiles: [
-            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
-          ],
-          encoding: 'terrarium',
-          tileSize: 256,
-          maxzoom: 15
-        }
-      },
-      layers: [
-        {
-          id: 'osm-tiles-layer',
-          type: 'raster',
-          source: 'osm-tiles',
-          minzoom: 0,
-          maxzoom: 22
-        }
-      ]
-    }
-  },
   topo: {
     id: 'topo',
     name: 'Topographic Relief',
@@ -184,7 +148,7 @@ export default function LocationMapView({
   const [selectedSiteId, setSelectedSiteId] = useState(initialSelectedSiteId || 'ALL');
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ONLINE, OFFLINE
   const [searchQuery, setSearchQuery] = useState('');
-  const [mapType, setMapType] = useState('satellite'); // 'satellite', 'street', 'topo'
+  const [mapType, setMapType] = useState('satellite'); // 'satellite', 'google', 'topo'
   const [is3D, setIs3D] = useState(true); // 3D Pitch tilt (55deg vs 0deg)
   const [isGlobe, setIsGlobe] = useState(false); // 3D Globe vs Mercator projection
   const [isTerrain, setIsTerrain] = useState(true); // 3D Terrain elevation mesh

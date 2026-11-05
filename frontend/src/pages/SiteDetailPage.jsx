@@ -142,31 +142,11 @@ export default function SiteDetailPage() {
           </div>
         </div>
 
-        {/* View Switcher: Satellite vs Street */}
+        {/* Header: Satellite Map & Actions */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
-            <button
-              onClick={() => setViewType('satellite')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewType === 'satellite'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Satellite Map</span>
-            </button>
-            <button
-              onClick={() => setViewType('street')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewType === 'street'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <MapIcon className="w-3.5 h-3.5" />
-              <span>Street Map</span>
-            </button>
+          <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-2xs">
+            <Layers className="w-3.5 h-3.5 text-white" />
+            <span>Satellite Map</span>
           </div>
 
           {/* Analytics Summary Toggle */}

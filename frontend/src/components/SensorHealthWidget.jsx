@@ -1,4 +1,5 @@
 import React from 'react';
+import { Check } from 'lucide-react';
 import { parseTelemetry } from '../utils/telemetryHelper';
 
 const num = (v, d = null) => (typeof v === 'number' && !isNaN(v) ? v : (v !== null && v !== undefined && v !== '' && !isNaN(parseFloat(v)) ? parseFloat(v) : d));
@@ -16,7 +17,7 @@ export default function SensorHealthWidget({ currentDevice }) {
   const diagnosticsList = [
     { name: 'X-Axis MEMS Sensor', status: d.xTilt !== null ? 'NORMAL' : '--', isGood: d.xTilt !== null },
     { name: 'Y-Axis MEMS Sensor', status: d.yTilt !== null ? 'NORMAL' : '--', isGood: d.yTilt !== null },
-    { name: 'Accelerometer Core', status: accMagVal !== null ? `✓ ${accMagVal.toFixed(2)} g` : '--', isGood: accMagVal !== null },
+    { name: 'Accelerometer Core', status: accMagVal !== null ? `${accMagVal.toFixed(2)} g` : '--', isGood: accMagVal !== null },
     { name: 'Gyroscope Core', status: d.gx !== null ? 'OK' : '--', isGood: d.gx !== null },
     { name: 'Vibration Transducer', status: d.vibRMS !== null ? 'NORMAL' : '--', isGood: d.vibRMS !== null },
     { name: 'Thermal Sensor', status: tempVal !== null ? `${tempVal.toFixed(1)} °C` : '--', isGood: tempVal !== null },
@@ -41,12 +42,13 @@ export default function SensorHealthWidget({ currentDevice }) {
         {diagnosticsList.map((h, i) => (
           <div key={i} className={rowCls}>
             <span className={labelCls}>{h.name}</span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold border ${
               h.isGood
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                 : 'bg-slate-50 text-slate-500 border-slate-200'
             }`}>
-              {h.status}
+              {h.isGood && <Check className="w-2.5 h-2.5 text-emerald-600" />}
+              <span>{h.status}</span>
             </span>
           </div>
         ))}

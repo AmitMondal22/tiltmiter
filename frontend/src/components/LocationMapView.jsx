@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { renderToString } from 'react-dom/server';
 import { useNavigate } from 'react-router-dom';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
@@ -160,42 +161,6 @@ const MAP_STYLES = {
         }
       ]
     }
-  },
-  dark: {
-    id: 'dark',
-    name: 'Night Dark Topo',
-    style: {
-      version: 8,
-      sources: {
-        'carto-dark': {
-          type: 'raster',
-          tiles: [
-            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
-          ],
-          tileSize: 256,
-          maxzoom: 19,
-          attribution: '&copy; CARTO &copy; OpenStreetMap'
-        },
-        'terrain-dem': {
-          type: 'raster-dem',
-          tiles: [
-            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
-          ],
-          encoding: 'terrarium',
-          tileSize: 256,
-          maxzoom: 15
-        }
-      },
-      layers: [
-        {
-          id: 'carto-dark-tiles-layer',
-          type: 'raster',
-          source: 'carto-dark',
-          minzoom: 0,
-          maxzoom: 22
-        }
-      ]
-    }
   }
 };
 
@@ -219,14 +184,14 @@ export default function LocationMapView({
   const [selectedSiteId, setSelectedSiteId] = useState(initialSelectedSiteId || 'ALL');
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ONLINE, OFFLINE
   const [searchQuery, setSearchQuery] = useState('');
-  const [mapType, setMapType] = useState('satellite'); // 'satellite', 'street', 'topo', 'dark'
+  const [mapType, setMapType] = useState('satellite'); // 'satellite', 'street', 'topo'
   const [is3D, setIs3D] = useState(true); // 3D Pitch tilt (55deg vs 0deg)
   const [isGlobe, setIsGlobe] = useState(false); // 3D Globe vs Mercator projection
   const [isTerrain, setIsTerrain] = useState(true); // 3D Terrain elevation mesh
   const [showHeatmap, setShowHeatmap] = useState(false); // Inclinometer displacement heatmap
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
-  const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(true);
+  const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
 
   // Lightbox Preview Modal State
   const [previewImageModal, setPreviewImageModal] = useState({
@@ -390,77 +355,28 @@ export default function LocationMapView({
     });
   }, [is3D]);
 
-  // 6. Update Heatmap Layer
-  const updateHeatmapLayer = () => {
-    const map = mapInstanceRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+  // Helper to reliably compute device coordinates with parent site anchoring fallback
+  const getDeviceCoordinates = (dev) => {
+    let lat = parseFloat(dev.latitude);
+    let lng = parseFloat(dev.longitude);
 
-    if (!showHeatmap) {
-      if (map.getLayer('inclinometer-heat')) map.removeLayer('inclinometer-heat');
-      if (map.getSource('device-heatmap-source')) map.removeSource('device-heatmap-source');
-      return;
+    if (isNaN(lat) || isNaN(lng)) {
+      const parentSite = sites.find(s => s.id === dev.siteId || s.siteId === dev.siteId);
+      const hash = (dev.id || dev.name || 'dev').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const angle = ((hash % 12) / 12) * 2 * Math.PI;
+      const dist = 0.0015 + ((hash % 5) * 0.0004);
+      if (parentSite && parentSite.latitude && parentSite.longitude) {
+        lat = parseFloat(parentSite.latitude) + Math.cos(angle) * dist;
+        lng = parseFloat(parentSite.longitude) + Math.sin(angle) * dist;
+      } else {
+        lat = 22.5726 + Math.cos(angle) * 0.003;
+        lng = 88.3639 + Math.sin(angle) * 0.003;
+      }
     }
-
-    const features = devices
-      .filter(d => d.latitude && d.longitude && !isNaN(parseFloat(d.latitude)) && !isNaN(parseFloat(d.longitude)))
-      .map(d => {
-        const disp = parseFloat(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 0.2);
-        return {
-          type: 'Feature',
-          geometry: {
-            type: 'Point',
-            coordinates: [parseFloat(d.longitude), parseFloat(d.latitude)]
-          },
-          properties: {
-            id: d.id,
-            displacement: disp
-          }
-        };
-      });
-
-    const geojson = {
-      type: 'FeatureCollection',
-      features
-    };
-
-    if (map.getSource('device-heatmap-source')) {
-      map.getSource('device-heatmap-source').setData(geojson);
-    } else {
-      map.addSource('device-heatmap-source', {
-        type: 'geojson',
-        data: geojson
-      });
-
-      map.addLayer({
-        id: 'inclinometer-heat',
-        type: 'heatmap',
-        source: 'device-heatmap-source',
-        maxzoom: 18,
-        paint: {
-          'heatmap-weight': ['interpolate', ['linear'], ['get', 'displacement'], 0, 0.1, 5, 1],
-          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 15, 3],
-          'heatmap-color': [
-            'interpolate',
-            ['linear'],
-            ['heatmap-density'],
-            0, 'rgba(34, 197, 94, 0)',
-            0.2, 'rgba(34, 197, 94, 0.7)',
-            0.5, 'rgba(234, 179, 8, 0.85)',
-            0.75, 'rgba(249, 115, 22, 0.9)',
-            1, 'rgba(239, 68, 68, 0.95)'
-          ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 6, 15, 35],
-          'heatmap-opacity': 0.8
-        }
-      });
-    }
+    return [lng, lat];
   };
 
-  useEffect(() => {
-    updateHeatmapLayer();
-  }, [showHeatmap, devices]);
-
-  // 7. Filter Sites and Devices
+  // 6. Filter Sites and Devices
   const filteredSites = useMemo(() => {
     return sites.filter(s => {
       if (selectedSiteId !== 'ALL' && s.id !== selectedSiteId && s.siteId !== selectedSiteId) return false;
@@ -488,10 +404,127 @@ export default function LocationMapView({
     });
   }, [devices, selectedSiteId, statusFilter, searchQuery]);
 
+  // 7. Update Heatmap Layer
+  const updateHeatmapLayer = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!map.isStyleLoaded()) {
+      map.once('styledata', () => updateHeatmapLayer());
+      return;
+    }
+
+    if (!showHeatmap) {
+      if (map.getLayer('inclinometer-heat')) map.removeLayer('inclinometer-heat');
+      if (map.getSource('device-heatmap-source')) map.removeSource('device-heatmap-source');
+      return;
+    }
+
+    const targetDevices = filteredDevices && filteredDevices.length > 0 ? filteredDevices : devices;
+    const features = targetDevices
+      .map(d => {
+        const [lng, lat] = getDeviceCoordinates(d);
+        if (isNaN(lat) || isNaN(lng)) return null;
+        const disp = parseFloat(
+          d.totalDisplacement !== undefined
+            ? d.totalDisplacement
+            : (d.displacement?.totalDisplacement_mm || 0.25)
+        );
+        return {
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [lng, lat]
+          },
+          properties: {
+            id: d.id,
+            displacement: disp
+          }
+        };
+      })
+      .filter(Boolean);
+
+    const geojson = {
+      type: 'FeatureCollection',
+      features
+    };
+
+    if (!map.getSource('device-heatmap-source')) {
+      map.addSource('device-heatmap-source', {
+        type: 'geojson',
+        data: geojson
+      });
+    } else {
+      map.getSource('device-heatmap-source').setData(geojson);
+    }
+
+    if (!map.getLayer('inclinometer-heat')) {
+      map.addLayer({
+        id: 'inclinometer-heat',
+        type: 'heatmap',
+        source: 'device-heatmap-source',
+        maxzoom: 24,
+        paint: {
+          'heatmap-weight': [
+            'interpolate',
+            ['linear'],
+            ['get', 'displacement'],
+            0, 0.5,
+            2, 0.9,
+            8, 1.8,
+            20, 3.5
+          ],
+          'heatmap-intensity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 1.0,
+            9, 1.8,
+            14, 3.2,
+            18, 5.0
+          ],
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            0, 'rgba(0, 0, 0, 0)',
+            0.1, 'rgba(34, 197, 94, 0.5)',
+            0.3, 'rgba(34, 197, 94, 0.85)',
+            0.5, 'rgba(234, 179, 8, 0.9)',
+            0.75, 'rgba(249, 115, 22, 0.95)',
+            1, 'rgba(239, 68, 68, 1)'
+          ],
+          'heatmap-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 10,
+            9, 22,
+            14, 45,
+            17, 75,
+            20, 115
+          ],
+          'heatmap-opacity': 0.85
+        }
+      });
+    }
+  };
+
+  useEffect(() => {
+    updateHeatmapLayer();
+  }, [showHeatmap, devices, filteredDevices, sites, selectedSiteId]);
+
   // 8. Render Site & Device Markers
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map) return;
+
+    // Render React Lucide Icon components to SVGs for MapLibre HTML Markers & Popups
+    const cameraIconSvg = renderToString(<Camera style={{ width: 10, height: 10, color: '#ffffff', display: 'inline-block' }} />);
+    const maximizeIconSvg = renderToString(<Maximize2 style={{ width: 9, height: 9, color: '#ffffff', display: 'inline-block' }} />);
+    const noPhotoIconSvg = renderToString(<Camera style={{ width: 22, height: 22, color: '#94a3b8', display: 'inline-block' }} />);
+    const chevronRightSvg = renderToString(<ChevronRight style={{ width: 12, height: 12, color: '#ffffff', display: 'inline-block' }} />);
+    const mapPinSvg = renderToString(<MapPin style={{ width: 11, height: 11, color: '#ffffff', display: 'inline-block' }} />);
 
     // Clear previous markers
     markersRef.current.forEach(m => m.remove());
@@ -519,7 +552,7 @@ export default function LocationMapView({
         el.innerHTML = `
           <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
             <div style="background: #2563eb; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 11px; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: 2px solid #ffffff; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-              <span style="width: 7px; height: 7px; border-radius: 50%; background: #67e8f9; box-shadow: 0 0 8px #67e8f9;"></span>
+              ${mapPinSvg}
               <span>${site.name}</span>
               <span style="background: #1e40af; padding: 1px 6px; border-radius: 6px; font-size: 9px; font-family: monospace;">${siteDevices.length} Dev</span>
             </div>
@@ -550,22 +583,8 @@ export default function LocationMapView({
 
     // 2. Hardware Device Markers with Fixed Sub-pixel Anchor
     filteredDevices.forEach(dev => {
-      let lat = parseFloat(dev.latitude);
-      let lng = parseFloat(dev.longitude);
-
-      if (isNaN(lat) || isNaN(lng)) {
-        const parentSite = sites.find(s => s.id === dev.siteId || s.siteId === dev.siteId);
-        const hash = (dev.id || dev.name || 'dev').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const angle = ((hash % 12) / 12) * 2 * Math.PI;
-        const dist = 0.0015 + ((hash % 5) * 0.0004);
-        if (parentSite && parentSite.latitude && parentSite.longitude) {
-          lat = parseFloat(parentSite.latitude) + Math.cos(angle) * dist;
-          lng = parseFloat(parentSite.longitude) + Math.sin(angle) * dist;
-        } else {
-          lat = 22.5726 + Math.cos(angle) * 0.003;
-          lng = 88.3639 + Math.sin(angle) * 0.003;
-        }
-      }
+      const [lng, lat] = getDeviceCoordinates(dev);
+      if (isNaN(lat) || isNaN(lng)) return;
 
       bounds.extend([lng, lat]);
       hasCoords = true;
@@ -591,7 +610,7 @@ export default function LocationMapView({
             <span style="width: 6px; height: 6px; border-radius: 50%; background: ${isOnline ? '#34d399' : '#f59e0b'};"></span>
             <span>${dev.name || dev.id}</span>
             <span style="color: #67e8f9; font-weight: bold;">Δ ${Number(devDisplacement).toFixed(2)}mm</span>
-            ${devImage ? `<span style="background: #9333ea; padding: 1px 4px; border-radius: 4px; font-size: 8px;">📷</span>` : ''}
+            ${devImage ? `<span style="background: #9333ea; padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;">${cameraIconSvg}</span>` : ''}
           </div>
           <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${isOnline ? '#0f172a' : '#78350f'};"></div>
           <div style="width: 8px; height: 8px; border-radius: 50%; background: ${isOnline ? '#10b981' : '#f59e0b'}; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-top: -2px;"></div>
@@ -628,12 +647,15 @@ export default function LocationMapView({
                 />
                 <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 4px 8px; display: flex; align-items: center; justify-content: space-between; color: white;">
                   <span style="font-size: 9px; font-weight: 700;">Installed Hardware</span>
-                  <span style="font-size: 8px; background: rgba(0,0,0,0.5); padding: 1px 5px; border-radius: 4px; font-family: monospace;">🔍 Click to enlarge</span>
+                  <span style="font-size: 8px; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; font-family: monospace; display: inline-flex; align-items: center; gap: 4px;">
+                    ${maximizeIconSvg}
+                    <span>Click to enlarge</span>
+                  </span>
                 </div>
               </div>
             ` : `
               <div style="width: 100%; height: 75px; border-radius: 10px; border: 1px dashed #cbd5e1; background: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #94a3b8; padding: 6px;">
-                <span style="font-size: 16px; margin-bottom: 2px;">📷</span>
+                <div style="margin-bottom: 2px; display: flex; align-items: center; justify-content: center;">${noPhotoIconSvg}</div>
                 <span style="font-size: 10px; font-weight: 600; color: #64748b;">No photo uploaded</span>
               </div>
             `}
@@ -654,9 +676,10 @@ export default function LocationMapView({
           <!-- Button to navigate to Device Dashboard -->
           <a 
             href="#/devices/${dev.id}" 
-            style="display: block; width: 100%; text-align: center; background: #2563eb; color: #ffffff; padding: 5px 0; border-radius: 8px; font-weight: 700; font-size: 10.5px; text-decoration: none; box-shadow: 0 2px 4px rgba(37,99,235,0.25);"
+            style="display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; text-align: center; background: #2563eb; color: #ffffff; padding: 5px 0; border-radius: 8px; font-weight: 700; font-size: 10.5px; text-decoration: none; box-shadow: 0 2px 4px rgba(37,99,235,0.25);"
           >
-            Open Device Console &rarr;
+            <span>Open Device Console</span>
+            ${chevronRightSvg}
           </a>
         </div>
       `;
@@ -772,34 +795,6 @@ export default function LocationMapView({
               ))}
             </select>
           </div>
-
-          {/* Status Filter */}
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs">
-            <button
-              onClick={() => setStatusFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                statusFilter === 'ALL' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All ({devices.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('ONLINE')}
-              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                statusFilter === 'ONLINE' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Online ({locOnlineCount})
-            </button>
-            <button
-              onClick={() => setStatusFilter('OFFLINE')}
-              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                statusFilter === 'OFFLINE' ? 'bg-amber-600 text-white' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Offline ({locOfflineCount})
-            </button>
-          </div>
         </div>
 
         {/* Right: MapLibre 3D & Layer Controls (Satellite, Street, Topo, 3D Globe, Terrain, Heatmap) */}
@@ -864,14 +859,14 @@ export default function LocationMapView({
           {/* Displacement Heatmap Toggle */}
           <button
             onClick={() => setShowHeatmap(!showHeatmap)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl border font-bold text-[11px] shadow-2xs transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-[11px] shadow-2xs transition-all cursor-pointer ${
               showHeatmap
-                ? 'bg-orange-50 text-orange-700 border-orange-300'
+                ? 'bg-orange-600 text-white border-orange-600 shadow-xs ring-2 ring-orange-300'
                 : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
             title="Toggle Inclinometer Ground Movement Heatmap"
           >
-            <Flame className="w-3.5 h-3.5 text-orange-600" />
+            <Flame className={`w-3.5 h-3.5 ${showHeatmap ? 'text-white' : 'text-orange-600'}`} />
             <span>Heatmap</span>
           </button>
 
@@ -893,6 +888,21 @@ export default function LocationMapView({
       {/* Main MapLibre 3D Canvas */}
       <div className="flex-1 relative flex overflow-hidden w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full relative z-0" />
+
+        {/* Displacement Heatmap Legend */}
+        {showHeatmap && (
+          <div className="absolute bottom-4 left-4 z-10 bg-slate-900/90 text-white backdrop-blur-md px-3.5 py-2 rounded-xl border border-slate-700 shadow-xl flex items-center gap-3 text-xs animate-fadeIn pointer-events-auto">
+            <div className="flex items-center gap-1.5 font-bold">
+              <Flame className="w-4 h-4 text-orange-400 animate-pulse" />
+              <span>Ground Displacement Heatmap:</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-[11px] font-mono">
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Stable (&lt;2mm)</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span> Warning (2-8mm)</span>
+              <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> Critical (&gt;8mm)</span>
+            </div>
+          </div>
+        )}
 
         {/* Left Floating Location Analytics Cards */}
         {showAnalyticsPanel && (

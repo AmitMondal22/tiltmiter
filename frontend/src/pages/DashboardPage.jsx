@@ -1298,8 +1298,8 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">Update timing intervals and firmware detection thresholds</p>
               </div>
-              <button onClick={() => setConfigModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer text-lg">
-                ✕
+              <button onClick={() => setConfigModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer">
+                <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
 
@@ -1481,9 +1481,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               </div>
               <button
                 onClick={() => setAddDeviceModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer text-lg leading-none"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"
               >
-                ✕
+                <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
 

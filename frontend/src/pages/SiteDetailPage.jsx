@@ -22,6 +22,7 @@ export default function SiteDetailPage() {
   const [loading, setLoading] = useState(true);
   const [viewType, setViewType] = useState('satellite'); // 'satellite', 'street', or '3d'
   const [selectedDevice, setSelectedDevice] = useState(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
@@ -168,6 +169,20 @@ export default function SiteDetailPage() {
             </button>
           </div>
 
+          {/* Analytics Summary Toggle */}
+          <button
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-xs shadow-2xs transition-all cursor-pointer ${
+              showAnalytics
+                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+            }`}
+            title="Toggle Location Analytics Summary"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>{showAnalytics ? 'Hide Analytics' : 'Analytics'}</span>
+          </button>
+
           <button
             onClick={loadData}
             className="p-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-black shadow-2xs transition-colors cursor-pointer"
@@ -178,58 +193,60 @@ export default function SiteDetailPage() {
         </div>
       </div>
 
-      {/* Location Top Analytics Summary Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Location Stability</div>
-            <div className="text-sm font-black text-black mt-1">
-              <span className={`px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${statusBadgeColor}`}>
-                {stabilityStatus}
-              </span>
+      {/* Location Top Analytics Summary Row (Default Hidden) */}
+      {showAnalytics && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 animate-fadeIn">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Location Stability</div>
+              <div className="text-sm font-black text-black mt-1">
+                <span className={`px-2.5 py-1 rounded-full border text-[11px] font-extrabold ${statusBadgeColor}`}>
+                  {stabilityStatus}
+                </span>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+              <ShieldCheck className="w-5 h-5" />
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Active Devices</div>
-            <div className="text-lg font-black font-mono text-black mt-0.5">
-              {onlineDevCount} <span className="text-xs text-slate-700 font-sans font-medium">/ {siteDevices.length} Online</span>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Active Devices</div>
+              <div className="text-lg font-black font-mono text-black mt-0.5">
+                {onlineDevCount} <span className="text-xs text-slate-700 font-sans font-medium">/ {siteDevices.length} Online</span>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+              <Cpu className="w-5 h-5" />
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-            <Cpu className="w-5 h-5" />
-          </div>
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Max Displacement Δ</div>
-            <div className="text-lg font-black font-mono text-black mt-0.5">
-              {maxDisplacement.toFixed(1)} <span className="text-xs text-slate-700 font-sans font-medium">mm</span>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Max Displacement Δ</div>
+              <div className="text-lg font-black font-mono text-black mt-0.5">
+                {maxDisplacement.toFixed(1)} <span className="text-xs text-slate-700 font-sans font-medium">mm</span>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+              <TrendingUp className="w-5 h-5" />
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-        </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Avg Vector Tilt θ</div>
-            <div className="text-lg font-black font-mono text-black mt-0.5">
-              {avgTilt.toFixed(1)} <span className="text-xs text-slate-700 font-sans font-medium">degrees</span>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-black shadow-2xs flex items-center justify-between">
+            <div>
+              <div className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Avg Vector Tilt θ</div>
+              <div className="text-lg font-black font-mono text-black mt-0.5">
+                {avgTilt.toFixed(1)} <span className="text-xs text-slate-700 font-sans font-medium">degrees</span>
+              </div>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+              <Activity className="w-5 h-5" />
             </div>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-            <Activity className="w-5 h-5" />
-          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Map Viewport & Devices List */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">

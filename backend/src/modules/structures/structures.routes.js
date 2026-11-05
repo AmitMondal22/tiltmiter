@@ -1,3 +1,4 @@
+import { Op } from 'sequelize';
 import { Structure, Site, Device, Project, Organization } from '../../models/index.js';
 import { authenticate } from '../../middleware/authMiddleware.js';
 import { tenantScopeGuard } from '../../middleware/tenantScopeMiddleware.js';
@@ -29,6 +30,46 @@ export async function structuresRoutes(fastify) {
       return reply.send({ statusCode: 200, structures: structures || [] });
     } catch (err) {
       return reply.send({ statusCode: 200, structures: [] });
+    }
+  });
+
+  // Query single structure / asset by ID
+  fastify.get('/api/structures/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      let structure = await Structure.findByPk(id, {
+        include: [
+          {
+            model: Site,
+            include: [Project, Organization]
+          },
+          Device
+        ]
+      });
+      if (!structure) {
+        structure = await Structure.findOne({
+          where: {
+            [Op.or]: [
+              { id },
+              { code: id },
+              { name: id }
+            ]
+          },
+          include: [
+            {
+              model: Site,
+              include: [Project, Organization]
+            },
+            Device
+          ]
+        });
+      }
+      if (!structure) {
+        return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Structure not found' });
+      }
+      return reply.send({ statusCode: 200, structure });
+    } catch (err) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
     }
   });
 

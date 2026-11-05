@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, X, CheckCircle2, ChevronRight, Cpu, Layers, Map as MapIcon, List, Shield, Box, MapPin, Activity, Zap, Radio } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit, Trash2, X, CheckCircle2, ChevronRight, Cpu, Layers, Map as MapIcon, List, Shield, Box, MapPin, Activity, Zap, Radio, ExternalLink } from 'lucide-react';
 import { getStructures, getSites, getProjects, getOrganizations, createStructure, updateStructure, deleteStructure, createDevice, getDevices } from '../api/apiClient';
 import AssetsMapView, { ASSET_TYPES, getAssetTypeConfig } from '../components/AssetsMapView';
 import Landslide3DMapView from '../components/Landslide3DMapView';
 
 export default function StructuresPage() {
+  const navigate = useNavigate();
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
   const [viewMode, setViewMode] = useState('list'); // 'list', 'map', or '3d'
@@ -257,7 +259,14 @@ export default function StructuresPage() {
                     return (
                       <tr key={st.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-4 px-3.5">
-                          <div className="font-bold text-black text-sm">{st.name}</div>
+                          <div
+                            onClick={() => navigate(`/structures/${st.id}`)}
+                            className="font-bold text-black text-sm hover:text-blue-600 hover:underline cursor-pointer flex items-center gap-1.5"
+                            title="Open dedicated asset view"
+                          >
+                            <span>{st.name}</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          </div>
                           <div className="text-[11px] text-slate-700 font-mono mt-0.5">{st.description || 'Structural Asset'}</div>
                         </td>
                         <td className="py-4 px-3.5">
@@ -282,6 +291,16 @@ export default function StructuresPage() {
                         </td>
                         <td className="py-4 px-3.5 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Open Dedicated Asset View Action */}
+                            <button
+                              onClick={() => navigate(`/structures/${st.id}`)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                              title="Open dedicated asset view with map & devices"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Open Asset</span>
+                            </button>
+
                             {/* 2D Map Pin Action */}
                             <button
                               onClick={() => handleOpenMapForAsset(st)}
@@ -292,10 +311,10 @@ export default function StructuresPage() {
                               <span>2D Map</span>
                             </button>
 
-                            <button onClick={() => handleOpenEdit(st)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">
+                            <button onClick={() => handleOpenEdit(st)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer" title="Edit Asset">
                               <Edit className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDelete(st.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
+                            <button onClick={() => handleDelete(st.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Delete Asset">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>

@@ -334,6 +334,10 @@ export async function getStructures() {
   return await request('/structures');
 }
 
+export async function getStructure(id) {
+  return await request(`/structures/${id}`);
+}
+
 export async function createStructure(data) {
   return await request('/structures', {
     method: 'POST',

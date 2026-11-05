@@ -4,7 +4,7 @@ import L from 'leaflet';
 import {
   Layers, Filter, Search, Shield, Cpu, Activity, AlertTriangle,
   CheckCircle2, Compass, Radio, ExternalLink, ChevronRight,
-  Eye, EyeOff, Zap, MapPin, Sliders
+  Eye, EyeOff, Zap, MapPin, Sliders, Mountain
 } from 'lucide-react';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
@@ -103,26 +103,36 @@ export const ASSET_TYPES = {
 };
 
 export const getAssetTypeConfig = (type) => {
-  if (ASSET_TYPES[type]) return ASSET_TYPES[type];
+  let cfg = ASSET_TYPES[type];
 
-  // Dynamic matching for any custom mountain, hill, slope, or terrain type
-  const t = (type || '').toLowerCase();
-  if (t.includes('rock') || t.includes('cliff')) return ASSET_TYPES['Rock Slope / Cliff'];
-  if (t.includes('mountain')) return ASSET_TYPES['Mountain Slope'];
-  if (t.includes('debris') || t.includes('landslide')) return ASSET_TYPES['Landslide Risk Zone'];
-  if (t.includes('cut') || t.includes('road')) return ASSET_TYPES['Cutting Slope'];
-  if (t.includes('wall') || t.includes('gabion')) return ASSET_TYPES['Retaining Wall'];
-  if (t.includes('hill') || t.includes('ridge')) return ASSET_TYPES['Hill Slope'];
+  if (!cfg) {
+    // Dynamic matching for any custom mountain, hill, slope, or terrain type
+    const t = (type || '').toLowerCase();
+    if (t.includes('rock') || t.includes('cliff')) cfg = ASSET_TYPES['Rock Slope / Cliff'];
+    else if (t.includes('mountain')) cfg = ASSET_TYPES['Mountain Slope'];
+    else if (t.includes('debris') || t.includes('landslide')) cfg = ASSET_TYPES['Landslide Risk Zone'];
+    else if (t.includes('cut') || t.includes('road')) cfg = ASSET_TYPES['Cutting Slope'];
+    else if (t.includes('wall') || t.includes('gabion')) cfg = ASSET_TYPES['Retaining Wall'];
+    else if (t.includes('hill') || t.includes('ridge')) cfg = ASSET_TYPES['Hill Slope'];
+    else {
+      // Default natural slope styling for any custom type
+      cfg = {
+        name: type || 'Slope Asset',
+        color: '#0284c7',
+        fillColor: '#38bdf8',
+        bg: 'bg-sky-50',
+        border: 'border-sky-200',
+        text: 'text-sky-700',
+        areaShape: 'polygon',
+      };
+    }
+  }
 
-  // Default natural slope styling for any custom type
   return {
-    name: type || 'Slope Asset',
-    color: '#0284c7',
-    fillColor: '#38bdf8',
-    bg: 'bg-sky-50',
-    border: 'border-sky-200',
-    text: 'text-sky-700',
-    areaShape: 'polygon',
+    ...cfg,
+    label: cfg.name || type || 'Slope Asset',
+    badgeCls: `${cfg.bg || 'bg-sky-50'} ${cfg.text || 'text-sky-700'} ${cfg.border || 'border-sky-200'}`,
+    icon: Mountain,
   };
 };
 

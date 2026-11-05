@@ -296,7 +296,7 @@ export default function SiteDetailPage() {
                 ) : (
                   siteStructures.map(st => {
                     const typeCfg = getAssetTypeConfig(st.type);
-                    const TypeIcon = typeCfg.icon;
+                    const TypeIcon = typeCfg?.icon || Mountain;
                     const attachedDevs = siteDevices.filter(d => d.structureId === st.id);
 
                     return (

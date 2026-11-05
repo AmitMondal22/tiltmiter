@@ -683,6 +683,50 @@ export default function LocationMapView({
       }
     });
 
+    // 1b. Geotechnical Structure / Asset Markers
+    structures.forEach(st => {
+      const lat = parseFloat(st.latitude) || 22.5726;
+      const lng = parseFloat(st.longitude) || 88.3639;
+
+      if (!isNaN(lat) && !isNaN(lng)) {
+        bounds.extend([lng, lat]);
+        hasCoords = true;
+
+        const stDevices = devices.filter(d => d.structureId === st.id || d.structureId === st.structureId);
+
+        const el = document.createElement('div');
+        el.className = 'structure-marker-wrapper select-none';
+        el.style.width = 'fit-content';
+        el.style.height = 'fit-content';
+        el.style.cursor = 'pointer';
+        el.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+            <div style="background: #0f172a; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 11px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2px solid #38bdf8; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #38bdf8;"></span>
+              <span>${st.name || st.structureId || st.id}</span>
+              <span style="background: #1e293b; color: #7dd3fc; padding: 1px 6px; border-radius: 6px; font-size: 9px; font-family: monospace;">${stDevices.length} Dev</span>
+            </div>
+            <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #0f172a; margin-top: -1px;"></div>
+          </div>
+        `;
+
+        el.addEventListener('click', () => {
+          map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: is3D ? 50 : 0, duration: 1200 });
+        });
+
+        const marker = new maplibregl.Marker({
+          element: el,
+          anchor: 'bottom',
+          pitchAlignment: 'viewport',
+          rotationAlignment: 'viewport'
+        })
+          .setLngLat([lng, lat])
+          .addTo(map);
+
+        markersRef.current.push(marker);
+      }
+    });
+
     // 2. Hardware Device Markers with Fixed Sub-pixel Anchor
     filteredDevices.forEach(dev => {
       const [lng, lat] = getDeviceCoordinates(dev);
@@ -821,7 +865,7 @@ export default function LocationMapView({
         initialBoundsFittedRef.current = true;
       } catch (e) {}
     }
-  }, [filteredSites, filteredDevices]);
+  }, [filteredSites, filteredDevices, structures]);
 
   // Handle Site Selection
   const handleSiteSelect = (siteId) => {

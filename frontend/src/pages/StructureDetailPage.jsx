@@ -4,7 +4,7 @@ import {
   ArrowLeft, MapPin, Cpu, Shield, Layers, Box, Map as MapIcon,
   Activity, AlertTriangle, CheckCircle2, Battery, Signal, Zap,
   ExternalLink, TrendingUp, Navigation, RefreshCw, Radio, ShieldCheck,
-  Mountain, Calendar, Hash, Globe, Info
+  Mountain, Calendar, Hash, Globe, Info, Search, X
 } from 'lucide-react';
 import {
   getStructure, getStructures, getSites, getDevices,
@@ -21,6 +21,7 @@ export default function StructureDetailPage() {
 
   const [structure, setStructure] = useState(null);
   const [site, setSite] = useState(null);
+  const [siteStructures, setSiteStructures] = useState([]);
   const [attachedDevices, setAttachedDevices] = useState([]);
   const [project, setProject] = useState(null);
   const [org, setOrg] = useState(null);
@@ -28,13 +29,16 @@ export default function StructureDetailPage() {
   const [viewType, setViewType] = useState('satellite'); // 'satellite' or '3d'
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState('devices'); // 'devices' or 'structures'
+  const [deviceSearch, setDeviceSearch] = useState('');
+  const [structureSearch, setStructureSearch] = useState('');
 
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Fetch single structure details, with fallback to all structures
+      // 1. Fetch single structure if available
       let foundStruct = null;
       try {
         const res = await getStructure(structureId);
@@ -45,16 +49,21 @@ export default function StructureDetailPage() {
         // Fallback below
       }
 
+      // 2. Fetch all collections in parallel
       const [allStructsRes, sitesRes, devRes, projRes, orgRes] = await Promise.all([
-        foundStruct ? Promise.resolve({ structures: [] }) : getStructures().catch(() => ({ structures: [] })),
+        getStructures().catch(() => ({ structures: [] })),
         getSites().catch(() => ({ sites: [] })),
         getDevices().catch(() => ({ devices: [] })),
         getProjects().catch(() => ({ projects: [] })),
         getOrganizations().catch(() => ({ organizations: [] })),
       ]);
 
+      const allStructs = allStructsRes?.structures || [];
+      const allSites = sitesRes?.sites || [];
+      const allDevs = devRes?.devices || [];
+
       if (!foundStruct) {
-        foundStruct = (allStructsRes?.structures || []).find(
+        foundStruct = allStructs.find(
           s => s.id === structureId || s.structureId === structureId || String(s.id) === String(structureId)
         );
       }
@@ -63,7 +72,7 @@ export default function StructureDetailPage() {
         foundStruct = {
           id: structureId,
           structureId: structureId,
-          name: `Asset ${structureId}`,
+          name: `Structure ${structureId}`,
           type: 'Mountain Slope',
           latitude: '26.7271',
           longitude: '88.4315',
@@ -76,20 +85,28 @@ export default function StructureDetailPage() {
       setStructure(foundStruct);
 
       // Find parent site
-      const allSites = sitesRes?.sites || [];
       const parentSite = allSites.find(
         s => s.id === foundStruct.siteId || s.siteId === foundStruct.siteId || String(s.id) === String(foundStruct.siteId)
-      ) || foundStruct.Site || {
-        id: foundStruct.siteId || 'SITE-DEFAULT',
-        siteId: foundStruct.siteId || 'SITE-DEFAULT',
-        name: 'Associated Site Location',
-        latitude: foundStruct.latitude || '26.7271',
-        longitude: foundStruct.longitude || '88.4315'
-      };
+      ) || foundStruct.Site;
       setSite(parentSite);
 
+      // Collect all structures under the same site
+      const siteIdToMatch = foundStruct.siteId || parentSite?.id || parentSite?.siteId;
+      let siteStructs = [];
+      if (siteIdToMatch) {
+        siteStructs = allStructs.filter(
+          st => st.siteId === siteIdToMatch ||
+                st.siteId === parentSite?.id ||
+                st.siteId === parentSite?.siteId ||
+                String(st.siteId) === String(siteIdToMatch)
+        );
+      }
+      if (foundStruct && !siteStructs.some(st => st.id === foundStruct.id)) {
+        siteStructs = [foundStruct, ...siteStructs];
+      }
+      setSiteStructures(siteStructs);
+
       // Filter attached devices
-      const allDevs = devRes?.devices || [];
       let attached = allDevs.filter(
         d => d.structureId === foundStruct.id ||
              d.structureId === foundStruct.structureId ||
@@ -103,12 +120,12 @@ export default function StructureDetailPage() {
       setAttachedDevices(attached);
 
       // Parent Project & Org
-      const projId = parentSite.projectId || foundStruct.projectId;
-      const foundProj = (projRes?.projects || []).find(p => p.id === projId) || parentSite.Project;
+      const projId = parentSite?.projectId || foundStruct.projectId;
+      const foundProj = (projRes?.projects || []).find(p => p.id === projId) || parentSite?.Project;
       setProject(foundProj);
 
-      const orgId = parentSite.organizationId || foundStruct.organizationId || foundProj?.organizationId;
-      const foundOrg = (orgRes?.organizations || []).find(o => o.id === orgId) || parentSite.Organization;
+      const orgId = parentSite?.organizationId || foundStruct.organizationId || foundProj?.organizationId;
+      const foundOrg = (orgRes?.organizations || []).find(o => o.id === orgId) || parentSite?.Organization;
       setOrg(foundOrg);
 
     } catch (err) {
@@ -131,7 +148,7 @@ export default function StructureDetailPage() {
   }
 
   const typeConfig = getAssetTypeConfig(structure?.type);
-  const TypeIcon = typeConfig.icon;
+  const TypeIcon = typeConfig?.icon || Mountain;
 
   // Compute live geotechnical displacement & tilt aggregates
   const maxDisp = attachedDevices.reduce((max, d) => {
@@ -152,6 +169,30 @@ export default function StructureDetailPage() {
     WARNING: 'bg-amber-100 text-amber-950 border-amber-300',
     CRITICAL: 'bg-red-100 text-red-950 border-red-300'
   }[stabilityStatus];
+
+  // Device search filtering
+  const filteredAttachedDevices = attachedDevices.filter(d => {
+    if (!deviceSearch.trim()) return true;
+    const q = deviceSearch.toLowerCase().trim();
+    return (
+      (d.name && d.name.toLowerCase().includes(q)) ||
+      (d.id && String(d.id).toLowerCase().includes(q)) ||
+      (d.status && d.status.toLowerCase().includes(q)) ||
+      (d.serialNumber && String(d.serialNumber).toLowerCase().includes(q))
+    );
+  });
+
+  // Site structures search filtering
+  const filteredSiteStructures = siteStructures.filter(st => {
+    if (!structureSearch.trim()) return true;
+    const q = structureSearch.toLowerCase().trim();
+    return (
+      (st.name && st.name.toLowerCase().includes(q)) ||
+      (st.id && String(st.id).toLowerCase().includes(q)) ||
+      (st.structureId && String(st.structureId).toLowerCase().includes(q)) ||
+      (st.type && st.type.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <div className="space-y-4 font-sans text-black animate-fadeIn">
@@ -387,112 +428,256 @@ export default function StructureDetailPage() {
         <div className="lg:col-span-8 space-y-4">
           {viewType === '3d' ? (
             <Landslide3DMapView
-              structures={[structure]}
+              structures={siteStructures.length > 0 ? siteStructures : [structure]}
               devices={attachedDevices}
               sites={site ? [site] : []}
-              onSelectStructure={() => {}}
+              onSelectStructure={(st) => {
+                if (st?.id && st.id !== structure?.id) {
+                  navigate(`/structures/${st.id}`);
+                }
+              }}
               onSelectDevice={(d) => setSelectedDevice(d)}
             />
           ) : (
             <LocationMapView
-              sites={site ? [site] : []}
+              sites={[]} // Do not show generic location site name marker; focus on structure and attached devices
               devices={attachedDevices}
-              structures={[structure]}
+              structures={siteStructures.length > 0 ? siteStructures : [structure]}
               projects={project ? [project] : []}
               organizations={org ? [org] : []}
-              initialSelectedSiteId={site?.siteId || site?.id}
+              initialSelectedSiteId="ALL"
               onSelectSite={() => {}}
             />
           )}
         </div>
 
-        {/* Right 3-4 Cols: Attached Hardware Inclinometers & Asset Specs */}
+        {/* Right 3-4 Cols: Attached Hardware Inclinometers & Site Structures */}
         <div className="lg:col-span-4 space-y-4">
-          {/* Deployed Hardware Inclinometers Under This Asset */}
           <div className={cardCls}>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3">
-              <div>
-                <h3 className="text-sm font-black text-black flex items-center gap-1.5">
-                  <Cpu className="w-4 h-4 text-blue-600" />
-                  <span>Devices Under Asset</span>
-                </h3>
-                <p className="text-[11px] text-slate-700 font-medium">
-                  {attachedDevices.length} Hardware Inclinometer Node{attachedDevices.length === 1 ? '' : 's'}
-                </p>
-              </div>
+            {/* Tab Switcher: Devices Under Asset vs Site Structures */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl mb-3 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setSidebarTab('devices')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  sidebarTab === 'devices'
+                    ? 'bg-white text-blue-900 shadow-xs border border-blue-200'
+                    : 'text-slate-600 hover:text-black hover:bg-slate-200/60'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5 text-blue-600" />
+                <span>Devices ({attachedDevices.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSidebarTab('structures')}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  sidebarTab === 'structures'
+                    ? 'bg-white text-blue-900 shadow-xs border border-blue-200'
+                    : 'text-slate-600 hover:text-black hover:bg-slate-200/60'
+                }`}
+              >
+                <Mountain className="w-3.5 h-3.5 text-blue-600" />
+                <span>Site Structures ({siteStructures.length})</span>
+              </button>
             </div>
 
-            <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
-              {attachedDevices.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 text-xs space-y-2">
-                  <p>No inclinometer devices attached to this asset yet.</p>
-                  <p className="text-[11px] text-slate-400">
-                    Go to Structural Assets and click the device button to attach an inclinometer.
-                  </p>
-                </div>
-              ) : (
-                attachedDevices.map(d => {
-                  const isOnline = (d.status || 'ONLINE') === 'ONLINE';
-                  const disp = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 0.18);
-                  const tiltVal = Number(d.resultantTilt || d.tilt?.tilt || 0.22);
-                  const isSelected = selectedDevice?.id === d.id;
-
-                  return (
-                    <div
-                      key={d.id}
-                      onClick={() => setSelectedDevice(d)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer space-y-2 ${
-                        isSelected
-                          ? 'border-blue-600 bg-blue-50/50 shadow-xs'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
+            {/* TAB 1: Devices Under Asset */}
+            {sidebarTab === 'devices' ? (
+              <div className="space-y-3">
+                {/* Search Device Input */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={deviceSearch}
+                    onChange={(e) => setDeviceSearch(e.target.value)}
+                    placeholder="Search device by ID, node name, status..."
+                    className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all placeholder:text-slate-400 font-medium"
+                  />
+                  {deviceSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setDeviceSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black cursor-pointer"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="font-bold text-black text-xs truncate max-w-[170px]">
-                          {d.name || d.id}
-                        </div>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          isOnline
-                            ? 'bg-emerald-100 text-emerald-950 border border-emerald-300'
-                            : 'bg-amber-100 text-amber-950 border border-amber-300'
-                        }`}>
-                          {d.status || 'ONLINE'}
-                        </span>
-                      </div>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
 
-                      <div className="font-mono text-[11px] text-slate-700 flex justify-between">
-                        <span>Node: {d.id}</span>
-                        <span className="font-bold text-black">Δ {disp.toFixed(1)}mm</span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-[11px] font-mono text-slate-700 pt-1 border-t border-slate-100">
-                        <span className="text-purple-700 font-bold">θ {tiltVal.toFixed(1)}°</span>
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-0.5 text-emerald-700 font-bold">
-                            <Zap className="w-3 h-3" /> {formatBatteryPercentage(d.battery ?? d.batteryVoltage)}
-                          </span>
-                          <span className="flex items-center gap-0.5 text-blue-700 font-bold">
-                            <Radio className="w-3 h-3" /> {formatCSQPercentage(d.signal ?? d.signalStrength)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/devices/${d.id}`);
-                        }}
-                        className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white font-bold text-[10px] shadow-2xs transition-colors cursor-pointer mt-1"
-                      >
-                        <span>Open Telemetry Console</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
+                <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
+                  {filteredAttachedDevices.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500 text-xs space-y-1.5">
+                      {deviceSearch ? (
+                        <>
+                          <p className="font-bold text-slate-700">No matching devices found</p>
+                          <p className="text-[11px] text-slate-400">Clear search query to see all {attachedDevices.length} devices</p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-bold text-slate-700">No inclinometers attached</p>
+                          <p className="text-[11px] text-slate-400">Go to Structural Assets to attach an inclinometer node to this structure.</p>
+                        </>
+                      )}
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  ) : (
+                    filteredAttachedDevices.map(d => {
+                      const isOnline = (d.status || 'ONLINE') === 'ONLINE';
+                      const disp = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 0.18);
+                      const tiltVal = Number(d.resultantTilt || d.tilt?.tilt || 0.22);
+                      const isSelected = selectedDevice?.id === d.id;
+
+                      return (
+                        <div
+                          key={d.id}
+                          onClick={() => setSelectedDevice(d)}
+                          className={`p-3 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                              : 'border-slate-200 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-bold text-black text-xs truncate max-w-[170px]" title={d.name || d.id}>
+                              {d.name || d.id}
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isOnline
+                                ? 'bg-emerald-100 text-emerald-950 border border-emerald-300'
+                                : 'bg-amber-100 text-amber-950 border border-amber-300'
+                            }`}>
+                              {d.status || 'ONLINE'}
+                            </span>
+                          </div>
+
+                          <div className="font-mono text-[11px] text-slate-700 flex justify-between">
+                            <span>Node: {d.id}</span>
+                            <span className="font-bold text-black">Δ {disp.toFixed(1)}mm</span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] font-mono text-slate-700 pt-1 border-t border-slate-100">
+                            <span className="text-purple-700 font-bold">θ {tiltVal.toFixed(1)}°</span>
+                            <div className="flex items-center gap-2">
+                              <span className="flex items-center gap-0.5 text-emerald-700 font-bold">
+                                <Zap className="w-3 h-3" /> {formatBatteryPercentage(d.battery ?? d.batteryVoltage)}
+                              </span>
+                              <span className="flex items-center gap-0.5 text-blue-700 font-bold">
+                                <Radio className="w-3 h-3" /> {formatCSQPercentage(d.signal ?? d.signalStrength)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/devices/${d.id}`);
+                            }}
+                            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white font-bold text-[10px] shadow-2xs transition-colors cursor-pointer mt-1"
+                          >
+                            <span>Open Telemetry Console</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* TAB 2: Site Structures List */
+              <div className="space-y-3">
+                {/* Search Structure Input */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={structureSearch}
+                    onChange={(e) => setStructureSearch(e.target.value)}
+                    placeholder="Search site structures by name or ID..."
+                    className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all placeholder:text-slate-400 font-medium"
+                  />
+                  {structureSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setStructureSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
+                  {filteredSiteStructures.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500 text-xs">
+                      No structures found at this site.
+                    </div>
+                  ) : (
+                    filteredSiteStructures.map(st => {
+                      const isCurrent = st.id === structure?.id || String(st.id) === String(structureId);
+                      const typeCfg = getAssetTypeConfig(st.type);
+                      const TypeIcon = typeCfg?.icon || Mountain;
+                      const attachedCount = (st.Devices?.length) ?? attachedDevices.filter(d => d.structureId === st.id).length;
+
+                      return (
+                        <div
+                          key={st.id}
+                          className={`p-3 rounded-xl border transition-all space-y-2.5 ${
+                            isCurrent
+                              ? 'border-blue-500 bg-blue-50/60 shadow-xs ring-1 ring-blue-300'
+                              : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50/50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <div className="font-bold text-black text-xs truncate max-w-[160px]" title={st.name}>
+                              {st.name || st.structureId || st.id}
+                            </div>
+                            {isCurrent ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white">
+                                Active Asset
+                              </span>
+                            ) : (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeCfg.badgeCls}`}>
+                                <TypeIcon className="w-3 h-3" />
+                                <span>{typeCfg.label}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 font-mono">
+                            <span>ID: {st.structureId || st.id}</span>
+                            <span className="font-bold text-blue-700">{attachedCount} Node{attachedCount === 1 ? '' : 's'}</span>
+                          </div>
+
+                          {(st.latitude || st.heightElevation || st.height) && (
+                            <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1 border-t border-slate-100">
+                              <span>Elev: {st.heightElevation || st.height || 0}m</span>
+                              {st.latitude && st.longitude && (
+                                <span>{Number(st.latitude).toFixed(3)}, {Number(st.longitude).toFixed(3)}</span>
+                              )}
+                            </div>
+                          )}
+
+                          {!isCurrent && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/structures/${st.id}`)}
+                              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <span>Open Structure Details</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Asset Metadata & Geotechnical Specs Card */}
@@ -504,7 +689,17 @@ export default function StructureDetailPage() {
 
             <div className="space-y-2 text-xs font-medium">
               <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Asset Type:</span>
+                <span className="text-slate-500">Asset Name:</span>
+                <span className="font-bold text-black">{structure?.name}</span>
+              </div>
+
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Asset ID:</span>
+                <span className="font-mono font-bold text-black">{structure?.structureId || structure?.id}</span>
+              </div>
+
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Slope Asset Type:</span>
                 <span className="font-bold text-black">{structure?.type || 'Mountain Slope'}</span>
               </div>
 
@@ -519,24 +714,17 @@ export default function StructureDetailPage() {
               </div>
 
               <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Latitude:</span>
-                <span className="font-mono font-bold text-black">{structure?.latitude || 'N/A'}</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Longitude:</span>
-                <span className="font-mono font-bold text-black">{structure?.longitude || 'N/A'}</span>
-              </div>
-
-              <div className="flex justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-500">Parent Site:</span>
-                <span className="font-bold text-blue-700">
-                  {site ? (
-                    <Link to={`/sites/${site.id || site.siteId}`} className="hover:underline">
-                      {site.name}
-                    </Link>
-                  ) : 'N/A'}
+                <span className="text-slate-500">Coordinates:</span>
+                <span className="font-mono font-bold text-black">
+                  {structure?.latitude && structure?.longitude
+                    ? `${Number(structure.latitude).toFixed(4)}°, ${Number(structure.longitude).toFixed(4)}°`
+                    : 'N/A'}
                 </span>
+              </div>
+
+              <div className="flex justify-between py-1 border-b border-slate-100">
+                <span className="text-slate-500">Site Structures:</span>
+                <span className="font-bold text-blue-700">{siteStructures.length} assets at this site</span>
               </div>
 
               {structure?.createdAt && (

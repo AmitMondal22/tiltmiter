@@ -1571,7 +1571,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   >
                     <option value="">No Asset (Standalone)</option>
                     {structuresList.map(st => (
-                      <option key={st.id} value={st.id}>{st.name} ({st.id})</option>
+                      <option key={st.id} value={st.id}>{st.name}</option>
                     ))}
                   </select>
                 </div>

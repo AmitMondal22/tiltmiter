@@ -202,6 +202,7 @@ export default function AssetsMapView({
 
     L.tileLayer(tileUrl, {
       maxZoom: 19,
+      maxNativeZoom: mapType === 'satellite' ? 18 : 19,
       attribution,
     }).addTo(map);
   }, [mapType]);
@@ -638,10 +639,6 @@ export default function AssetsMapView({
                   {/* Asset Metadata */}
                   <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Asset Code:</span>
-                      <span className="font-mono font-bold text-slate-900">{selectedAsset.code || selectedAsset.id}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
                       <span className="text-slate-500">Asset Type:</span>
                       <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 font-bold text-[10px]">
                         {selectedAsset.type}
@@ -649,7 +646,9 @@ export default function AssetsMapView({
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500">Site Location:</span>
-                      <span className="font-bold text-slate-900">{selectedAsset.siteId}</span>
+                      <span className="font-bold text-slate-900">
+                        {sites.find(s => s.id === selectedAsset.siteId || s.siteId === selectedAsset.siteId)?.name || 'Monitored Location'}
+                      </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500">Elevation:</span>

@@ -96,7 +96,7 @@ export async function organizationsRoutes(fastify) {
     }
   });
 
-  // Create Organization (Super Admin only)
+  // Create Organization (Backend automatically generates numeric Organization ID)
   fastify.post('/api/organizations', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       if (req.user.role !== 'SUPER_ADMIN') {
@@ -107,16 +107,33 @@ export async function organizationsRoutes(fastify) {
         });
       }
 
-      const { name, code, description, partnerId, address, contactEmail, logoUrl, status } = req.body;
+      const { name, description, partnerId, address, contactEmail, logoUrl, status } = req.body;
       
       let storedLogoUrl = logoUrl || null;
       if (storedLogoUrl && storedLogoUrl.startsWith('data:image/')) {
         storedLogoUrl = saveLogoToDisk(`new_${Date.now()}`, storedLogoUrl);
       }
 
+      // Backend generates sequential numeric Organization ID (e.g. 1001, 1002, ...)
+      let nextNumericId = 1001;
+      try {
+        const allOrgs = await Organization.findAll({ attributes: ['id'] });
+        let maxNum = 1000;
+        for (const o of allOrgs) {
+          const parsed = parseInt(o.id, 10);
+          if (!isNaN(parsed) && parsed > maxNum) {
+            maxNum = parsed;
+          }
+        }
+        nextNumericId = maxNum + 1;
+      } catch (err) {
+        nextNumericId = parseInt(String(Date.now()).slice(-6), 10);
+      }
+
       const org = await Organization.create({
-        name,
-        code: code || `ORG-${Date.now().toString().slice(-4)}`,
+        id: nextNumericId,
+        code: String(nextNumericId),
+        name: name || `Organization ${nextNumericId}`,
         description: description || '',
         partnerId: partnerId || null,
         address: address || '',
@@ -284,6 +301,9 @@ export async function organizationsRoutes(fastify) {
       }
 
       const updatePayload = { ...req.body };
+      // Prevent changing numeric primary key or code
+      delete updatePayload.id;
+      delete updatePayload.code;
 
       if (updatePayload.logoUrl !== undefined) {
         if (updatePayload.logoUrl && updatePayload.logoUrl.startsWith('data:image/')) {
@@ -325,6 +345,11 @@ export async function organizationsRoutes(fastify) {
       const org = await Organization.findByPk(id);
       if (!org) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Organization not found' });
       
+      // Detach related records cleanly before deletion
+      await Project.update({ organizationId: null }, { where: { organizationId: id } }).catch(() => {});
+      await Site.update({ organizationId: null }, { where: { organizationId: id } }).catch(() => {});
+      await User.update({ organizationId: null }, { where: { organizationId: id } }).catch(() => {});
+
       deleteOldLogoFile(org.logoUrl);
       await org.destroy();
       return reply.send({ statusCode: 200, message: 'Organization deleted successfully' });

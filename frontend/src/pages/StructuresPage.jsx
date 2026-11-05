@@ -23,7 +23,6 @@ export default function StructuresPage() {
 
   const [formData, setFormData] = useState({
     name: '',
-    code: '',
     organizationId: '',
     projectId: '',
     siteId: '',
@@ -71,7 +70,6 @@ export default function StructuresPage() {
     setEditingStruct(null);
     setFormData({
       name: '',
-      code: `ASSET-${Date.now().toString().slice(-4)}`,
       organizationId: orgsList[0]?.id || '',
       projectId: projectsList[0]?.id || '',
       siteId: sitesList[0]?.id || sitesList[0]?.siteId || '',
@@ -88,7 +86,6 @@ export default function StructuresPage() {
     setEditingStruct(st);
     setFormData({
       name: st.name,
-      code: st.code || st.id,
       organizationId: st.organizationId || '',
       projectId: st.projectId || '',
       siteId: st.siteId || '',
@@ -115,13 +112,17 @@ export default function StructuresPage() {
     e.preventDefault();
     try {
       if (editingStruct) {
-        await updateStructure(editingStruct.id, formData);
-        setStructuresList(prev => prev.map(s => s.id === editingStruct.id ? { ...s, ...formData } : s));
+        const res = await updateStructure(editingStruct.id, formData);
+        const updated = res?.structure || { ...editingStruct, ...formData };
+        setStructuresList(prev => prev.map(s => s.id === editingStruct.id ? updated : s));
         setMsg({ type: 'success', text: `Asset ${formData.name} updated.` });
       } else {
         const res = await createStructure(formData);
-        const newSt = res?.structure || { id: `STRUCT-${Date.now().toString().slice(-4)}`, ...formData, Devices: [] };
-        setStructuresList(prev => [...prev, newSt]);
+        if (res?.structure) {
+          setStructuresList(prev => [res.structure, ...prev]);
+        } else {
+          loadData();
+        }
         setMsg({ type: 'success', text: `Asset ${formData.name} created.` });
       }
       setModalOpen(false);
@@ -228,7 +229,6 @@ export default function StructuresPage() {
               <thead>
                 <tr className="border-b-2 border-slate-200 text-black font-extrabold uppercase text-[11px] tracking-wider">
                   <th className="py-3 px-3.5">Asset Name</th>
-                  <th className="py-3 px-3.5">Asset Code</th>
                   <th className="py-3 px-3.5">Type & Elevation</th>
                   <th className="py-3 px-3.5">Site Location</th>
                   <th className="py-3 px-3.5">Attached Inclinometer Devices</th>
@@ -238,7 +238,7 @@ export default function StructuresPage() {
               <tbody className="divide-y divide-slate-200 text-black font-medium">
                 {structuresList.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                    <td colSpan={5} className="py-8 text-center text-slate-500 text-xs">
                       No structural assets registered yet. Click "+ Add Asset" to create one.
                     </td>
                   </tr>
@@ -256,9 +256,6 @@ export default function StructuresPage() {
                           <div className="font-bold text-black text-sm">{st.name}</div>
                           <div className="text-[11px] text-slate-700 font-mono mt-0.5">{st.description || 'Structural Asset'}</div>
                         </td>
-                        <td className="py-4 px-3.5 font-mono font-bold text-black">
-                          {st.code || st.id}
-                        </td>
                         <td className="py-4 px-3.5">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: typeConfig.color }} />
@@ -267,8 +264,7 @@ export default function StructuresPage() {
                           <div className="text-[11px] text-slate-700 font-mono mt-0.5">{st.heightElevation}m</div>
                         </td>
                         <td className="py-4 px-3.5">
-                          <div className="font-bold text-black">{site?.name || st.siteId || '--'}</div>
-                          <div className="text-[11px] text-slate-700 font-mono font-bold">{st.siteId}</div>
+                          <div className="font-bold text-black">{site?.name || 'Assigned Location'}</div>
                         </td>
                         <td className="py-4 px-3.5">
                           <button
@@ -420,7 +416,7 @@ export default function StructuresPage() {
                 >
                   <option value="">Select Location</option>
                   {sitesList.map(s => (
-                    <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name} ({s.id || s.siteId})</option>
+                    <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
                   ))}
                 </select>
               </div>

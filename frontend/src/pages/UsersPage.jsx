@@ -232,7 +232,7 @@ export default function UsersPage() {
                         </div>
                         {user.siteId && (
                           <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                            Site: {user.siteId}
+                            Location: {sitesList.find(s => s.id === user.siteId || s.siteId === user.siteId)?.name || 'Assigned Location'}
                           </div>
                         )}
                       </td>

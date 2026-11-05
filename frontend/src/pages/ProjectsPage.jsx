@@ -20,7 +20,6 @@ export default function ProjectsPage() {
 
   const [formData, setFormData] = useState({
     name: '',
-    code: '',
     organizationId: '',
     description: '',
     budget: '',
@@ -57,7 +56,6 @@ export default function ProjectsPage() {
     setEditingProj(null);
     setFormData({
       name: '',
-      code: `PROJ-${Date.now().toString().slice(-4)}`,
       organizationId: isOrgAdmin ? (currentUser?.organizationId || orgsList[0]?.id || '') : (orgsList[0]?.id || ''),
       description: '',
       budget: '',
@@ -71,7 +69,6 @@ export default function ProjectsPage() {
     setEditingProj(proj);
     setFormData({
       name: proj.name,
-      code: proj.code,
       organizationId: proj.organizationId || proj.Organization?.id || currentUser?.organizationId || '',
       description: proj.description || '',
       budget: proj.budget || '',
@@ -84,13 +81,17 @@ export default function ProjectsPage() {
     e.preventDefault();
     try {
       if (editingProj) {
-        await updateProject(editingProj.id, formData);
-        setProjectsList(prev => prev.map(p => p.id === editingProj.id ? { ...p, ...formData } : p));
+        const res = await updateProject(editingProj.id, formData);
+        const updated = res?.project || { ...editingProj, ...formData };
+        setProjectsList(prev => prev.map(p => p.id === editingProj.id ? updated : p));
         setMsg({ type: 'success', text: `Project ${formData.name} updated.` });
       } else {
         const res = await createProject(formData);
-        const newProj = res?.project || { id: Date.now(), ...formData, Sites: [] };
-        setProjectsList(prev => [newProj, ...prev]);
+        if (res?.project) {
+          setProjectsList(prev => [res.project, ...prev]);
+        } else {
+          loadData();
+        }
         setMsg({ type: 'success', text: `Project ${formData.name} created.` });
       }
       setModalOpen(false);
@@ -159,7 +160,6 @@ export default function ProjectsPage() {
             <thead>
               <tr className="border-b-2 border-slate-200 text-black font-extrabold uppercase text-[11px] tracking-wider">
                 <th className="py-3 px-3.5">Project Name</th>
-                <th className="py-3 px-3.5">Project Code</th>
                 <th className="py-3 px-3.5">Organization</th>
                 <th className="py-3 px-3.5">Sites</th>
                 <th className="py-3 px-3.5">Status</th>
@@ -169,7 +169,7 @@ export default function ProjectsPage() {
             <tbody className="divide-y divide-slate-200 text-black font-medium">
               {projectsList.length === 0 ? (
                 <tr>
-                  <td colSpan={canManageProjects ? 6 : 5} className="py-8 text-center text-slate-500 text-xs">
+                  <td colSpan={canManageProjects ? 5 : 4} className="py-8 text-center text-slate-500 text-xs">
                     {loading ? 'Loading projects...' : 'No projects registered yet. Click "+ Add Project" to create one.'}
                   </td>
                 </tr>
@@ -183,9 +183,6 @@ export default function ProjectsPage() {
                       <td className="py-4 px-3.5">
                         <div className="font-bold text-black text-sm">{proj.name}</div>
                         <div className="text-[11px] text-slate-700 font-mono mt-0.5">{proj.description || 'Geotechnical Monitoring'}</div>
-                      </td>
-                      <td className="py-4 px-3.5 font-mono font-bold text-black">
-                        {proj.code}
                       </td>
                       <td className="py-4 px-3.5">
                         <span className="font-bold text-black">
@@ -278,18 +275,6 @@ export default function ProjectsPage() {
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Hill Slope Monitoring"
                   className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-black font-extrabold mb-1">Project Code</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.code}
-                  onChange={e => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="e.g. PROJ-01"
-                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-mono font-bold"
                 />
               </div>
 

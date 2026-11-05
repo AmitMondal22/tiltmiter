@@ -44,7 +44,7 @@ export async function sitesRoutes(fastify) {
     }
   });
 
-  // Create Site
+  // Create Site (Backend automatically generates numeric Site ID)
   fastify.post('/api/sites', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ORG_ADMIN') {
@@ -55,15 +55,30 @@ export async function sitesRoutes(fastify) {
         });
       }
 
-      const { id, siteId, name, code, projectId, organizationId, address, location, latitude, longitude, elevation, description, status } = req.body;
+      const { name, code, projectId, organizationId, address, location, latitude, longitude, elevation, description, status } = req.body;
       const targetOrgId = req.user.role === 'ORG_ADMIN' ? req.user.organizationId : (organizationId || req.user.organizationId || 1);
-      const siteIdentifier = siteId || id || `SITE-${Date.now().toString().slice(-4)}`;
+
+      // Backend generates sequential numeric Site ID (e.g. 1001, 1002, ...)
+      let nextNumericId = '1001';
+      try {
+        const allSites = await Site.findAll({ attributes: ['id'] });
+        let maxNum = 1000;
+        for (const s of allSites) {
+          const parsed = parseInt(s.id, 10);
+          if (!isNaN(parsed) && parsed > maxNum) {
+            maxNum = parsed;
+          }
+        }
+        nextNumericId = String(maxNum + 1);
+      } catch (err) {
+        nextNumericId = String(Date.now()).slice(-6);
+      }
 
       const site = await Site.create({
-        id: siteIdentifier,
-        siteId: siteIdentifier,
-        name,
-        code: code || siteIdentifier,
+        id: nextNumericId,
+        siteId: nextNumericId,
+        name: name || `Site ${nextNumericId}`,
+        code: code || nextNumericId,
         projectId: projectId || 1,
         organizationId: targetOrgId,
         address: address || '',
@@ -85,7 +100,7 @@ export async function sitesRoutes(fastify) {
     }
   });
 
-  // Update Site
+  // Update Site (Backend handles update via ID parameter)
   fastify.put('/api/sites/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -111,6 +126,10 @@ export async function sitesRoutes(fastify) {
       }
 
       const updateData = { ...req.body };
+      // Prevent changing numeric primary key
+      delete updateData.id;
+      delete updateData.siteId;
+
       if (req.user.role === 'ORG_ADMIN') {
         updateData.organizationId = req.user.organizationId;
       }
@@ -119,6 +138,9 @@ export async function sitesRoutes(fastify) {
       }
       if (updateData.longitude !== undefined && updateData.longitude !== '') {
         updateData.longitude = parseFloat(updateData.longitude);
+      }
+      if (updateData.elevation !== undefined && updateData.elevation !== '') {
+        updateData.elevation = parseFloat(updateData.elevation);
       }
 
       await site.update(updateData);
@@ -132,7 +154,7 @@ export async function sitesRoutes(fastify) {
     }
   });
 
-  // Delete Site
+  // Delete Site (Backend handles deletion and nullifies associations)
   fastify.delete('/api/sites/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -156,6 +178,10 @@ export async function sitesRoutes(fastify) {
           });
         }
       }
+
+      // Detach related devices and structures cleanly
+      await Device.update({ siteId: null }, { where: { siteId: id } }).catch(() => {});
+      await Structure.update({ siteId: null }, { where: { siteId: id } }).catch(() => {});
 
       await site.destroy();
       return reply.send({ statusCode: 200, message: 'Site deleted successfully' });

@@ -32,7 +32,7 @@ export async function structuresRoutes(fastify) {
     }
   });
 
-  // Create Structure / Asset / Barrier
+  // Create Structure / Asset / Barrier (Backend automatically generates numeric ID)
   fastify.post('/api/structures', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ORG_ADMIN') {
@@ -43,20 +43,36 @@ export async function structuresRoutes(fastify) {
         });
       }
 
-      const { id, siteId, projectId, organizationId, name, code, type, heightElevation, latitude, longitude, description, status } = req.body;
+      const { siteId, projectId, organizationId, name, type, heightElevation, latitude, longitude, description, status } = req.body;
       const targetOrgId = req.user.role === 'ORG_ADMIN' ? req.user.organizationId : (organizationId || req.user.organizationId || 1);
 
+      // Backend generates sequential numeric Asset / Structure ID (e.g. 1001, 1002, ...)
+      let nextNumericId = '1001';
+      try {
+        const allStructures = await Structure.findAll({ attributes: ['id'] });
+        let maxNum = 1000;
+        for (const st of allStructures) {
+          const parsed = parseInt(st.id, 10);
+          if (!isNaN(parsed) && parsed > maxNum) {
+            maxNum = parsed;
+          }
+        }
+        nextNumericId = String(maxNum + 1);
+      } catch (err) {
+        nextNumericId = String(Date.now()).slice(-6);
+      }
+
       const structure = await Structure.create({
-        id: id || `STRUCT-${Date.now().toString().slice(-4)}`,
-        siteId: siteId || 'SITE-KB01',
+        id: nextNumericId,
+        code: nextNumericId,
+        siteId: siteId || null,
         projectId: projectId || 1,
         organizationId: targetOrgId,
-        name,
-        code: code || `ST-${Date.now().toString().slice(-4)}`,
+        name: name || `Asset ${nextNumericId}`,
         type: type || 'Crash Barrier',
-        heightElevation: heightElevation || 15.0,
-        latitude: latitude || 22.5726,
-        longitude: longitude || 88.3639,
+        heightElevation: heightElevation !== undefined && heightElevation !== '' ? parseFloat(heightElevation) : 15.0,
+        latitude: latitude !== undefined && latitude !== '' ? parseFloat(latitude) : 22.5726,
+        longitude: longitude !== undefined && longitude !== '' ? parseFloat(longitude) : 88.3639,
         description: description || '',
         status: status || 'ACTIVE',
       });
@@ -71,7 +87,7 @@ export async function structuresRoutes(fastify) {
     }
   });
 
-  // Update Structure / Asset
+  // Update Structure / Asset (Backend handles update via ID parameter)
   fastify.put('/api/structures/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -97,6 +113,10 @@ export async function structuresRoutes(fastify) {
       }
 
       const updateData = { ...req.body };
+      // Prevent changing numeric primary key or code
+      delete updateData.id;
+      delete updateData.code;
+
       if (req.user.role === 'ORG_ADMIN') {
         updateData.organizationId = req.user.organizationId;
       }
@@ -112,7 +132,7 @@ export async function structuresRoutes(fastify) {
     }
   });
 
-  // Delete Structure
+  // Delete Structure (Backend handles deletion and nullifies device associations)
   fastify.delete('/api/structures/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -136,6 +156,9 @@ export async function structuresRoutes(fastify) {
           });
         }
       }
+
+      // Detach related devices cleanly before deleting structure
+      await Device.update({ structureId: null }, { where: { structureId: id } }).catch(() => {});
 
       await structure.destroy();
       return reply.send({ statusCode: 200, message: 'Structure deleted successfully' });

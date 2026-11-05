@@ -22,7 +22,6 @@ export default function SitesPage() {
   const [msg, setMsg] = useState({ type: '', text: '' });
 
   const [formData, setFormData] = useState({
-    siteId: '',
     name: '',
     organizationId: '',
     projectId: '',
@@ -61,7 +60,6 @@ export default function SitesPage() {
   const handleOpenAdd = () => {
     setEditingSite(null);
     setFormData({
-      siteId: `SITE-${Date.now().toString().slice(-4)}`,
       name: '',
       organizationId: orgsList[0]?.id || '',
       projectId: projectsList[0]?.id || '',
@@ -77,7 +75,6 @@ export default function SitesPage() {
     e.stopPropagation();
     setEditingSite(site);
     setFormData({
-      siteId: site.siteId || site.id,
       name: site.name,
       organizationId: site.organizationId || site.Project?.organizationId || '',
       projectId: site.projectId || '',
@@ -93,13 +90,18 @@ export default function SitesPage() {
     e.preventDefault();
     try {
       if (editingSite) {
-        await updateSite(editingSite.id || editingSite.siteId, formData);
-        setSitesList(prev => prev.map(s => (s.id === editingSite.id || s.siteId === editingSite.siteId) ? { ...s, ...formData } : s));
+        const sitePk = editingSite.id || editingSite.siteId;
+        const res = await updateSite(sitePk, formData);
+        const updated = res?.site || { ...editingSite, ...formData };
+        setSitesList(prev => prev.map(s => (s.id === sitePk || s.siteId === sitePk) ? updated : s));
         setMsg({ type: 'success', text: `Site ${formData.name} updated.` });
       } else {
         const res = await createSite(formData);
-        const newSite = res?.site || { id: formData.siteId, ...formData, Structures: [] };
-        setSitesList(prev => [...prev, newSite]);
+        if (res?.site) {
+          setSitesList(prev => [res.site, ...prev]);
+        } else {
+          loadData();
+        }
         setMsg({ type: 'success', text: `Site ${formData.name} created.` });
       }
       setModalOpen(false);
@@ -191,7 +193,6 @@ export default function SitesPage() {
               <thead>
                 <tr className="border-b-2 border-slate-200 text-black font-extrabold uppercase text-[11px] tracking-wider">
                   <th className="py-3 px-3.5">Site Name</th>
-                  <th className="py-3 px-3.5">Site ID</th>
                   <th className="py-3 px-3.5">Project / Org</th>
                   <th className="py-3 px-3.5">GPS Coordinates</th>
                   <th className="py-3 px-3.5">Assets & Inclinometers</th>
@@ -202,7 +203,7 @@ export default function SitesPage() {
               <tbody className="divide-y divide-slate-200 text-black font-medium">
                 {sitesList.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-slate-500 text-xs">
+                    <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
                       No site locations registered yet. Click "+ Add Location" to create one.
                     </td>
                   </tr>
@@ -226,9 +227,6 @@ export default function SitesPage() {
                             <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
                           </div>
                           <div className="text-[11px] text-slate-700 font-mono mt-0.5">{site.description || 'Geotechnical Site'}</div>
-                        </td>
-                        <td className="py-4 px-3.5 font-mono font-bold text-black">
-                          {sId}
                         </td>
                         <td className="py-4 px-3.5">
                           <div className="font-bold text-black">{proj?.name || site.Project?.name || '--'}</div>
@@ -366,18 +364,6 @@ export default function SitesPage() {
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Hill Slope Sector B"
                   className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-black font-extrabold mb-1">Site Identifier Code</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.siteId}
-                  onChange={e => setFormData({ ...formData, siteId: e.target.value })}
-                  placeholder="e.g. SITE-KB01"
-                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-mono font-bold"
                 />
               </div>
 

@@ -32,7 +32,7 @@ export async function projectsRoutes(fastify) {
     }
   });
 
-  // Create new project
+  // Create new project (Backend automatically generates numeric Project ID)
   fastify.post('/api/projects', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       if (req.user.role !== 'SUPER_ADMIN' && req.user.role !== 'ORG_ADMIN') {
@@ -43,12 +43,29 @@ export async function projectsRoutes(fastify) {
         });
       }
 
-      const { name, code, organizationId, location, description, budget, status } = req.body;
+      const { name, organizationId, location, description, budget, status } = req.body;
       const targetOrgId = req.user.role === 'ORG_ADMIN' ? req.user.organizationId : (organizationId || req.user.organizationId || 1);
 
+      // Backend generates sequential numeric Project ID (e.g. 1001, 1002, ...)
+      let nextNumericId = 1001;
+      try {
+        const allProjects = await Project.findAll({ attributes: ['id'] });
+        let maxNum = 1000;
+        for (const p of allProjects) {
+          const parsed = parseInt(p.id, 10);
+          if (!isNaN(parsed) && parsed > maxNum) {
+            maxNum = parsed;
+          }
+        }
+        nextNumericId = maxNum + 1;
+      } catch (err) {
+        nextNumericId = parseInt(String(Date.now()).slice(-6), 10);
+      }
+
       const project = await Project.create({
-        name,
-        code: code || `PROJ-${Date.now().toString().slice(-4)}`,
+        id: nextNumericId,
+        code: String(nextNumericId),
+        name: name || `Project ${nextNumericId}`,
         organizationId: targetOrgId,
         location: location || '',
         description: description || '',
@@ -66,7 +83,7 @@ export async function projectsRoutes(fastify) {
     }
   });
 
-  // Update project
+  // Update project (Backend handles update via ID parameter)
   fastify.put('/api/projects/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -92,6 +109,10 @@ export async function projectsRoutes(fastify) {
       }
 
       const updateData = { ...req.body };
+      // Prevent changing numeric primary key or code
+      delete updateData.id;
+      delete updateData.code;
+
       if (req.user.role === 'ORG_ADMIN') {
         updateData.organizationId = req.user.organizationId;
       }
@@ -107,7 +128,7 @@ export async function projectsRoutes(fastify) {
     }
   });
 
-  // Delete project
+  // Delete project (Backend handles deletion and nullifies associations)
   fastify.delete('/api/projects/:id', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
@@ -131,6 +152,11 @@ export async function projectsRoutes(fastify) {
           });
         }
       }
+
+      // Detach related sites, structures, and devices cleanly
+      await Site.update({ projectId: null }, { where: { projectId: id } }).catch(() => {});
+      await Structure.update({ projectId: null }, { where: { projectId: id } }).catch(() => {});
+      await Device.update({ projectId: null }, { where: { projectId: id } }).catch(() => {});
 
       await project.destroy();
       return reply.send({ statusCode: 200, message: 'Project deleted successfully' });

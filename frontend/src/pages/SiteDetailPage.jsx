@@ -131,11 +131,8 @@ export default function SiteDetailPage() {
             <div className="flex items-center gap-2">
               <MapPin className="w-5 h-5 text-blue-600" />
               <h1 className="text-xl font-black text-black">
-                {site?.name || `Location ${siteId}`}
+                {site?.name || 'Monitored Location'}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-300 text-[10px] font-mono font-bold text-slate-800">
-                {site?.siteId || site?.id}
-              </span>
             </div>
             <p className="text-xs text-slate-700 font-medium mt-0.5">
               {project?.name ? `${project.name} &bull; ` : ''}{org?.name ? `${org.name} &bull; ` : ''}

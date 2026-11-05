@@ -19,7 +19,6 @@ export default function OrganizationsPage() {
 
   const [formData, setFormData] = useState({
     name: '',
-    code: '',
     type: 'PARENT_ORG',
     address: '',
     contactEmail: '',
@@ -54,7 +53,6 @@ export default function OrganizationsPage() {
     setLogoError('');
     setFormData({
       name: '',
-      code: `ORG-${Date.now().toString().slice(-4)}`,
       type: 'PARENT_ORG',
       address: '',
       contactEmail: '',
@@ -72,7 +70,6 @@ export default function OrganizationsPage() {
     setLogoError('');
     setFormData({
       name: org.name,
-      code: org.code,
       type: org.type || 'PARENT_ORG',
       address: org.address || '',
       contactEmail: org.contactEmail || org.email || '',
@@ -116,13 +113,17 @@ export default function OrganizationsPage() {
     e.preventDefault();
     try {
       if (editingOrg) {
-        await updateOrganization(editingOrg.id, formData);
-        setOrgsList(prev => prev.map(o => o.id === editingOrg.id ? { ...o, ...formData } : o));
+        const res = await updateOrganization(editingOrg.id, formData);
+        const updated = res?.organization || { ...editingOrg, ...formData };
+        setOrgsList(prev => prev.map(o => o.id === editingOrg.id ? updated : o));
         setMsg({ type: 'success', text: `Organization ${formData.name} updated.` });
       } else {
         const res = await createOrganization(formData);
-        const newOrg = res?.organization || { id: Date.now(), ...formData, Projects: [] };
-        setOrgsList(prev => [newOrg, ...prev]);
+        if (res?.organization) {
+          setOrgsList(prev => [res.organization, ...prev]);
+        } else {
+          loadData();
+        }
         setMsg({ type: 'success', text: `Organization ${formData.name} created.` });
       }
       setModalOpen(false);
@@ -194,7 +195,6 @@ export default function OrganizationsPage() {
             <thead>
               <tr className="border-b-2 border-slate-200 text-black font-extrabold uppercase text-[11px] tracking-wider">
                 <th className="py-3 px-3.5">Organization Name</th>
-                <th className="py-3 px-3.5">Org Code</th>
                 <th className="py-3 px-3.5">Address & Contact</th>
                 <th className="py-3 px-3.5">Projects</th>
                 <th className="py-3 px-3.5">Status</th>
@@ -204,7 +204,7 @@ export default function OrganizationsPage() {
             <tbody className="divide-y divide-slate-200 text-black font-medium">
               {orgsList.length === 0 ? (
                 <tr>
-                  <td colSpan={canEditOrg ? 6 : 5} className="py-8 text-center text-slate-500 text-xs">
+                  <td colSpan={canEditOrg ? 5 : 4} className="py-8 text-center text-slate-500 text-xs">
                     {loading ? 'Loading organization records...' : 'No organizations found.'}
                   </td>
                 </tr>
@@ -230,9 +230,6 @@ export default function OrganizationsPage() {
                             <div className="text-[11px] text-slate-700 font-mono mt-0.5">{org.description || 'Enterprise Tenant'}</div>
                           </div>
                         </div>
-                      </td>
-                      <td className="py-4 px-3.5 font-mono font-bold text-black">
-                        {org.code}
                       </td>
                       <td className="py-4 px-3.5">
                         <div className="text-black font-semibold">{org.address || '--'}</div>
@@ -302,18 +299,6 @@ export default function OrganizationsPage() {
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Acme Infra Ltd"
                   className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-black font-extrabold mb-1">Organization Code *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.code}
-                  onChange={e => setFormData({ ...formData, code: e.target.value })}
-                  placeholder="e.g. ACME"
-                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-mono font-bold"
                 />
               </div>
 

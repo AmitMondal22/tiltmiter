@@ -309,7 +309,7 @@ export default function DevicesPage() {
                       <td className="py-3.5 px-3.5">
                         <div className="text-slate-800">{struct?.name || 'No Asset Attached'}</div>
                         <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
-                          <span>{site?.name || dev.siteId || 'Standalone'}</span>
+                          <span>{site?.name || 'Standalone'}</span>
                           {dev.latitude && dev.longitude && (
                             <span className="font-mono text-[10px] text-slate-400">
                               ({Number(dev.latitude).toFixed(4)}, {Number(dev.longitude).toFixed(4)})
@@ -421,7 +421,7 @@ export default function DevicesPage() {
                 >
                   <option value="">No Asset (Standalone Device)</option>
                   {structuresList.map(st => (
-                    <option key={st.id} value={st.id}>{st.name} ({st.id})</option>
+                    <option key={st.id} value={st.id}>{st.name}</option>
                   ))}
                 </select>
               </div>
@@ -435,7 +435,7 @@ export default function DevicesPage() {
                 >
                   <option value="">Select Location</option>
                   {sitesList.map(s => (
-                    <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name} ({s.id || s.siteId})</option>
+                    <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
                   ))}
                 </select>
               </div>

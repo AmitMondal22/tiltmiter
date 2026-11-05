@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Loader2, Camera, Upload
 } from 'lucide-react';
-import { getDevices, getSites, getStructures, createDevice, updateDevice, deleteDevice, configureDeviceTelemetry, formatAssetUrl } from '../api/apiClient';
+import { getDevices, getSites, getStructures, getOrganizations, getProjects, createDevice, updateDevice, deleteDevice, configureDeviceTelemetry, formatAssetUrl } from '../api/apiClient';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
 export default function DevicesPage() {
@@ -13,6 +13,8 @@ export default function DevicesPage() {
   const [devicesList, setDevicesList] = useState([]);
   const [sitesList, setSitesList] = useState([]);
   const [structuresList, setStructuresList] = useState([]);
+  const [orgsList, setOrgsList] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState(null);
@@ -25,6 +27,7 @@ export default function DevicesPage() {
     id: '',
     name: '',
     sensorType: 'Inclinometer',
+    organizationId: '',
     siteId: '',
     structureId: '',
     latitude: '',
@@ -47,15 +50,19 @@ export default function DevicesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [devRes, sitesRes, structRes] = await Promise.all([
+      const [devRes, sitesRes, structRes, orgsRes, projRes] = await Promise.all([
         getDevices().catch(() => ({ devices: [] })),
         getSites().catch(() => ({ sites: [] })),
         getStructures().catch(() => ({ structures: [] })),
+        getOrganizations().catch(() => ({ organizations: [] })),
+        getProjects().catch(() => ({ projects: [] })),
       ]);
 
       if (devRes?.devices) setDevicesList(devRes.devices);
       if (sitesRes?.sites) setSitesList(sitesRes.sites);
       if (structRes?.structures) setStructuresList(structRes.structures);
+      if (orgsRes?.organizations) setOrgsList(orgsRes.organizations);
+      if (projRes?.projects) setProjectsList(projRes.projects);
     } catch (e) {
       setDevicesList([]);
     }
@@ -72,6 +79,7 @@ export default function DevicesPage() {
       id: `TECHA${Date.now().toString().slice(-5)}`,
       name: '',
       sensorType: 'Inclinometer',
+      organizationId: orgsList[0]?.id || '',
       siteId: '',
       structureId: '',
       latitude: '',
@@ -82,7 +90,7 @@ export default function DevicesPage() {
       sleep_count: 15,
       wake_count: 30,
       calibrate: false,
-    imageUrl: '',
+      imageUrl: '',
     });
     setModalOpen(true);
   };
@@ -90,11 +98,43 @@ export default function DevicesPage() {
   const handleOpenEdit = (dev, e) => {
     e?.stopPropagation();
     setEditingDevice(dev);
+
+    // 1. Resolve parent structure & site
+    const devSiteId = dev.siteId || '';
+    const parentStruct = dev.structureId 
+      ? structuresList.find(st => String(st.id) === String(dev.structureId) || String(st.structureId || '') === String(dev.structureId))
+      : null;
+
+    const effectiveSiteId = devSiteId || parentStruct?.siteId || '';
+    const parentSite = effectiveSiteId 
+      ? sitesList.find(s => String(s.id) === String(effectiveSiteId) || String(s.siteId || '') === String(effectiveSiteId))
+      : null;
+
+    // 2. Resolve organization from dev, site, project, or structure
+    const parentProject = parentSite?.projectId 
+      ? projectsList.find(p => String(p.id) === String(parentSite.projectId))
+      : null;
+
+    let orgId = dev.organizationId ? String(dev.organizationId) : '';
+    if (!orgId && parentSite?.organizationId) {
+      orgId = String(parentSite.organizationId);
+    }
+    if (!orgId && parentProject?.organizationId) {
+      orgId = String(parentProject.organizationId);
+    }
+    if (!orgId && parentStruct?.organizationId) {
+      orgId = String(parentStruct.organizationId);
+    }
+    if (!orgId && orgsList.length === 1) {
+      orgId = String(orgsList[0].id);
+    }
+
     setFormData({
       id: dev.id,
       name: dev.name,
       sensorType: dev.sensorType || 'Inclinometer',
-      siteId: dev.siteId || '',
+      organizationId: orgId,
+      siteId: effectiveSiteId,
       structureId: dev.structureId || '',
       latitude: dev.latitude !== undefined && dev.latitude !== null ? dev.latitude : '',
       longitude: dev.longitude !== undefined && dev.longitude !== null ? dev.longitude : '',
@@ -108,6 +148,32 @@ export default function DevicesPage() {
     });
     setModalOpen(true);
   };
+
+  // Filtered sites: strictly ONLY show sites belonging to the selected organization
+  const filteredSites = formData.organizationId
+    ? sitesList.filter(s => {
+        if (s.organizationId && String(s.organizationId) === String(formData.organizationId)) return true;
+        if (s.projectId) {
+          const prj = projectsList.find(p => String(p.id) === String(s.projectId));
+          if (prj && String(prj.organizationId) === String(formData.organizationId)) return true;
+        }
+        if (orgsList.length === 1 && String(orgsList[0].id) === String(formData.organizationId)) return true;
+        return false;
+      })
+    : [];
+
+  // Filtered structures: strictly ONLY show structures belonging to the selected location site
+  const filteredStructures = formData.siteId
+    ? structuresList.filter(st => {
+        const targetSite = String(formData.siteId).trim().toLowerCase();
+        if (st.siteId && String(st.siteId).trim().toLowerCase() === targetSite) return true;
+        if (st.site && (
+          String(st.site.id || '').trim().toLowerCase() === targetSite ||
+          String(st.site.siteId || '').trim().toLowerCase() === targetSite
+        )) return true;
+        return false;
+      })
+    : [];
 
     const handleImageFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -408,36 +474,125 @@ export default function DevicesPage() {
                 />
               </div>
 
+              {/* 1. Select Organization */}
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Attach to Structural Asset (Optional)</label>
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>1. Select Organization</span>
+                  {orgsList.length > 0 && <span className="text-[10px] text-slate-500 font-normal">{orgsList.length} registered</span>}
+                </label>
                 <select
-                  value={formData.structureId}
+                  value={formData.organizationId || ''}
                   onChange={e => {
-                    const stId = e.target.value;
-                    const st = structuresList.find(s => s.id === stId);
-                    setFormData({ ...formData, structureId: stId, siteId: st?.siteId || formData.siteId });
+                    const newOrgId = e.target.value;
+                    setFormData(prev => ({
+                      ...prev,
+                      organizationId: newOrgId,
+                      siteId: '', // Reset site when organization changes
+                      structureId: '', // Reset structure when organization changes
+                    }));
                   }}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  <option value="">No Asset (Standalone Device)</option>
-                  {structuresList.map(st => (
-                    <option key={st.id} value={st.id}>{st.name}</option>
+                  <option value="">-- Select Organization --</option>
+                  {orgsList.map(o => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
                   ))}
                 </select>
               </div>
 
+              {/* 2. Select Location Site */}
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Location Site (Optional)</label>
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>2. Select Location Site</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    {formData.organizationId ? `${filteredSites.length} available` : 'Select org first'}
+                  </span>
+                </label>
                 <select
-                  value={formData.siteId}
-                  onChange={e => setFormData({ ...formData, siteId: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  disabled={!formData.organizationId}
+                  value={formData.siteId || ''}
+                  onChange={e => {
+                    const newSiteId = e.target.value;
+                    const targetSite = sitesList.find(s => String(s.id) === String(newSiteId) || String(s.siteId) === String(newSiteId));
+                    const autoOrgId = formData.organizationId || targetSite?.organizationId || (projectsList.find(p => String(p.id) === String(targetSite?.projectId))?.organizationId) || '';
+
+                    setFormData(prev => ({
+                      ...prev,
+                      siteId: newSiteId,
+                      organizationId: autoOrgId,
+                      structureId: '', // Reset structure when site changes
+                      latitude: prev.latitude || targetSite?.latitude || '',
+                      longitude: prev.longitude || targetSite?.longitude || '',
+                    }));
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                    !formData.organizationId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
+                  }`}
                 >
-                  <option value="">Select Location</option>
-                  {sitesList.map(s => (
-                    <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
-                  ))}
+                  {!formData.organizationId ? (
+                    <option value="">-- Please select an Organization first --</option>
+                  ) : (
+                    <>
+                      <option value="">-- Select Location Site under Organization --</option>
+                      {filteredSites.map(s => (
+                        <option key={s.id || s.siteId} value={s.id || s.siteId}>
+                          {s.name} ({s.id || s.siteId})
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
+                {formData.organizationId && filteredSites.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">
+                    No location sites found under this organization.
+                  </p>
+                )}
+              </div>
+
+              {/* 3. Select Attach to Structural Asset */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>3. Attach to Structural Asset</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    {formData.siteId ? `${filteredStructures.length} available` : 'Select site first'}
+                  </span>
+                </label>
+                <select
+                  disabled={!formData.siteId}
+                  value={formData.structureId || ''}
+                  onChange={e => {
+                    const stId = e.target.value;
+                    const st = structuresList.find(s => String(s.id) === String(stId));
+                    setFormData(prev => ({
+                      ...prev,
+                      structureId: stId,
+                      siteId: st?.siteId || prev.siteId,
+                      latitude: prev.latitude || st?.latitude || '',
+                      longitude: prev.longitude || st?.longitude || '',
+                    }));
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                    !formData.siteId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
+                  }`}
+                >
+                  {!formData.siteId ? (
+                    <option value="">-- Please select a Location Site first --</option>
+                  ) : (
+                    <>
+                      <option value="">No Asset (Standalone Hardware Node)</option>
+                      {filteredStructures.map(st => (
+                        <option key={st.id} value={st.id}>
+                          {st.name} ({st.type || 'Slope Asset'})
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                {formData.siteId && filteredStructures.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">
+                    No structural assets registered under this location site yet.
+                  </p>
+                )}
               </div>
 
               {/* Status & Gauge Length */}

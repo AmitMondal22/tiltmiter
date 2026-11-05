@@ -14,7 +14,7 @@ import {
 import {
   getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry,
   setDeviceReference, resetDeviceReference, getWsUrl, createDevice, getSites, getStructures,
-  uploadDeviceImage, deleteDeviceImage, formatAssetUrl
+  getOrganizations, getProjects, uploadDeviceImage, deleteDeviceImage, formatAssetUrl
 } from '../api/apiClient';
 import {
   parseTelemetry, hasTelemetryData, formatSigned, formatPresent,
@@ -89,13 +89,17 @@ function DeviceLocationMap({ device, deviceId, d }) {
       map.invalidateSize();
     }, 250);
 
-    return () => {
+  
+
+  return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
   }, [lat, lng, device?.name, deviceId]);
+
+
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs flex flex-col justify-between h-full">
@@ -128,6 +132,8 @@ function DeviceImageSection({ device, deviceId }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const deviceImage = device?.imageUrl ? formatAssetUrl(device.imageUrl) : null;
   const displayName = device?.name || (deviceId ? `Tiltmeter ${deviceId}` : 'Tiltmeter Node');
+
+
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs flex flex-col justify-between h-full">
@@ -292,12 +298,16 @@ function DeviceSamplingConfigSection({ device, d, embedded = false }) {
   );
 
   if (embedded) {
-    return (
+  
+
+  return (
       <div className="pt-4 border-t border-slate-100 font-sans">
         {cardBody}
       </div>
     );
   }
+
+
 
   return (
     <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs font-sans">
@@ -331,10 +341,13 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const [addDeviceLoading, setAddDeviceLoading] = useState(false);
   const [structuresList, setStructuresList] = useState([]);
   const [sitesList, setSitesList] = useState([]);
+  const [orgsList, setOrgsList] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
   const [addDeviceForm, setAddDeviceForm] = useState({
     id: '',
     name: '',
     sensorType: 'Inclinometer',
+    organizationId: '',
     siteId: '',
     structureId: '',
     latitude: '',
@@ -397,10 +410,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     }
   }, [devices]);
 
-  // Load sites and structures for Add Device modal
+  // Load sites, structures, organizations, and projects for Add Device modal
   useEffect(() => {
     let mounted = true;
-    Promise.allSettled([getSites(), getStructures()]).then(([sitesRes, structRes]) => {
+    Promise.allSettled([getSites(), getStructures(), getOrganizations(), getProjects()]).then(([sitesRes, structRes, orgsRes, projRes]) => {
       if (!mounted) return;
       if (sitesRes.status === 'fulfilled') {
         const sData = sitesRes.value?.sites || sitesRes.value || [];
@@ -410,8 +423,18 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         const stData = structRes.value?.structures || structRes.value || [];
         setStructuresList(Array.isArray(stData) ? stData : []);
       }
+      if (orgsRes.status === 'fulfilled') {
+        const oData = orgsRes.value?.organizations || orgsRes.value || [];
+        setOrgsList(Array.isArray(oData) ? oData : []);
+      }
+      if (projRes.status === 'fulfilled') {
+        const pData = projRes.value?.projects || projRes.value || [];
+        setProjectsList(Array.isArray(pData) ? pData : []);
+      }
     });
-    return () => { mounted = false; };
+  
+
+  return () => { mounted = false; };
   }, []);
 
   // Sync currentDevice prop
@@ -646,7 +669,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       socket.onerror = () => {};
     } catch (e) {}
 
-    return () => {
+  
+
+  return () => {
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.close();
       }
@@ -695,7 +720,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
     loadHistory(selectedId, null, null, activeFilter, checkCurrent);
 
-    return () => {
+  
+
+  return () => {
       isCurrent = false;
     };
   }, [selectedId]);
@@ -710,7 +737,9 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         loadHistory(selectedId, null, null, activeFilter);
       }
     }, 60000);
-    return () => clearInterval(intervalId);
+  
+
+  return () => clearInterval(intervalId);
   }, [selectedId, activeFilter, fromDateTime, toDateTime]);
 
   const handleDeviceSelect = (newId) => {
@@ -791,6 +820,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       wake_count: wakeVal,
       gaugeLength_mm: gaugeVal,
       status: addDeviceForm.status || 'ONLINE',
+      organizationId: addDeviceForm.organizationId ? Number(addDeviceForm.organizationId) : null,
       structureId: addDeviceForm.structureId ? String(addDeviceForm.structureId).trim() : null,
       siteId: addDeviceForm.siteId ? String(addDeviceForm.siteId).trim() : null,
       latitude: addDeviceForm.latitude !== '' && !isNaN(parseFloat(addDeviceForm.latitude)) ? parseFloat(addDeviceForm.latitude) : null,
@@ -808,6 +838,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         id: '',
         name: '',
         sensorType: 'Inclinometer',
+        organizationId: '',
         siteId: '',
         structureId: '',
         latitude: '',
@@ -918,6 +949,30 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const angDelta = rawP.angleDelta || d.angleDelta || {};
   const vibObj = rawP.vibration || d.vibration || {};
 
+  // Cascading filters for Add Device modal: strictly require parent selection
+  const filteredSitesForAdd = addDeviceForm.organizationId
+    ? sitesList.filter(s => {
+        if (s.organizationId && String(s.organizationId) === String(addDeviceForm.organizationId)) return true;
+        if (s.projectId) {
+          const prj = projectsList.find(p => String(p.id) === String(s.projectId));
+          if (prj && String(prj.organizationId) === String(addDeviceForm.organizationId)) return true;
+        }
+        if (orgsList.length === 1 && String(orgsList[0].id) === String(addDeviceForm.organizationId)) return true;
+        return false;
+      })
+    : [];
+
+  const filteredStructuresForAdd = addDeviceForm.siteId
+    ? structuresList.filter(st => {
+        const targetSite = String(addDeviceForm.siteId).trim().toLowerCase();
+        if (st.siteId && String(st.siteId).trim().toLowerCase() === targetSite) return true;
+        if (st.site && (
+          String(st.site.id || '').trim().toLowerCase() === targetSite ||
+          String(st.site.siteId || '').trim().toLowerCase() === targetSite
+        )) return true;
+        return false;
+      })
+    : [];
 
   return (
     <div className="space-y-4 font-sans text-slate-800">
@@ -1551,46 +1606,117 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
-                    Attach to Asset / Structure
-                  </label>
-                  <select
-                    value={addDeviceForm.structureId}
-                    onChange={e => {
-                      const stId = e.target.value;
-                      const st = structuresList.find(s => s.id === stId);
-                      setAddDeviceForm({
-                        ...addDeviceForm,
-                        structureId: stId,
-                        siteId: st?.siteId || addDeviceForm.siteId
-                      });
-                    }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="">No Asset (Standalone)</option>
-                    {structuresList.map(st => (
-                      <option key={st.id} value={st.id}>{st.name}</option>
-                    ))}
-                  </select>
-                </div>
+              {/* 1. Select Organization */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>1. Select Organization</span>
+                  {orgsList.length > 0 && <span className="text-[10px] text-slate-500 font-normal">{orgsList.length} registered</span>}
+                </label>
+                <select
+                  value={addDeviceForm.organizationId || ''}
+                  onChange={e => {
+                    const newOrgId = e.target.value;
+                    setAddDeviceForm(prev => ({
+                      ...prev,
+                      organizationId: newOrgId,
+                      siteId: '', // Reset site when organization changes
+                      structureId: '', // Reset structure when organization changes
+                    }));
+                  }}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  <option value="">-- Select Organization --</option>
+                  {orgsList.map(o => (
+                    <option key={o.id} value={o.id}>{o.name}</option>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">
-                    Location Site
-                  </label>
-                  <select
-                    value={addDeviceForm.siteId}
-                    onChange={e => setAddDeviceForm({ ...addDeviceForm, siteId: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  >
-                    <option value="">Select Site Location</option>
-                    {sitesList.map(s => (
-                      <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name} ({s.id || s.siteId})</option>
-                    ))}
-                  </select>
-                </div>
+              {/* 2. Select Location Site */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>2. Select Location Site</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    {addDeviceForm.organizationId ? `${filteredSitesForAdd.length} available` : 'Select org first'}
+                  </span>
+                </label>
+                <select
+                  disabled={!addDeviceForm.organizationId}
+                  value={addDeviceForm.siteId || ''}
+                  onChange={e => {
+                    const newSiteId = e.target.value;
+                    const targetSite = sitesList.find(s => String(s.id) === String(newSiteId) || String(s.siteId) === String(newSiteId));
+                    const autoOrgId = addDeviceForm.organizationId || targetSite?.organizationId || (projectsList.find(p => String(p.id) === String(targetSite?.projectId))?.organizationId) || '';
+
+                    setAddDeviceForm(prev => ({
+                      ...prev,
+                      siteId: newSiteId,
+                      organizationId: autoOrgId,
+                      structureId: '', // Reset structure when site changes
+                      latitude: prev.latitude || targetSite?.latitude || '',
+                      longitude: prev.longitude || targetSite?.longitude || '',
+                    }));
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors ${
+                    !addDeviceForm.organizationId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
+                  }`}
+                >
+                  {!addDeviceForm.organizationId ? (
+                    <option value="">-- Please select an Organization first --</option>
+                  ) : (
+                    <>
+                      <option value="">-- Select Location Site under Organization --</option>
+                      {filteredSitesForAdd.map(s => (
+                        <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name} ({s.id || s.siteId})</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                {addDeviceForm.organizationId && filteredSitesForAdd.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1">No location sites found under this organization.</p>
+                )}
+              </div>
+
+              {/* 3. Attach to Structural Asset */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                  <span>3. Attach to Structural Asset</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    {addDeviceForm.siteId ? `${filteredStructuresForAdd.length} available` : 'Select site first'}
+                  </span>
+                </label>
+                <select
+                  disabled={!addDeviceForm.siteId}
+                  value={addDeviceForm.structureId || ''}
+                  onChange={e => {
+                    const stId = e.target.value;
+                    const st = structuresList.find(s => String(s.id) === String(stId));
+                    setAddDeviceForm(prev => ({
+                      ...prev,
+                      structureId: stId,
+                      siteId: st?.siteId || prev.siteId,
+                      latitude: prev.latitude || st?.latitude || '',
+                      longitude: prev.longitude || st?.longitude || '',
+                    }));
+                  }}
+                  className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-colors ${
+                    !addDeviceForm.siteId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
+                  }`}
+                >
+                  {!addDeviceForm.siteId ? (
+                    <option value="">-- Please select a Location Site first --</option>
+                  ) : (
+                    <>
+                      <option value="">No Asset (Standalone Node)</option>
+                      {filteredStructuresForAdd.map(st => (
+                        <option key={st.id} value={st.id}>{st.name} ({st.type || 'Slope Asset'})</option>
+                      ))}
+                    </>
+                  )}
+                </select>
+                {addDeviceForm.siteId && filteredStructuresForAdd.length === 0 && (
+                  <p className="text-[10px] text-amber-600 mt-0.5">No structural assets registered under this location yet.</p>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-3">

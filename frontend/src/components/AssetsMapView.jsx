@@ -8,73 +8,121 @@ import {
 } from 'lucide-react';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
-// Curated Asset Type Palettes
+// Curated Geotechnical Asset Type Palettes (Mountains, Hills, Slopes, Terrains)
 export const ASSET_TYPES = {
-  'Crash Barrier': {
-    name: 'Crash Barrier',
-    color: '#0284c7',
+  'Mountain Slope': {
+    name: 'Mountain Slope',
+    color: '#0284c7', // Sky Blue
     fillColor: '#38bdf8',
     bg: 'bg-sky-50',
     border: 'border-sky-200',
     text: 'text-sky-700',
-    areaShape: 'corridor', // linear buffer
+    areaShape: 'polygon',
   },
-  'Slope Barrier': {
-    name: 'Slope Barrier',
-    color: '#ea580c',
+  'Hill Slope': {
+    name: 'Hill Slope',
+    color: '#059669', // Emerald
+    fillColor: '#34d399',
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    text: 'text-emerald-700',
+    areaShape: 'polygon',
+  },
+  'Rock Slope / Cliff': {
+    name: 'Rock Slope / Cliff',
+    color: '#dc2626', // Red
+    fillColor: '#f87171',
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    text: 'text-red-700',
+    areaShape: 'polygon',
+  },
+  'Landslide Risk Zone': {
+    name: 'Landslide Risk Zone',
+    color: '#ea580c', // Orange
     fillColor: '#fb923c',
     bg: 'bg-orange-50',
     border: 'border-orange-200',
     text: 'text-orange-700',
     areaShape: 'polygon',
   },
-  'Retaining Wall': {
-    name: 'Retaining Wall',
-    color: '#059669',
-    fillColor: '#34d399',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    text: 'text-emerald-700',
-    areaShape: 'rectangle',
+  'Debris Flow Path': {
+    name: 'Debris Flow Path',
+    color: '#d97706', // Amber
+    fillColor: '#fbbf24',
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    text: 'text-amber-700',
+    areaShape: 'corridor',
   },
-  'Bridge Pier': {
-    name: 'Bridge Pier',
-    color: '#7c3aed',
+  'Cutting Slope': {
+    name: 'Cutting Slope',
+    color: '#7c3aed', // Purple
     fillColor: '#a78bfa',
     bg: 'bg-purple-50',
     border: 'border-purple-200',
     text: 'text-purple-700',
-    areaShape: 'radial',
+    areaShape: 'corridor',
   },
-  'Tunnel Crown': {
-    name: 'Tunnel Crown',
-    color: '#e11d48',
-    fillColor: '#fb7185',
-    bg: 'bg-rose-50',
-    border: 'border-rose-200',
-    text: 'text-rose-700',
-    areaShape: 'sector',
-  },
-  'Sound Barrier': {
-    name: 'Sound Barrier',
-    color: '#0d9488',
+  'Soil / Rock Embankment': {
+    name: 'Soil / Rock Embankment',
+    color: '#0d9488', // Teal
     fillColor: '#2dd4bf',
     bg: 'bg-teal-50',
     border: 'border-teal-200',
     text: 'text-teal-700',
+    areaShape: 'rectangle',
+  },
+  'Retaining Wall': {
+    name: 'Retaining Wall',
+    color: '#475569', // Slate
+    fillColor: '#94a3b8',
+    bg: 'bg-slate-50',
+    border: 'border-slate-200',
+    text: 'text-slate-700',
+    areaShape: 'rectangle',
+  },
+  'Natural Hill / Ridge': {
+    name: 'Natural Hill / Ridge',
+    color: '#15803d', // Green
+    fillColor: '#4ade80',
+    bg: 'bg-green-50',
+    border: 'border-green-200',
+    text: 'text-green-700',
+    areaShape: 'radial',
+  },
+  'Slope Protection Barrier': {
+    name: 'Slope Protection Barrier',
+    color: '#b91c1c', // Dark Red
+    fillColor: '#ef4444',
+    bg: 'bg-rose-50',
+    border: 'border-rose-200',
+    text: 'text-rose-700',
     areaShape: 'corridor',
   }
 };
 
 export const getAssetTypeConfig = (type) => {
-  return ASSET_TYPES[type] || {
-    name: type || 'Structural Asset',
-    color: '#2563eb',
-    fillColor: '#60a5fa',
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    text: 'text-blue-700',
-    areaShape: 'rectangle',
+  if (ASSET_TYPES[type]) return ASSET_TYPES[type];
+
+  // Dynamic matching for any custom mountain, hill, slope, or terrain type
+  const t = (type || '').toLowerCase();
+  if (t.includes('rock') || t.includes('cliff')) return ASSET_TYPES['Rock Slope / Cliff'];
+  if (t.includes('mountain')) return ASSET_TYPES['Mountain Slope'];
+  if (t.includes('debris') || t.includes('landslide')) return ASSET_TYPES['Landslide Risk Zone'];
+  if (t.includes('cut') || t.includes('road')) return ASSET_TYPES['Cutting Slope'];
+  if (t.includes('wall') || t.includes('gabion')) return ASSET_TYPES['Retaining Wall'];
+  if (t.includes('hill') || t.includes('ridge')) return ASSET_TYPES['Hill Slope'];
+
+  // Default natural slope styling for any custom type
+  return {
+    name: type || 'Slope Asset',
+    color: '#0284c7',
+    fillColor: '#38bdf8',
+    bg: 'bg-sky-50',
+    border: 'border-sky-200',
+    text: 'text-sky-700',
+    areaShape: 'polygon',
   };
 };
 
@@ -422,7 +470,7 @@ export default function AssetsMapView({
               className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
             >
               <option value="ALL">All Asset Types ({structures.length})</option>
-              {Object.keys(ASSET_TYPES).map(t => (
+              {Array.from(new Set([...Object.keys(ASSET_TYPES), ...structures.map(s => s.type).filter(Boolean)])).map(t => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>

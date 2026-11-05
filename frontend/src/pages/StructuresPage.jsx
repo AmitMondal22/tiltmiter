@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, X, CheckCircle2, ChevronRight, Cpu, Layers, Map as MapIcon, List, Shield, Box, MapPin, Activity, Zap, Radio } from 'lucide-react';
 import { getStructures, getSites, getProjects, getOrganizations, createStructure, updateStructure, deleteStructure, createDevice, getDevices } from '../api/apiClient';
-import AssetsMapView, { ASSET_TYPES } from '../components/AssetsMapView';
+import AssetsMapView, { ASSET_TYPES, getAssetTypeConfig } from '../components/AssetsMapView';
 import Landslide3DMapView from '../components/Landslide3DMapView';
 
 export default function StructuresPage() {
@@ -18,6 +18,7 @@ export default function StructuresPage() {
   const [editingStruct, setEditingStruct] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const [isCustomType, setIsCustomType] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
 
@@ -26,7 +27,7 @@ export default function StructuresPage() {
     organizationId: '',
     projectId: '',
     siteId: '',
-    type: 'Crash Barrier',
+    type: 'Mountain Slope',
     heightElevation: '12.5',
     latitude: '',
     longitude: '',
@@ -68,12 +69,13 @@ export default function StructuresPage() {
 
   const handleOpenAdd = () => {
     setEditingStruct(null);
+    setIsCustomType(false);
     setFormData({
       name: '',
       organizationId: orgsList[0]?.id || '',
       projectId: projectsList[0]?.id || '',
       siteId: sitesList[0]?.id || sitesList[0]?.siteId || '',
-      type: 'Crash Barrier',
+      type: 'Mountain Slope',
       heightElevation: '12.5',
       latitude: '26.7271',
       longitude: '88.4315',
@@ -84,12 +86,14 @@ export default function StructuresPage() {
 
   const handleOpenEdit = (st) => {
     setEditingStruct(st);
+    const isKnown = Boolean(st.type && Object.keys(ASSET_TYPES).includes(st.type));
+    setIsCustomType(!isKnown);
     setFormData({
       name: st.name,
       organizationId: st.organizationId || '',
       projectId: st.projectId || '',
       siteId: st.siteId || '',
-      type: st.type || 'Crash Barrier',
+      type: st.type || 'Mountain Slope',
       heightElevation: st.heightElevation || '12.5',
       latitude: st.latitude || '',
       longitude: st.longitude || '',
@@ -248,7 +252,7 @@ export default function StructuresPage() {
                     const attachedDevs = (st.Devices && st.Devices.length > 0)
                       ? st.Devices
                       : devicesList.filter(d => d.structureId === st.id);
-                    const typeConfig = ASSET_TYPES[st.type] || { color: '#2563eb' };
+                    const typeConfig = getAssetTypeConfig(st.type);
 
                     return (
                       <tr key={st.id} className="hover:bg-slate-50 transition-colors">
@@ -434,19 +438,39 @@ export default function StructuresPage() {
               </div>
 
               <div>
-                <label className="block text-black font-extrabold mb-1">Asset Type</label>
+                <label className="block text-black font-extrabold mb-1">Asset Type (Mountain / Hill / Slope)</label>
                 <select
-                  value={formData.type}
-                  onChange={e => setFormData({ ...formData, type: e.target.value })}
+                  value={Object.keys(ASSET_TYPES).includes(formData.type) ? formData.type : '__CUSTOM__'}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '__CUSTOM__') {
+                      setIsCustomType(true);
+                      setFormData({ ...formData, type: '' });
+                    } else {
+                      setIsCustomType(false);
+                      setFormData({ ...formData, type: val });
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
                 >
-                  <option value="Crash Barrier">Crash Barrier</option>
-                  <option value="Slope Barrier">Slope Barrier</option>
-                  <option value="Retaining Wall">Retaining Wall</option>
-                  <option value="Bridge Pier">Bridge Pier</option>
-                  <option value="Tunnel Crown">Tunnel Crown</option>
-                  <option value="Sound Barrier">Sound Barrier</option>
+                  {Object.keys(ASSET_TYPES).map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  <option value="__CUSTOM__">+ Enter Custom Slope / Mountain Type...</option>
                 </select>
+                {(isCustomType || (formData.type && !Object.keys(ASSET_TYPES).includes(formData.type))) && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      required
+                      value={formData.type}
+                      onChange={e => setFormData({ ...formData, type: e.target.value })}
+                      placeholder="e.g. Ridge Crest, North Valley Slope, Scree Slope..."
+                      className="w-full px-3 py-2 rounded-xl border-2 border-blue-400 bg-blue-50/30 text-black font-bold"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1">Enter any geotechnical, mountain, hill, or terrain slope type.</p>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">

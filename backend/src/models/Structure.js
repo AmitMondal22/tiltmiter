@@ -27,8 +27,8 @@ export const Structure = sequelize.define('Structure', {
     type: DataTypes.STRING,
   },
   type: {
-    type: DataTypes.STRING, // Crash Barrier, Sound Barrier, Retaining Wall, Slope Barrier, Bridge Pier, Tunnel Shaft, Dam Abutment
-    defaultValue: 'Crash Barrier',
+    type: DataTypes.STRING, // Mountain Slope, Hill Slope, Rock Slope, Landslide Zone, Embankment, Retaining Wall, or any custom terrain slope
+    defaultValue: 'Mountain Slope',
   },
   latitude: {
     type: DataTypes.FLOAT,

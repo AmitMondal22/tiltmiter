@@ -69,7 +69,7 @@ export async function structuresRoutes(fastify) {
         projectId: projectId || 1,
         organizationId: targetOrgId,
         name: name || `Asset ${nextNumericId}`,
-        type: type || 'Crash Barrier',
+        type: type || 'Mountain Slope',
         heightElevation: heightElevation !== undefined && heightElevation !== '' ? parseFloat(heightElevation) : 15.0,
         latitude: latitude !== undefined && latitude !== '' ? parseFloat(latitude) : 22.5726,
         longitude: longitude !== undefined && longitude !== '' ? parseFloat(longitude) : 88.3639,

@@ -373,8 +373,8 @@ export default function Landslide3DMapView({
 
     const hasStructures = structures && structures.length > 0;
     const structList = hasStructures ? structures : [
-      { id: 'ASSET-001', name: 'Hill Slope Barrier Sector A', type: 'Slope Barrier', heightElevation: 18, Devices: [] },
-      { id: 'ASSET-002', name: 'Retaining Wall Block 01', type: 'Retaining Wall', heightElevation: 12, Devices: [] }
+      { id: '1001', name: 'Hill Slope Sector A', type: 'Hill Slope', heightElevation: 18, Devices: [] },
+      { id: '1002', name: 'Retaining Wall Block 01', type: 'Retaining Wall', heightElevation: 12, Devices: [] }
     ];
 
     // Render physical structures
@@ -412,7 +412,7 @@ export default function Landslide3DMapView({
         wallMesh.castShadow = true;
         wallMesh.receiveShadow = true;
         assetGroup.add(wallMesh);
-      } else if (st.type === 'Slope Barrier' || st.type === 'Crash Barrier') {
+      } else if (st.type === 'Slope Protection Barrier' || st.type === 'Slope Barrier' || st.type === 'Crash Barrier') {
         for (let p = -8; p <= 8; p += 4) {
           const postGeom = new THREE.CylinderGeometry(0.25, 0.25, 6, 8);
           const postMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.3 });

@@ -370,7 +370,7 @@ export async function devicesRoutes(fastify) {
         lifecycleStatus: lifecycleStatus || 'ACTIVE',
         imei: imei || '',
         simNumber: simNumber || '',
-        structureType: structureType || 'Crash Barrier',
+        structureType: structureType || 'Mountain Slope',
         floorPierTower: floorPierTower || 'Section-01',
         installationPoint: installationPoint || 'Point-A',
         elevation: elevation !== undefined && elevation !== '' ? parseFloat(elevation) : 18.6,

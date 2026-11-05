@@ -90,6 +90,42 @@ const MAP_STYLES = {
       ]
     }
   },
+  street: {
+    id: 'street',
+    name: 'Street View',
+    style: {
+      version: 8,
+      sources: {
+        'osm-tiles': {
+          type: 'raster',
+          tiles: [
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+          ],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        },
+        'terrain-dem': {
+          type: 'raster-dem',
+          tiles: [
+            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+          ],
+          encoding: 'terrarium',
+          tileSize: 256,
+          maxzoom: 15
+        }
+      },
+      layers: [
+        {
+          id: 'osm-tiles-layer',
+          type: 'raster',
+          source: 'osm-tiles',
+          minzoom: 0,
+          maxzoom: 22
+        }
+      ]
+    }
+  },
   topo: {
     id: 'topo',
     name: 'Topographic Relief',
@@ -125,6 +161,78 @@ const MAP_STYLES = {
         }
       ]
     }
+  },
+  hillshade: {
+    id: 'hillshade',
+    name: 'Slope Hillshade',
+    style: {
+      version: 8,
+      sources: {
+        'hillshade-tiles': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}'
+          ],
+          tileSize: 256,
+          maxzoom: 18,
+          attribution: '&copy; Esri World Hillshade, USGS, NGA'
+        },
+        'terrain-dem': {
+          type: 'raster-dem',
+          tiles: [
+            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+          ],
+          encoding: 'terrarium',
+          tileSize: 256,
+          maxzoom: 15
+        }
+      },
+      layers: [
+        {
+          id: 'hillshade-tiles-layer',
+          type: 'raster',
+          source: 'hillshade-tiles',
+          minzoom: 0,
+          maxzoom: 22
+        }
+      ]
+    }
+  },
+  analytics: {
+    id: 'analytics',
+    name: 'Analytics Canvas',
+    style: {
+      version: 8,
+      sources: {
+        'carto-dark': {
+          type: 'raster',
+          tiles: [
+            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+          ],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: '&copy; CARTO &copy; OpenStreetMap'
+        },
+        'terrain-dem': {
+          type: 'raster-dem',
+          tiles: [
+            'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'
+          ],
+          encoding: 'terrarium',
+          tileSize: 256,
+          maxzoom: 15
+        }
+      },
+      layers: [
+        {
+          id: 'carto-dark-tiles-layer',
+          type: 'raster',
+          source: 'carto-dark',
+          minzoom: 0,
+          maxzoom: 22
+        }
+      ]
+    }
   }
 };
 
@@ -148,7 +256,7 @@ export default function LocationMapView({
   const [selectedSiteId, setSelectedSiteId] = useState(initialSelectedSiteId || 'ALL');
   const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ONLINE, OFFLINE
   const [searchQuery, setSearchQuery] = useState('');
-  const [mapType, setMapType] = useState('satellite'); // 'satellite', 'google', 'topo'
+  const [mapType, setMapType] = useState('satellite'); // 'satellite', 'google', 'street', 'topo', 'hillshade', 'analytics'
   const [is3D, setIs3D] = useState(true); // 3D Pitch tilt (55deg vs 0deg)
   const [isGlobe, setIsGlobe] = useState(false); // 3D Globe vs Mercator projection
   const [isTerrain, setIsTerrain] = useState(true); // 3D Terrain elevation mesh

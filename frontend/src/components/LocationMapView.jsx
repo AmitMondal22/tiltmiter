@@ -174,7 +174,7 @@ const MAP_STYLES = {
             'https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade/MapServer/tile/{z}/{y}/{x}'
           ],
           tileSize: 256,
-          maxzoom: 18,
+          maxzoom: 13, // Esri World Hillshade native global resolution stops at 13; capping at 13 allows MapLibre to overscale cleanly without requesting non-existent tiles
           attribution: '&copy; Esri World Hillshade, USGS, NGA'
         },
         'terrain-dem': {
@@ -194,6 +194,20 @@ const MAP_STYLES = {
           source: 'hillshade-tiles',
           minzoom: 0,
           maxzoom: 22
+        },
+        {
+          id: 'dem-hillshade-layer',
+          type: 'hillshade',
+          source: 'terrain-dem',
+          minzoom: 13,
+          maxzoom: 22,
+          paint: {
+            'hillshade-illumination-direction': 315,
+            'hillshade-exaggeration': 0.7,
+            'hillshade-shadow-color': '#0f172a',
+            'hillshade-highlight-color': '#ffffff',
+            'hillshade-accent-color': '#334155'
+          }
         }
       ]
     }
@@ -204,14 +218,23 @@ const MAP_STYLES = {
     style: {
       version: 8,
       sources: {
-        'carto-dark': {
+        'esri-dark-base': {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+            'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
           ],
           tileSize: 256,
-          maxzoom: 19,
-          attribution: '&copy; CARTO &copy; OpenStreetMap'
+          maxzoom: 16, // Esri Dark Canvas native resolution stops at 16; setting maxzoom: 16 ensures MapLibre overscales without requesting non-existent tiles
+          attribution: '&copy; Esri, HERE, Garmin, OpenStreetMap'
+        },
+        'esri-dark-ref': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+          ],
+          tileSize: 256,
+          maxzoom: 16,
+          attribution: '&copy; Esri'
         },
         'terrain-dem': {
           type: 'raster-dem',
@@ -225,9 +248,16 @@ const MAP_STYLES = {
       },
       layers: [
         {
-          id: 'carto-dark-tiles-layer',
+          id: 'esri-dark-base-layer',
           type: 'raster',
-          source: 'carto-dark',
+          source: 'esri-dark-base',
+          minzoom: 0,
+          maxzoom: 22
+        },
+        {
+          id: 'esri-dark-ref-layer',
+          type: 'raster',
+          source: 'esri-dark-ref',
           minzoom: 0,
           maxzoom: 22
         }

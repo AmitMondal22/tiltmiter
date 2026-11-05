@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, X, CheckCircle2, MapPin, Cpu, ExternalLink, ChevronRight, Layers, ShieldCheck, Map as MapIcon, List, Box } from 'lucide-react';
+import { Plus, Edit, Trash2, X, CheckCircle2, MapPin, Cpu, ExternalLink, ChevronRight, Layers, ShieldCheck } from 'lucide-react';
 import { getSites, getProjects, getOrganizations, getDevices, getStructures, createSite, updateSite, deleteSite } from '../api/apiClient';
-import LocationMapView from '../components/LocationMapView';
-import Landslide3DMapView from '../components/Landslide3DMapView';
+
 
 export default function SitesPage() {
   const navigate = useNavigate();
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
-  const [viewMode, setViewMode] = useState('list'); // 'list', 'map', or '3d'
-  const [focusedSiteId, setFocusedSiteId] = useState('ALL');
   const [sitesList, setSitesList] = useState([]);
   const [devicesList, setDevicesList] = useState([]);
   const [structuresList, setStructuresList] = useState([]);
@@ -132,7 +129,7 @@ export default function SitesPage() {
         </div>
       )}
 
-      {/* Top Header Row with View Mode Switcher */}
+      {/* Top Header Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-black text-black flex items-center gap-2">
@@ -144,50 +141,17 @@ export default function SitesPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          {/* List vs 2D Map vs 3D Map Switcher */}
-          <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
-            <button
-              onClick={() => {
-                setViewMode('list');
-                setFocusedSiteId('ALL');
-              }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>Table View</span>
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewMode === 'map'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <MapIcon className="w-3.5 h-3.5" />
-              <span>Location Map & Analytics</span>
-            </button>
-          </div>
-
-          <button
-            onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Location</span>
-          </button>
-        </div>
+        <button
+          onClick={handleOpenAdd}
+          className="flex items-center gap-1.5 px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Location</span>
+        </button>
       </div>
 
-      {/* Main Content Area: Table View OR 2D/3D Location Map View */}
-      {viewMode === 'list' ? (
-        /* Dedicated Locations Table */
-        <div className={cardCls}>
+      {/* Main Content Area: Dedicated Locations Table */}
+      <div className={cardCls}>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -253,19 +217,6 @@ export default function SitesPage() {
                         </td>
                         <td className="py-4 px-3.5 text-right" onClick={e => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* View On Map Action */}
-                            <button
-                              onClick={() => {
-                                setFocusedSiteId(sId);
-                                setViewMode('map');
-                              }}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[11px] border border-blue-200 transition-colors cursor-pointer"
-                              title="View site and all its devices on Map"
-                            >
-                              <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                              <span>View Map</span>
-                            </button>
-
                             {/* Open Dedicated Location View */}
                             <button
                               onClick={() => navigate(`/sites/${sId}`)}
@@ -292,25 +243,7 @@ export default function SitesPage() {
             </table>
           </div>
         </div>
-      ) : viewMode === 'map' ? (
-        <LocationMapView
-          sites={sitesList}
-          devices={devicesList}
-          structures={structuresList}
-          projects={projectsList}
-          organizations={orgsList}
-          initialSelectedSiteId={focusedSiteId}
-          onSelectSite={(s) => setFocusedSiteId(s.id || s.siteId)}
-        />
-      ) : (
-        <Landslide3DMapView
-          structures={structuresList}
-          devices={devicesList}
-          sites={sitesList}
-          onSelectStructure={() => {}}
-          onSelectDevice={() => {}}
-        />
-      )}
+
 
       {/* Modal: Create / Edit Site Location */}
       {modalOpen && (

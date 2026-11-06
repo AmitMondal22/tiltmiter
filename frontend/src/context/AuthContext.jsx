@@ -3,14 +3,6 @@ import { loginUser, getUserProfile } from '../api/apiClient';
 
 const AuthContext = createContext();
 
-const DEFAULT_USER = {
-  id: 1,
-  username: 'operator',
-  fullName: 'Telemetry Viewer',
-  role: 'SUPER_ADMIN',
-  email: 'viewer@techavo.in',
-};
-
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(localStorage.getItem('tiltmeter_jwt_token') || null);
   const [user, setUser] = useState(() => {
@@ -19,12 +11,14 @@ export function AuthProvider({ children }) {
       try {
         return JSON.parse(savedUser);
       } catch (e) {
-        return DEFAULT_USER;
+        return null;
       }
     }
-    return DEFAULT_USER;
+    return null;
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => {
+    return !!localStorage.getItem('tiltmeter_jwt_token') && !localStorage.getItem('tiltmeter_user');
+  });
 
   useEffect(() => {
     if (token) {
@@ -53,14 +47,14 @@ export function AuthProvider({ children }) {
           }
         })
         .catch(() => {
-          // Keep active operator session without login prompt
-          setUser(DEFAULT_USER);
+          // Token invalid or failed profile check - clear session
+          logout();
         })
         .finally(() => {
           setLoading(false);
         });
     } else {
-      setUser(DEFAULT_USER);
+      setUser(null);
       setLoading(false);
     }
   }, [token]);

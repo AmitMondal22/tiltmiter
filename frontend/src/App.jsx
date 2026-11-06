@@ -37,7 +37,7 @@ function PageLoader() {
 }
 
 function MainLayout() {
-  const { user, logout, loading: authLoading } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const [devices, setDevices] = useState([]);
   const [currentDevice, setCurrentDevice] = useState(null);
@@ -72,34 +72,13 @@ function MainLayout() {
       });
   }, [user]);
 
-
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center font-sans bg-slate-50 text-slate-900">
-        <div className="flex items-center gap-3 font-semibold text-sm">
-          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-          <span>Loading platform...</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Direct open access to dashboard without login requirement
-  const currentUser = user || {
-    id: 1,
-    username: 'operator',
-    fullName: 'Telemetry Viewer',
-    role: 'SUPER_ADMIN',
-  };
-
   return (
     <div className="min-h-screen flex bg-[#f8fafc] text-slate-900 font-sans">
       {/* Sidebar Navigation */}
       <Sidebar
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
-        user={currentUser}
+        user={user}
         logout={logout}
       />
 
@@ -145,6 +124,7 @@ function MainLayout() {
               <Route path="/calibration" element={<Navigate to="/devices" replace />} />
               <Route path="/settings" element={<SettingsPage isDark={false} />} />
               <Route path="/login" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </div>
@@ -153,11 +133,37 @@ function MainLayout() {
   );
 }
 
+function AppContent() {
+  const { user, token, loading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center font-sans bg-slate-50 text-slate-900">
+        <div className="flex items-center gap-3 font-semibold text-sm">
+          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+          <span>Loading platform...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user && !token) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
+  return <MainLayout />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <Router>
-        <MainLayout />
+        <AppContent />
       </Router>
     </AuthProvider>
   );

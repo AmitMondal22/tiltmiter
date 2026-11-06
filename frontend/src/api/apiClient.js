@@ -76,29 +76,9 @@ function onRefreshed(token) {
   refreshSubscribers = [];
 }
 
-// Ensure valid JWT authentication token is available (auto-login fallback for direct URLs)
+// Retrieve current JWT authentication token
 export async function getValidAuthToken() {
-  let token = localStorage.getItem('tiltmeter_jwt_token');
-  if (token) return token;
-
-  try {
-    const res = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'superadmin', password: 'superadmin123' }),
-    });
-    const data = await res.json().catch(() => ({}));
-    const activeToken = data?.accessToken || data?.token;
-    if (activeToken) {
-      localStorage.setItem('tiltmeter_jwt_token', activeToken);
-      if (data.refreshToken) localStorage.setItem('tiltmeter_refresh_token', data.refreshToken);
-      if (data.user) localStorage.setItem('tiltmeter_user', JSON.stringify(data.user));
-      return activeToken;
-    }
-  } catch (e) {
-    console.warn('[apiClient] Auto-auth failed:', e);
-  }
-  return null;
+  return localStorage.getItem('tiltmeter_jwt_token') || null;
 }
 
 // Automatic Refresh Token Handler
@@ -121,23 +101,21 @@ async function refreshAccessToken() {
         return data.accessToken;
       }
     } catch (e) {
-      console.warn('[apiClient] Refresh token error, falling back to auto-auth:', e);
+      console.warn('[apiClient] Refresh token error:', e);
     }
   }
 
-  // Fallback: obtain token using direct credentials
-  const freshToken = await getValidAuthToken();
-  if (freshToken) return freshToken;
+  // Clear invalid session tokens
+  localStorage.removeItem('tiltmeter_jwt_token');
+  localStorage.removeItem('tiltmeter_refresh_token');
+  localStorage.removeItem('tiltmeter_user');
 
   throw new Error('Session expired. Please log in again.');
 }
 
 // Universal HTTP Request Helper with JWT & Refresh Token interceptor
 async function request(endpoint, options = {}, isRetry = false) {
-  let token = localStorage.getItem('tiltmeter_jwt_token');
-  if (!token && !endpoint.includes('/auth/login')) {
-    token = await getValidAuthToken();
-  }
+  const token = localStorage.getItem('tiltmeter_jwt_token');
 
   const headers = {
     ...(options.body ? { 'Content-Type': 'application/json' } : {}),

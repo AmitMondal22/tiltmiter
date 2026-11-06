@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Loader2, Camera, Upload
+  Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Loader2, Camera, Upload, Cpu
 } from 'lucide-react';
 import { getDevices, getSites, getStructures, getOrganizations, getProjects, createDevice, updateDevice, deleteDevice, configureDeviceTelemetry, formatAssetUrl } from '../api/apiClient';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
@@ -435,273 +435,290 @@ export default function DevicesPage() {
         </div>
       </div>
 
-      {/* Modal 1: Add / Edit Device */}
+      {/* Modal 1: Add / Edit Device (Fixed Medium Size & Scrollable) */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 font-sans">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-xl p-6">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <h3 className="text-base font-bold text-slate-900">
-                {editingDevice ? 'Edit Device Node' : 'Register New Device'}
-              </h3>
-              <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 font-sans">
+          <div className="w-full max-w-xl sm:max-w-2xl rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-fadeIn">
+            {/* Fixed Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Cpu className="w-5 h-5 text-blue-600" />
+                  <span>{editingDevice ? 'Edit Inclinometer Device Node' : 'Register New Inclinometer Node'}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {editingDevice ? `Update telemetry configuration and metadata for node ${formData.id}` : 'Deploy new geotechnical hardware sensor to live monitoring'}
+                </p>
+              </div>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 p-1.5 rounded-xl transition-colors cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Device ID / Hardware Serial *</label>
-                <input
-                  type="text"
-                  required
-                  disabled={!!editingDevice}
-                  value={formData.id}
-                  onChange={e => setFormData({ ...formData, id: e.target.value })}
-                  placeholder="e.g. TECHA12346"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
+            <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Modal Body */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5 text-xs">
+                {/* Device ID & Device Name (2 columns) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Device ID / Hardware Serial *</label>
+                    <input
+                      type="text"
+                      required
+                      disabled={!!editingDevice}
+                      value={formData.id}
+                      onChange={e => setFormData({ ...formData, id: e.target.value })}
+                      placeholder="e.g. TECHA12346"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Device Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. Sensor Node 01"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Device Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.name}
+                      onChange={e => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="e.g. Sensor Node 01"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
 
-              {/* 1. Select Organization */}
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
-                  <span>1. Select Organization</span>
-                  {orgsList.length > 0 && <span className="text-[10px] text-slate-500 font-normal">{orgsList.length} registered</span>}
-                </label>
-                <select
-                  value={formData.organizationId || ''}
-                  onChange={e => {
-                    const newOrgId = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      organizationId: newOrgId,
-                      siteId: '', // Reset site when organization changes
-                      structureId: '', // Reset structure when organization changes
-                    }));
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="">-- Select Organization --</option>
-                  {orgsList.map(o => (
-                    <option key={o.id} value={o.id}>{o.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 2. Select Location Site */}
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
-                  <span>2. Select Location Site</span>
-                  <span className="text-[10px] text-slate-500 font-normal">
-                    {formData.organizationId ? `${filteredSites.length} available` : 'Select org first'}
-                  </span>
-                </label>
-                <select
-                  disabled={!formData.organizationId}
-                  value={formData.siteId || ''}
-                  onChange={e => {
-                    const newSiteId = e.target.value;
-                    const targetSite = sitesList.find(s => String(s.id) === String(newSiteId) || String(s.siteId) === String(newSiteId));
-                    const autoOrgId = formData.organizationId || targetSite?.organizationId || (projectsList.find(p => String(p.id) === String(targetSite?.projectId))?.organizationId) || '';
-
-                    setFormData(prev => ({
-                      ...prev,
-                      siteId: newSiteId,
-                      organizationId: autoOrgId,
-                      structureId: '', // Reset structure when site changes
-                      latitude: prev.latitude || targetSite?.latitude || '',
-                      longitude: prev.longitude || targetSite?.longitude || '',
-                    }));
-                  }}
-                  className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
-                    !formData.organizationId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
-                  }`}
-                >
-                  {!formData.organizationId ? (
-                    <option value="">-- Please select an Organization first --</option>
-                  ) : (
-                    <>
-                      <option value="">-- Select Location Site under Organization --</option>
-                      {filteredSites.map(s => (
-                        <option key={s.id || s.siteId} value={s.id || s.siteId}>
-                          {s.name} ({s.id || s.siteId})
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-                {formData.organizationId && filteredSites.length === 0 && (
-                  <p className="text-[10px] text-amber-600 mt-1">
-                    No location sites found under this organization.
-                  </p>
-                )}
-              </div>
-
-              {/* 3. Select Attach to Structural Asset */}
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
-                  <span>3. Attach to Structural Asset</span>
-                  <span className="text-[10px] text-slate-500 font-normal">
-                    {formData.siteId ? `${filteredStructures.length} available` : 'Select site first'}
-                  </span>
-                </label>
-                <select
-                  disabled={!formData.siteId}
-                  value={formData.structureId || ''}
-                  onChange={e => {
-                    const stId = e.target.value;
-                    const st = structuresList.find(s => String(s.id) === String(stId));
-                    setFormData(prev => ({
-                      ...prev,
-                      structureId: stId,
-                      siteId: st?.siteId || prev.siteId,
-                      latitude: prev.latitude || st?.latitude || '',
-                      longitude: prev.longitude || st?.longitude || '',
-                    }));
-                  }}
-                  className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
-                    !formData.siteId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
-                  }`}
-                >
-                  {!formData.siteId ? (
-                    <option value="">-- Please select a Location Site first --</option>
-                  ) : (
-                    <>
-                      <option value="">No Asset (Standalone Hardware Node)</option>
-                      {filteredStructures.map(st => (
-                        <option key={st.id} value={st.id}>
-                          {st.name} ({st.type || 'Slope Asset'})
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-                {formData.siteId && filteredStructures.length === 0 && (
-                  <p className="text-[10px] text-amber-600 mt-1">
-                    No structural assets registered under this location site yet.
-                  </p>
-                )}
-              </div>
-
-              {/* Status & Gauge Length */}
-              <div className="grid grid-cols-2 gap-2.5">
+                {/* 1. Select Organization */}
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Device Status</label>
+                  <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                    <span>1. Select Organization</span>
+                    {orgsList.length > 0 && <span className="text-[10px] text-slate-500 font-normal">{orgsList.length} registered</span>}
+                  </label>
                   <select
-                    value={formData.status || 'ONLINE'}
-                    onChange={e => setFormData({ ...formData, status: e.target.value })}
+                    value={formData.organizationId || ''}
+                    onChange={e => {
+                      const newOrgId = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        organizationId: newOrgId,
+                        siteId: '', // Reset site when organization changes
+                        structureId: '', // Reset structure when organization changes
+                      }));
+                    }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="ONLINE">ONLINE</option>
-                    <option value="OFFLINE">OFFLINE</option>
-                    <option value="MAINTENANCE">MAINTENANCE</option>
-                    <option value="WARNING">WARNING</option>
+                    <option value="">-- Select Organization --</option>
+                    {orgsList.map(o => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Gauge Length (mm)</label>
-                  <input
-                    type="number"
-                    step="1"
-                    value={formData.gaugeLength_mm ?? 1000}
-                    onChange={e => setFormData({ ...formData, gaugeLength_mm: e.target.value })}
-                    placeholder="1000"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
 
-              {/* Geographic Coordinates (Latitude & Longitude) */}
-              <div className="grid grid-cols-2 gap-2.5">
+                {/* 2. Select Location Site */}
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Latitude (°N)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.latitude ?? ''}
-                    onChange={e => setFormData({ ...formData, latitude: e.target.value })}
-                    placeholder="e.g. 22.5726"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Longitude (°E)</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.longitude ?? ''}
-                    onChange={e => setFormData({ ...formData, longitude: e.target.value })}
-                    placeholder="e.g. 88.3639"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
+                  <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                    <span>2. Select Location Site</span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      {formData.organizationId ? `${filteredSites.length} available` : 'Select org first'}
+                    </span>
+                  </label>
+                  <select
+                    disabled={!formData.organizationId}
+                    value={formData.siteId || ''}
+                    onChange={e => {
+                      const newSiteId = e.target.value;
+                      const targetSite = sitesList.find(s => String(s.id) === String(newSiteId) || String(s.siteId) === String(newSiteId));
+                      const autoOrgId = formData.organizationId || targetSite?.organizationId || (projectsList.find(p => String(p.id) === String(targetSite?.projectId))?.organizationId) || '';
 
-                            {/* Hardware Installation Photo */}
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Hardware Installation Photo</label>
-                <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/80">
-                  {formData.imageUrl ? (
-                    <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white shadow-2xs flex-shrink-0">
-                      <img
-                        src={formatAssetUrl(formData.imageUrl)}
-                        alt="Hardware preview"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 shadow-2xs flex-shrink-0">
-                      <Camera className="w-5 h-5 text-slate-300 mb-0.5" />
-                      <span className="text-[8px] font-bold text-slate-400 uppercase">No Image</span>
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer">
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>{formData.imageUrl ? 'Replace Image' : 'Upload Image'}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleImageFileSelect}
-                        />
-                      </label>
-                      {formData.imageUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, imageUrl: null }))}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span>Remove Image</span>
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-500">
-                      Upload physical hardware installation photo. Stored in server <code className="font-mono text-slate-700 font-semibold">/uploads/device_image/</code> and saved in database.
+                      setFormData(prev => ({
+                        ...prev,
+                        siteId: newSiteId,
+                        organizationId: autoOrgId,
+                        structureId: '', // Reset structure when site changes
+                        latitude: prev.latitude || targetSite?.latitude || '',
+                        longitude: prev.longitude || targetSite?.longitude || '',
+                      }));
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                      !formData.organizationId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
+                    }`}
+                  >
+                    {!formData.organizationId ? (
+                      <option value="">-- Please select an Organization first --</option>
+                    ) : (
+                      <>
+                        <option value="">-- Select Location Site under Organization --</option>
+                        {filteredSites.map(s => (
+                          <option key={s.id || s.siteId} value={s.id || s.siteId}>
+                            {s.name} ({s.id || s.siteId})
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  {formData.organizationId && filteredSites.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">
+                      No location sites found under this organization.
                     </p>
+                  )}
+                </div>
+
+                {/* 3. Select Attach to Structural Asset */}
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                    <span>3. Attach to Structural Asset</span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      {formData.siteId ? `${filteredStructures.length} available` : 'Select site first'}
+                    </span>
+                  </label>
+                  <select
+                    disabled={!formData.siteId}
+                    value={formData.structureId || ''}
+                    onChange={e => {
+                      const stId = e.target.value;
+                      const st = structuresList.find(s => String(s.id) === String(stId));
+                      setFormData(prev => ({
+                        ...prev,
+                        structureId: stId,
+                        siteId: st?.siteId || prev.siteId,
+                        latitude: prev.latitude || st?.latitude || '',
+                        longitude: prev.longitude || st?.longitude || '',
+                      }));
+                    }}
+                    className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
+                      !formData.siteId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
+                    }`}
+                  >
+                    {!formData.siteId ? (
+                      <option value="">-- Please select a Location Site first --</option>
+                    ) : (
+                      <>
+                        <option value="">No Asset (Standalone Hardware Node)</option>
+                        {filteredStructures.map(st => (
+                          <option key={st.id} value={st.id}>
+                            {st.name} ({st.type || 'Slope Asset'})
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                  {formData.siteId && filteredStructures.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">
+                      No structural assets registered under this location site yet.
+                    </p>
+                  )}
+                </div>
+
+                {/* Status & Gauge Length */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Device Status</label>
+                    <select
+                      value={formData.status || 'ONLINE'}
+                      onChange={e => setFormData({ ...formData, status: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="ONLINE">ONLINE</option>
+                      <option value="OFFLINE">OFFLINE</option>
+                      <option value="MAINTENANCE">MAINTENANCE</option>
+                      <option value="WARNING">WARNING</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Gauge Length (mm)</label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={formData.gaugeLength_mm ?? 1000}
+                      onChange={e => setFormData({ ...formData, gaugeLength_mm: e.target.value })}
+                      placeholder="1000"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Geographic Coordinates (Latitude & Longitude) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Latitude (°N)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.latitude ?? ''}
+                      onChange={e => setFormData({ ...formData, latitude: e.target.value })}
+                      placeholder="e.g. 22.5726"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-semibold mb-1">Longitude (°E)</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.longitude ?? ''}
+                      onChange={e => setFormData({ ...formData, longitude: e.target.value })}
+                      placeholder="e.g. 88.3639"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Hardware Installation Photo */}
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Hardware Installation Photo</label>
+                  <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/80">
+                    {formData.imageUrl ? (
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white shadow-2xs flex-shrink-0">
+                        <img
+                          src={formatAssetUrl(formData.imageUrl)}
+                          alt="Hardware preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center text-slate-400 shadow-2xs flex-shrink-0">
+                        <Camera className="w-5 h-5 text-slate-300 mb-0.5" />
+                        <span className="text-[8px] font-bold text-slate-400 uppercase">No Image</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>{formData.imageUrl ? 'Replace Image' : 'Upload Image'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageFileSelect}
+                          />
+                        </label>
+                        {formData.imageUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, imageUrl: null }))}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Remove Image</span>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        Upload physical hardware installation photo. Stored in server <code className="font-mono text-slate-700 font-semibold">/uploads/device_image/</code> and saved in database.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
+              {/* Fixed Modal Footer */}
+              <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 font-medium cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-medium cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
@@ -709,7 +726,7 @@ export default function DevicesPage() {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium shadow-xs transition-colors cursor-pointer"
                 >
-                  Save Device
+                  {editingDevice ? 'Save Changes' : 'Register Device'}
                 </button>
               </div>
             </form>

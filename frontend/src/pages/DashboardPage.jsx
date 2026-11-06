@@ -1520,11 +1520,14 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
 
       {/* MODAL 3: ADD / REGISTER NEW DEVICE */}
       {addDeviceModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 font-sans">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-              <div className="flex items-center gap-2">
-                <Plus className="w-5 h-5 text-emerald-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 font-sans">
+          <div className="w-full max-w-xl sm:max-w-2xl rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-fadeIn">
+            {/* Fixed Modal Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/80 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Plus className="w-5 h-5" />
+                </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">
                     Register New Inclinometer Node
@@ -1536,13 +1539,15 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
               </div>
               <button
                 onClick={() => setAddDeviceModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 p-1.5 rounded-xl transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5 text-slate-500" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateDevice} className="p-5 overflow-y-auto space-y-3.5 text-xs flex-1">
+            <form onSubmit={handleCreateDevice} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Scrollable Modal Body */}
+              <div className="p-5 overflow-y-auto space-y-3.5 text-xs flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
@@ -1762,19 +1767,21 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   />
                 </div>
               </div>
+              </div>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              {/* Fixed Modal Footer */}
+              <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => setAddDeviceModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 font-medium cursor-pointer transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={addDeviceLoading}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                 >
                   {addDeviceLoading ? 'Registering...' : 'Register Device'}
                 </button>

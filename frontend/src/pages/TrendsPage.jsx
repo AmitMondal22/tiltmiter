@@ -265,9 +265,9 @@ export default function TrendsPage() {
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,XTilt_deg,YTilt_deg,ZTilt_deg,ResultantTilt_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,XTilt_deg,YTilt_deg,ResultantTilt_deg,XDisp_mm,YDisp_mm,ZDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C';
     const rows = telemetryLogs.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedDeviceId},${r.xTilt?.toFixed(1) ?? ''},${r.yTilt?.toFixed(1) ?? ''},${r.zTilt?.toFixed(1) ?? ''},${r.resultant?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.zDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(1) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(1) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(1) : ''},${r.temperature !== null && r.temperature !== undefined ? Number(r.temperature).toFixed(1) : (r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : '')}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${selectedDeviceId},${r.xTilt?.toFixed(1) ?? ''},${r.yTilt?.toFixed(1) ?? ''},${r.resultant?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.zDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(1) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(1) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(1) : ''},${r.temperature !== null && r.temperature !== undefined ? Number(r.temperature).toFixed(1) : (r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : '')}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -406,7 +406,6 @@ export default function TrendsPage() {
                 <th className="py-2.5 px-3">Timestamp (IST)</th>
                 <th className="py-2.5 px-3 text-blue-700">X Tilt (°)</th>
                 <th className="py-2.5 px-3 text-emerald-700">Y Tilt (°)</th>
-                <th className="py-2.5 px-3 text-amber-700">Z Tilt (°)</th>
                 <th className="py-2.5 px-3 text-purple-700">Resultant Tilt (°)</th>
                 <th className="py-2.5 px-3 text-cyan-700">X Disp (mm)</th>
                 <th className="py-2.5 px-3 text-amber-700">Y Disp (mm)</th>
@@ -418,7 +417,7 @@ export default function TrendsPage() {
             <tbody className="divide-y divide-slate-100">
               {telemetryLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-8 text-center text-slate-400 text-xs">
+                  <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
                     {loading ? 'Fetching telemetry logs...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -433,9 +432,6 @@ export default function TrendsPage() {
                     </td>
                     <td className="py-2 px-3 text-emerald-700 font-semibold">
                       {r.yTilt !== null && r.yTilt !== undefined ? `${r.yTilt >= 0 ? '+' : ''}${r.yTilt.toFixed(1)}°` : '--'}
-                    </td>
-                    <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.zTilt !== null && r.zTilt !== undefined ? `${r.zTilt >= 0 ? '+' : ''}${r.zTilt.toFixed(1)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 font-bold text-purple-700">
                       {r.resultant !== null && r.resultant !== undefined ? `${r.resultant.toFixed(1)}°` : '--'}

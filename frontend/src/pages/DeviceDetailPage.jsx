@@ -857,9 +857,9 @@ export default function DeviceDetailPage() {
       alert('No telemetry records available to export for the selected date range.');
       return;
     }
-    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,Classification,Event_Type,Rockfall_Alarm_Active,Event_Sequence,Tilt_X_deg,Tilt_Y_deg,Tilt_Z_deg,XDisp_mm,YDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
+    const headers = 'Timestamp_IST,Timestamp_UTC,Device_ID,Classification,Event_Type,Rockfall_Alarm_Active,Event_Sequence,Tilt_X_deg,Tilt_Y_deg,XDisp_mm,YDisp_mm,TotalDisp_mm,AccelMag_g,VibrationRMS_g,VibrationPeak_g,Temperature_C,Stability';
     const rows = telemetryHistory.map(r =>
-      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},"${r.motionClassification || 'STABLE'}","${r.eventType || 'NORMAL'}",${Boolean(r.alarmActive || r.rockfallAlarm?.active)},${r.rockfallSequence ?? r.sequence ?? 0},${(r.xTilt ?? r.deltaX)?.toFixed(1) ?? ''},${(r.yTilt ?? r.deltaY)?.toFixed(1) ?? ''},${(r.zTilt ?? r.deltaZ)?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(2) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(3) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(3) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
+      `"${formatFullDateTime(r.timestamp || r.time)}",${r.timestamp || ''},${deviceId},"${r.motionClassification || 'STABLE'}","${r.eventType || 'NORMAL'}",${Boolean(r.alarmActive || r.rockfallAlarm?.active)},${r.rockfallSequence ?? r.sequence ?? 0},${(r.xTilt ?? r.deltaX)?.toFixed(1) ?? ''},${(r.yTilt ?? r.deltaY)?.toFixed(1) ?? ''},${r.xDisp?.toFixed(1) ?? ''},${r.yDisp?.toFixed(1) ?? ''},${r.totalDisp?.toFixed(1) ?? ''},${r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(2) : ''},${r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(3) : ''},${r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(3) : ''},${r.temp !== null && r.temp !== undefined ? Number(r.temp).toFixed(1) : ''},${r.stability || ''}`
     );
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -1360,7 +1360,6 @@ export default function DeviceDetailPage() {
                 <th className="py-2.5 px-3 text-red-700">Rockfall Alarm / Seq</th>
                 <th className="py-2.5 px-3 text-blue-700">Tilt X (°)</th>
                 <th className="py-2.5 px-3 text-purple-700">Tilt Y (°)</th>
-                <th className="py-2.5 px-3 text-emerald-700">Tilt Z (°)</th>
                 <th className="py-2.5 px-3 text-cyan-700">X Disp (mm)</th>
                 <th className="py-2.5 px-3 text-amber-700">Y Disp (mm)</th>
                 <th className="py-2.5 px-3 text-pink-700">Total Disp (mm)</th>
@@ -1372,7 +1371,7 @@ export default function DeviceDetailPage() {
             <tbody className="divide-y divide-slate-100 font-mono">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs font-mono">
                     {loading ? 'Fetching telemetry logs for this device...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -1411,9 +1410,6 @@ export default function DeviceDetailPage() {
                     </td>
                     <td className="py-2 px-3 text-purple-700 font-bold">
                       {formatSigned(r.yTilt ?? r.deltaY, 1)}
-                    </td>
-                    <td className="py-2 px-3 text-emerald-700 font-bold">
-                      {formatSigned(r.zTilt ?? r.deltaZ, 1)}
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
                       {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${Number(r.xDisp).toFixed(2)} mm` : '--'}

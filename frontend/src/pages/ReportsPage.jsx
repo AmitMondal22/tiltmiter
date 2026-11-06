@@ -356,7 +356,6 @@ export default function ReportsPage({ currentDevice }) {
       'Event_Pending',
       'XTilt_deg',
       'YTilt_deg',
-      'ZTilt_deg',
       'ResultantTilt_deg',
       'XDisp_mm',
       'YDisp_mm',
@@ -385,7 +384,6 @@ export default function ReportsPage({ currentDevice }) {
         Boolean(r.eventPending),
         r.xTilt !== null && r.xTilt !== undefined ? Number(r.xTilt).toFixed(4) : '',
         r.yTilt !== null && r.yTilt !== undefined ? Number(r.yTilt).toFixed(4) : '',
-        r.zTilt !== null && r.zTilt !== undefined ? Number(r.zTilt).toFixed(4) : '',
         r.resultant !== null && r.resultant !== undefined ? Number(r.resultant).toFixed(4) : '',
         r.xDisp !== null && r.xDisp !== undefined ? Number(r.xDisp).toFixed(4) : '',
         r.yDisp !== null && r.yDisp !== undefined ? Number(r.yDisp).toFixed(4) : '',
@@ -803,12 +801,11 @@ export default function ReportsPage({ currentDevice }) {
                       </>
                     )}
 
-                    {/* Right-Aligned Data Columns (Tilt: X, Y, Z, Resultant (°)) */}
+                    {/* Right-Aligned Data Columns (Tilt: X, Y, Resultant (°)) */}
                     {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
                       <>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap text-blue-700">X Tilt (°)</th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap text-emerald-700">Y Tilt (°)</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap text-amber-700">Z Tilt (°)</th>
                         <th className="py-2.5 px-3 text-right whitespace-nowrap text-purple-700">Resultant (°)</th>
                       </>
                     )}
@@ -911,7 +908,7 @@ export default function ReportsPage({ currentDevice }) {
                             </>
                           )}
 
-                          {/* Right-aligned Numerical Tilt Columns (X, Y, Z, Resultant) */}
+                          {/* Right-aligned Numerical Tilt Columns (X, Y, Resultant) */}
                           {(paramCategory === 'ALL' || paramCategory === 'TILT') && (
                             <>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-blue-700 font-semibold">
@@ -919,9 +916,6 @@ export default function ReportsPage({ currentDevice }) {
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-emerald-700 font-semibold">
                                 {r.yTilt !== null && r.yTilt !== undefined ? `${r.yTilt >= 0 ? '+' : ''}${Number(r.yTilt).toFixed(1)}°` : '--'}
-                              </td>
-                              <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
-                                {r.zTilt !== null && r.zTilt !== undefined ? `${r.zTilt >= 0 ? '+' : ''}${Number(r.zTilt).toFixed(1)}°` : '--'}
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-purple-700 font-bold">
                                 {r.resultant !== null && r.resultant !== undefined ? `${Number(r.resultant).toFixed(1)}°` : '--'}

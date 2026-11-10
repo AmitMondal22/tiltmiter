@@ -328,18 +328,64 @@ export default function LocationMapView({
     };
   }, [devices]);
 
+  
+  // Helper to reliably compute site coordinates with attached device fallback
+  const getSiteCoordinates = (site) => {
+    let lat = parseFloat(site.latitude);
+    let lng = parseFloat(site.longitude);
+
+    const siteDevices = devices.filter(d =>
+      d.siteId === site.id ||
+      d.siteId === site.siteId ||
+      String(d.siteId) === String(site.id) ||
+      String(d.siteId) === String(site.siteId) ||
+      d.Site?.id === site.id ||
+      d.Site?.siteId === site.siteId
+    );
+
+    const validDevs = siteDevices.filter(d => {
+      const dLat = parseFloat(d.latitude);
+      const dLng = parseFloat(d.longitude);
+      return !isNaN(dLat) && !isNaN(dLng) && dLat !== 0 && dLng !== 0;
+    });
+
+    const isDefaultCoords = (Math.abs(lat - 22.5726) < 0.001 && Math.abs(lng - 88.3639) < 0.001);
+
+    if ((isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0 || isDefaultCoords) && validDevs.length > 0) {
+      const avgLat = validDevs.reduce((sum, d) => sum + parseFloat(d.latitude), 0) / validDevs.length;
+      const avgLng = validDevs.reduce((sum, d) => sum + parseFloat(d.longitude), 0) / validDevs.length;
+      return [avgLng, avgLat];
+    }
+
+    if (isNaN(lat) || isNaN(lng)) {
+      if (validDevs.length > 0) {
+        return [parseFloat(validDevs[0].longitude), parseFloat(validDevs[0].latitude)];
+      }
+      lat = 26.7271;
+      lng = 88.4315;
+    }
+
+    return [lng, lat];
+  };
+
   // 1. Initialize MapLibre GL Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Center coordinates from sites or default
-    let centerLng = 88.3639;
-    let centerLat = 22.5726;
+    // Center coordinates from sites or devices or default
+    let centerLng = 88.4315;
+    let centerLat = 26.7271;
     if (sites.length > 0) {
-      const firstWithCoords = sites.find(s => s.latitude && s.longitude);
-      if (firstWithCoords) {
-        centerLat = parseFloat(firstWithCoords.latitude);
-        centerLng = parseFloat(firstWithCoords.longitude);
+      const [sLng, sLat] = getSiteCoordinates(sites[0]);
+      if (!isNaN(sLat) && !isNaN(sLng)) {
+        centerLat = sLat;
+        centerLng = sLng;
+      }
+    } else if (devices.length > 0) {
+      const [dLng, dLat] = getDeviceCoordinates(devices[0]);
+      if (!isNaN(dLat) && !isNaN(dLng)) {
+        centerLat = dLat;
+        centerLng = dLng;
       }
     }
 
@@ -492,7 +538,7 @@ export default function LocationMapView({
 
   const filteredDevices = useMemo(() => {
     return devices.filter(dev => {
-      if (selectedSiteId !== 'ALL' && dev.siteId !== selectedSiteId) return false;
+      if (selectedSiteId !== 'ALL' && dev.siteId !== selectedSiteId && String(dev.siteId) !== String(selectedSiteId) && dev.Site?.id !== selectedSiteId && dev.Site?.siteId !== selectedSiteId) return false;
       if (statusFilter !== 'ALL' && dev.status !== statusFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -637,8 +683,7 @@ export default function LocationMapView({
 
     // 1. Site Location Markers
     filteredSites.forEach(site => {
-      const lat = parseFloat(site.latitude) || 22.5726;
-      const lng = parseFloat(site.longitude) || 88.3639;
+      const [lng, lat] = getSiteCoordinates(site);
 
       if (!isNaN(lat) && !isNaN(lng)) {
         bounds.extend([lng, lat]);
@@ -875,20 +920,26 @@ export default function LocationMapView({
 
     if (siteId === 'ALL') {
       setSelectedSite(null);
-      if (sites.length > 0) {
+      if (sites.length > 0 || devices.length > 0) {
         const bounds = new maplibregl.LngLatBounds();
         sites.forEach(s => {
-          if (s.longitude && s.latitude) bounds.extend([parseFloat(s.longitude), parseFloat(s.latitude)]);
+          const [sLng, sLat] = getSiteCoordinates(s);
+          if (!isNaN(sLng) && !isNaN(sLat)) bounds.extend([sLng, sLat]);
         });
-        map.fitBounds(bounds, { padding: 80, maxZoom: 14.5 });
+        devices.forEach(d => {
+          const [dLng, dLat] = getDeviceCoordinates(d);
+          if (!isNaN(dLng) && !isNaN(dLat)) bounds.extend([dLng, dLat]);
+        });
+        if (!bounds.isEmpty()) {
+          map.fitBounds(bounds, { padding: 80, maxZoom: 14.5 });
+        }
       }
     } else {
-      const site = sites.find(s => s.id === siteId || s.siteId === siteId);
+      const site = sites.find(s => s.id === siteId || s.siteId === siteId || String(s.id) === String(siteId) || String(s.siteId) === String(siteId));
       if (site) {
         setSelectedSite(site);
         setSelectedDevice(null);
-        const lat = parseFloat(site.latitude) || 22.5726;
-        const lng = parseFloat(site.longitude) || 88.3639;
+        const [lng, lat] = getSiteCoordinates(site);
         map.flyTo({ center: [lng, lat], zoom: 15.5, pitch: is3D ? 55 : 0, duration: 1500 });
       }
     }
@@ -1129,9 +1180,10 @@ export default function LocationMapView({
                           key={d.id}
                           onClick={() => {
                             setSelectedDevice(d);
-                            if (mapInstanceRef.current && d.latitude && d.longitude) {
+                            if (mapInstanceRef.current) {
+                              const [dLng, dLat] = getDeviceCoordinates(d);
                               mapInstanceRef.current.flyTo({
-                                center: [parseFloat(d.longitude), parseFloat(d.latitude)],
+                                center: [dLng, dLat],
                                 zoom: 16.5,
                                 pitch: 55,
                                 duration: 1000

@@ -55,13 +55,25 @@ export default function SiteDetailPage() {
 
       // Filter devices under this site
       const devs = (devRes?.devices || []).filter(
-        d => d.siteId === foundSite.id || d.siteId === foundSite.siteId || d.siteId === siteId
+        d => d.siteId === foundSite.id ||
+             d.siteId === foundSite.siteId ||
+             d.siteId === siteId ||
+             String(d.siteId) === String(foundSite.id) ||
+             String(d.siteId) === String(foundSite.siteId) ||
+             String(d.siteId) === String(siteId) ||
+             String(d.Site?.id) === String(foundSite.id) ||
+             String(d.Site?.siteId) === String(foundSite.siteId)
       );
       setSiteDevices(devs);
 
       // Filter structures under this site
       const structs = (structRes?.structures || []).filter(
-        st => st.siteId === foundSite.id || st.siteId === foundSite.siteId || st.siteId === siteId
+        st => st.siteId === foundSite.id ||
+              st.siteId === foundSite.siteId ||
+              st.siteId === siteId ||
+              String(st.siteId) === String(foundSite.id) ||
+              String(st.siteId) === String(foundSite.siteId) ||
+              String(st.siteId) === String(siteId)
       );
       setSiteStructures(structs);
 
@@ -94,6 +106,14 @@ export default function SiteDetailPage() {
       </div>
     );
   }
+
+  
+  // Compute effective location coordinates: use site coords, or fallback to its devices
+  const firstDevWithCoords = siteDevices.find(d => d.latitude && d.longitude && !isNaN(parseFloat(d.latitude)) && !isNaN(parseFloat(d.longitude)));
+  const hasExplicitSiteCoords = site?.latitude && site?.longitude && !isNaN(parseFloat(site.latitude)) && !isNaN(parseFloat(site.longitude)) && (Math.abs(parseFloat(site.latitude) - 22.5726) >= 0.001 || Math.abs(parseFloat(site.longitude) - 88.3639) >= 0.001);
+  const effectiveLat = hasExplicitSiteCoords ? parseFloat(site.latitude) : (firstDevWithCoords ? parseFloat(firstDevWithCoords.latitude) : 26.7271);
+  const effectiveLng = hasExplicitSiteCoords ? parseFloat(site.longitude) : (firstDevWithCoords ? parseFloat(firstDevWithCoords.longitude) : 88.4315);
+  const effectiveSite = site ? { ...site, latitude: effectiveLat, longitude: effectiveLng } : site;
 
   // Analytics Computations
   const onlineDevCount = siteDevices.filter(d => (d.status || 'ONLINE') === 'ONLINE').length;
@@ -139,7 +159,7 @@ export default function SiteDetailPage() {
             </div>
             <p className="text-xs text-slate-700 font-medium mt-0.5">
               {project?.name ? `${project.name} &bull; ` : ''}{org?.name ? `${org.name} &bull; ` : ''}
-              GPS: {Number(site?.latitude || 26.7271).toFixed(4)}°N, {Number(site?.longitude || 88.4315).toFixed(4)}°E
+              GPS: {effectiveLat.toFixed(4)}°N, {effectiveLng.toFixed(4)}°E{!hasExplicitSiteCoords && firstDevWithCoords ? ' (Device Coords)' : ''}
             </p>
           </div>
         </div>
@@ -238,13 +258,13 @@ export default function SiteDetailPage() {
             <Landslide3DMapView
               structures={siteStructures}
               devices={siteDevices}
-              sites={[site]}
+              sites={[effectiveSite]}
               onSelectStructure={() => {}}
               onSelectDevice={(d) => setSelectedDevice(d)}
             />
           ) : (
             <LocationMapView
-              sites={[site]}
+              sites={[effectiveSite]}
               devices={siteDevices}
               structures={siteStructures}
               projects={project ? [project] : []}

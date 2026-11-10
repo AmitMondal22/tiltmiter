@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, X, CheckCircle2, MapPin, Cpu, ExternalLink, ChevronRight, Layers, ShieldCheck } from 'lucide-react';
+import { Plus, Edit, Trash2, X, CheckCircle2, MapPin, Cpu, ExternalLink, ChevronRight, Layers, ShieldCheck, Map as MapIcon, List } from 'lucide-react';
 import { getSites, getProjects, getOrganizations, getDevices, getStructures, createSite, updateSite, deleteSite } from '../api/apiClient';
+import LocationMapView from '../components/LocationMapView';
 
 
 export default function SitesPage() {
   const navigate = useNavigate();
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
+  const [focusedSiteId, setFocusedSiteId] = useState('ALL');
   const [sitesList, setSitesList] = useState([]);
   const [devicesList, setDevicesList] = useState([]);
   const [structuresList, setStructuresList] = useState([]);
@@ -22,6 +25,7 @@ export default function SitesPage() {
     name: '',
     organizationId: '',
     projectId: '',
+    location: '',
     latitude: '',
     longitude: '',
     description: '',
@@ -60,6 +64,7 @@ export default function SitesPage() {
       name: '',
       organizationId: orgsList[0]?.id || '',
       projectId: projectsList[0]?.id || '',
+      location: '',
       latitude: '26.7271',
       longitude: '88.4315',
       description: '',
@@ -75,6 +80,7 @@ export default function SitesPage() {
       name: site.name,
       organizationId: site.organizationId || site.Project?.organizationId || '',
       projectId: site.projectId || '',
+      location: site.location || site.address || '',
       latitude: site.latitude || '',
       longitude: site.longitude || '',
       description: site.description || '',
@@ -141,17 +147,49 @@ export default function SitesPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Location</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          {/* Table vs Map View Switcher */}
+          <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
+            <button
+              onClick={() => {
+                setViewMode('list');
+                setFocusedSiteId('ALL');
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>Table View</span>
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                viewMode === 'map'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>Location Map & Analytics</span>
+            </button>
+          </div>
+
+          <button
+            onClick={handleOpenAdd}
+            className="flex items-center gap-1.5 px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Location</span>
+          </button>
+        </div>
       </div>
 
-      {/* Main Content Area: Dedicated Locations Table */}
-      <div className={cardCls}>
+      {/* Main Content Area: Table View OR Location Map View */}
+      {viewMode === 'list' ? (
+        <div className={cardCls}>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -173,11 +211,35 @@ export default function SitesPage() {
                   </tr>
                 ) : (
                   sitesList.map(site => {
-                    const proj = projectsList.find(p => p.id === site.projectId);
-                    const org = orgsList.find(o => o.id === site.organizationId || o.id === proj?.organizationId);
-                    const structCount = site.Structures ? site.Structures.length : 0;
-                    const siteDevCount = devicesList.filter(d => d.siteId === site.id || d.siteId === site.siteId).length;
                     const sId = site.siteId || site.id;
+                    const proj = projectsList.find(p => String(p.id) === String(site.projectId));
+                    const org = orgsList.find(o => String(o.id) === String(site.organizationId) || String(o.id) === String(proj?.organizationId));
+
+                    // Resiliently match structures belonging to this site
+                    const siteStructures = structuresList.filter(st =>
+                      String(st.siteId) === String(site.id) ||
+                      String(st.siteId) === String(site.siteId) ||
+                      String(st.siteId) === String(sId)
+                    );
+                    const structCount = (site.Structures && site.Structures.length > 0) ? site.Structures.length : siteStructures.length;
+
+                    // Resiliently match devices belonging to this site (direct siteId or via structure)
+                    const siteDevices = devicesList.filter(d =>
+                      String(d.siteId) === String(site.id) ||
+                      String(d.siteId) === String(site.siteId) ||
+                      String(d.siteId) === String(sId) ||
+                      String(d.Site?.id) === String(site.id) ||
+                      String(d.Site?.siteId) === String(site.siteId) ||
+                      siteStructures.some(st => String(st.id) === String(d.structureId))
+                    );
+                    const siteDevCount = siteDevices.length;
+
+                    // Coordinate resolution: site coordinates, or fallback to its monitored devices
+                    const firstDevWithCoords = siteDevices.find(d => d.latitude && d.longitude && !isNaN(parseFloat(d.latitude)) && !isNaN(parseFloat(d.longitude)));
+                    const hasExplicitSiteCoords = site.latitude && site.longitude && !isNaN(parseFloat(site.latitude)) && !isNaN(parseFloat(site.longitude)) && (Math.abs(parseFloat(site.latitude) - 22.5726) >= 0.001 || Math.abs(parseFloat(site.longitude) - 88.3639) >= 0.001);
+                    const displayLat = hasExplicitSiteCoords ? parseFloat(site.latitude) : (firstDevWithCoords ? parseFloat(firstDevWithCoords.latitude) : null);
+                    const displayLng = hasExplicitSiteCoords ? parseFloat(site.longitude) : (firstDevWithCoords ? parseFloat(firstDevWithCoords.longitude) : null);
+                    const isFromDevice = !hasExplicitSiteCoords && Boolean(firstDevWithCoords);
 
                     return (
                       <tr
@@ -190,14 +252,34 @@ export default function SitesPage() {
                             <span>{site.name}</span>
                             <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
                           </div>
-                          <div className="text-[11px] text-slate-700 font-mono mt-0.5">{site.description || 'Geotechnical Site'}</div>
+                          {(site.location || site.address) && (
+                            <div className="text-[11px] text-blue-700 font-semibold flex items-center gap-1 mt-0.5">
+                              <MapPin className="w-3 h-3 text-blue-600 flex-shrink-0" />
+                              <span>{site.location || site.address}</span>
+                            </div>
+                          )}
+                          <div className="text-[11px] text-slate-600 font-mono mt-0.5">{site.description || (site.code ? `Code: ${site.code}` : 'Geotechnical Monitored Site')}</div>
                         </td>
                         <td className="py-4 px-3.5">
                           <div className="font-bold text-black">{proj?.name || site.Project?.name || '--'}</div>
                           <div className="text-[11px] text-slate-700 font-medium">{org?.name || '--'}</div>
                         </td>
-                        <td className="py-4 px-3.5 font-mono font-bold text-black">
-                          {site.latitude ? `${Number(site.latitude).toFixed(4)}°N, ${Number(site.longitude).toFixed(4)}°E` : '--'}
+                        <td className="py-4 px-3.5 font-mono text-black">
+                          {displayLat && displayLng ? (
+                            <div>
+                              <div className="font-bold text-xs">
+                                {displayLat.toFixed(4)}°N, {displayLng.toFixed(4)}°E
+                              </div>
+                              {isFromDevice && (
+                                <div className="text-[10px] text-blue-600 font-sans font-semibold flex items-center gap-1 mt-0.5">
+                                  <Cpu className="w-3 h-3" />
+                                  <span>Device ({firstDevWithCoords.id || firstDevWithCoords.name})</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 font-sans text-xs">--</span>
+                          )}
                         </td>
                         <td className="py-4 px-3.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
@@ -209,6 +291,28 @@ export default function SitesPage() {
                               <span>{siteDevCount} Devices</span>
                             </span>
                           </div>
+                          {siteDevices.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                              {siteDevices.slice(0, 3).map(dev => (
+                                <span
+                                  key={dev.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/devices/${dev.id}`);
+                                  }}
+                                  className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-100 text-slate-800 hover:text-blue-800 font-mono text-[10px] font-semibold border border-slate-200 transition-colors cursor-pointer"
+                                  title={`Click to view ${dev.name || dev.id} (${dev.latitude ? `${Number(dev.latitude).toFixed(4)}°N, ${Number(dev.longitude).toFixed(4)}°E` : 'No GPS'})`}
+                                >
+                                  {dev.id}
+                                </span>
+                              ))}
+                              {siteDevices.length > 3 && (
+                                <span className="text-[10px] text-slate-500 font-mono font-semibold">
+                                  +{siteDevices.length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-3.5">
                           <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300 font-extrabold text-[10px]">
@@ -243,7 +347,17 @@ export default function SitesPage() {
             </table>
           </div>
         </div>
-
+      ) : (
+        <LocationMapView
+          sites={sitesList}
+          devices={devicesList}
+          structures={structuresList}
+          projects={projectsList}
+          organizations={orgsList}
+          initialSelectedSiteId={focusedSiteId}
+          onSelectSite={(s) => setFocusedSiteId(s.id || s.siteId)}
+        />
+      )}
 
       {/* Modal: Create / Edit Site Location */}
       {modalOpen && (
@@ -296,6 +410,17 @@ export default function SitesPage() {
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Hill Slope Sector B"
+                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-black font-extrabold mb-1">Location / Area Name</label>
+                <input
+                  type="text"
+                  value={formData.location}
+                  onChange={e => setFormData({ ...formData, location: e.target.value })}
+                  placeholder="e.g. North Ridge Section, Mile 44"
                   className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
                 />
               </div>

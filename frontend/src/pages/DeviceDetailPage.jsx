@@ -6,21 +6,25 @@ import {
   Download, RefreshCw, Layers, ShieldCheck, Activity,
   CheckCircle2, AlertTriangle, Radio, Clock, MapPin,
   Compass, Zap, Thermometer, Search, Bed, Crosshair, Database, Settings, Move, X,
-  ShieldAlert, Camera, Image as ImageIcon, Upload, Trash2, ExternalLink, Edit, Maximize2, Target
+  ShieldAlert, Camera, Image as ImageIcon, Upload, Trash2, ExternalLink, Edit, Maximize2, Minimize2, Target
 } from 'lucide-react';
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, uploadDeviceImage, deleteDeviceImage, formatAssetUrl } from '../api/apiClient';
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
-// 1. Interactive OpenStreetMap Component for Device Location (Small size)
+// 1. Interactive OpenStreetMap Component for Device Location (Small size with Full Screen Modal)
 function DeviceLocationMap({ device, deviceId, d }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const fullMapRef = useRef(null);
+  const fullMapInstanceRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const lat = parseFloat(device?.latitude ?? d?.latitude ?? 22.5726);
   const lng = parseFloat(device?.longitude ?? d?.longitude ?? 88.3639);
   const hasCustomCoords = Boolean(device?.latitude && device?.longitude);
 
+  // Small inline map
   useEffect(() => {
     if (!mapRef.current) return;
     if (mapInstanceRef.current) {
@@ -54,11 +58,12 @@ function DeviceLocationMap({ device, deviceId, d }) {
     const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
     marker.bindPopup(`<b>${device?.name || deviceId}</b><br/>Lat: ${lat.toFixed(4)}<br/>Lng: ${lng.toFixed(4)}`);
 
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       map.invalidateSize();
     }, 250);
 
     return () => {
+      clearTimeout(timer);
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -66,29 +71,176 @@ function DeviceLocationMap({ device, deviceId, d }) {
     };
   }, [lat, lng, device?.name, deviceId]);
 
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs flex flex-col justify-between h-full">
-      <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
-          <h4 className="text-xs font-bold text-slate-900 truncate">
-            Device Location
-          </h4>
+  // Fullscreen modal map
+  useEffect(() => {
+    if (!isFullscreen || !fullMapRef.current) return;
+
+    if (fullMapInstanceRef.current) {
+      fullMapInstanceRef.current.remove();
+      fullMapInstanceRef.current = null;
+    }
+
+    const fullMap = L.map(fullMapRef.current, {
+      center: [lat, lng],
+      zoom: 16,
+      zoomControl: true,
+      attributionControl: true,
+    });
+    fullMapInstanceRef.current = fullMap;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors',
+    }).addTo(fullMap);
+
+    const fullCustomIcon = L.divIcon({
+      className: 'custom-map-marker-lg',
+      html: `
+        <div style="background-color: #2563eb; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 6px 12px -2px rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center;">
+          <div style="background-color: white; width: 10px; height: 10px; border-radius: 50%;"></div>
         </div>
-        <span className="font-mono text-[10px] font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200 flex-shrink-0">
-          {lat.toFixed(4)}°, {lng.toFixed(4)}°
-        </span>
+      `,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    });
+
+    const fullMarker = L.marker([lat, lng], { icon: fullCustomIcon }).addTo(fullMap);
+    fullMarker.bindPopup(`
+      <div style="padding: 4px; font-family: inherit;">
+        <div style="font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 4px;">${device?.name || deviceId || 'Tiltmeter Node'}</div>
+        <div style="font-size: 12px; color: #475569; margin-bottom: 2px;"><b>Device ID:</b> ${deviceId || '-'}</div>
+        <div style="font-size: 12px; color: #475569; margin-bottom: 2px;"><b>Latitude:</b> ${lat.toFixed(6)}°</div>
+        <div style="font-size: 12px; color: #475569;"><b>Longitude:</b> ${lng.toFixed(6)}°</div>
+      </div>
+    `).openPopup();
+
+    const timer = setTimeout(() => {
+      fullMap.invalidateSize();
+    }, 200);
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (fullMapInstanceRef.current) {
+        fullMapInstanceRef.current.remove();
+        fullMapInstanceRef.current = null;
+      }
+    };
+  }, [isFullscreen, lat, lng, device?.name, deviceId]);
+
+  return (
+    <>
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs flex flex-col justify-between h-full">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            <h4 className="text-xs font-bold text-slate-900 truncate">
+              Device Location
+            </h4>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <span className="font-mono text-[10px] font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+              {lat.toFixed(4)}°, {lng.toFixed(4)}°
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(true)}
+              title="Full Screen View"
+              className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 border border-slate-200 hover:border-blue-200 rounded transition-colors cursor-pointer"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="relative w-full h-[175px] rounded-lg overflow-hidden border border-slate-200 z-0 group">
+          <div ref={mapRef} className="w-full h-full" />
+          
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(true)}
+            className="absolute bottom-2 right-2 z-[400] bg-white/90 hover:bg-white text-slate-700 hover:text-blue-600 px-2 py-1 rounded-md text-[11px] font-medium shadow-md border border-slate-200 backdrop-blur-xs flex items-center gap-1 transition-all cursor-pointer"
+            title="Expand to Full Screen"
+          >
+            <Maximize2 className="w-3 h-3" />
+            <span>Full Screen</span>
+          </button>
+
+          {!hasCustomCoords && (
+            <div className="absolute top-1.5 left-1.5 z-[400] bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded border border-amber-200 text-[9px] font-semibold text-amber-800 shadow-xs">
+              Default Location
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="relative w-full h-[175px] rounded-lg overflow-hidden border border-slate-200 z-0">
-        <div ref={mapRef} className="w-full h-full" />
-        {!hasCustomCoords && (
-          <div className="absolute top-1.5 left-1.5 z-[400] bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded border border-amber-200 text-[9px] font-semibold text-amber-800 shadow-xs">
-            Default Location
+      {/* Fullscreen Map Modal */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/80 backdrop-blur-xs flex flex-col p-3 md:p-6 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full h-full overflow-hidden border border-slate-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-200 bg-slate-50">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 shadow-2xs">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                      {device?.name || (deviceId ? `Device ${deviceId}` : 'Device Location Map')}
+                    </h3>
+                    {!hasCustomCoords ? (
+                      <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-2 py-0.5 rounded-full border border-amber-200 flex-shrink-0">
+                        Default Coordinates
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full border border-emerald-200 flex-shrink-0">
+                        Configured Coordinates
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">
+                    Lat: {lat.toFixed(6)}° &nbsp;|&nbsp; Lng: {lng.toFixed(6)}°
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a
+                  href={`https://www.google.com/maps?q=${lat},${lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 rounded-lg border border-slate-300 transition-colors shadow-2xs"
+                  title="Open this location in Google Maps"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Google Maps</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(false)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 rounded-lg shadow-sm transition-colors cursor-pointer"
+                  title="Close Full Screen (Esc)"
+                >
+                  <X className="w-4 h-4" />
+                  <span className="hidden sm:inline">Close</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Fullscreen Leaflet Map */}
+            <div className="relative flex-1 w-full h-full bg-slate-100">
+              <div ref={fullMapRef} className="w-full h-full" />
+            </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
 

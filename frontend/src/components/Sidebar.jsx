@@ -11,6 +11,7 @@ import {
   BarChart2,
   FileText,
   Bell,
+  TicketCheck,
   Settings,
   CheckCircle,
   ChevronsUpDown,
@@ -30,6 +31,7 @@ const ALL_NAV_ITEMS = [
   { id: 'trends', path: '/trends', label: 'Historical Data', icon: BarChart2 },
   { id: 'reports', path: '/reports', label: 'Reports', icon: FileText },
   { id: 'alarms', path: '/alarms', label: 'Alert & Notifications', icon: Bell, badge: '5' },
+  { id: 'tickets', path: '/tickets', label: 'Tickets & Incidents', icon: TicketCheck },
   { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
 ];
 

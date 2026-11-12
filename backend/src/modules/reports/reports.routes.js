@@ -1,7 +1,8 @@
 import pkg from 'sequelize';
 const { Op } = pkg;
-import { TelemetryRecord, Device, Site, Project, Organization } from '../../models/index.js';
+import { TelemetryRecord, Device, Site, Project, Organization, Incident } from '../../models/index.js';
 import { inMemoryTelemetryStore } from '../../services/telemetryStore.js';
+import { memoryTickets } from '../../services/incidentService.js';
 import { authenticateOptional } from '../../middleware/authMiddleware.js';
 
 export async function reportsRoutes(fastify) {
@@ -258,6 +259,99 @@ export async function reportsRoutes(fastify) {
       });
     } catch (err) {
       return reply.status(500).send({ statusCode: 500, error: 'Report Generation Error', message: err.message });
+    }
+  });
+
+  // Dedicated Incident & Maintenance Tickets Report API
+  fastify.get('/api/reports/tickets', { preHandler: [authenticateOptional(fastify)] }, async (req, reply) => {
+    try {
+      const { siteId, deviceId, status, severity, source, fromDate, toDate } = req.query || {};
+
+      let startDate = null;
+      let stopDate = null;
+      if (fromDate) {
+        startDate = new Date(fromDate.length === 10 ? `${fromDate}T00:00:00+05:30` : fromDate);
+      }
+      if (toDate) {
+        stopDate = new Date(toDate.length === 10 ? `${toDate}T23:59:59.999+05:30` : toDate);
+      }
+
+      let allTickets = [];
+      try {
+        const where = {};
+        if (siteId && siteId !== 'ALL') where.siteId = String(siteId);
+        if (deviceId && deviceId !== 'ALL') where.deviceId = String(deviceId);
+        if (status && status !== 'ALL') where.status = String(status).toUpperCase();
+        if (severity && severity !== 'ALL') where.severity = String(severity).toUpperCase();
+        if (source && source !== 'ALL') where.source = String(source).toUpperCase();
+
+        if (startDate || stopDate) {
+          where.createdAt = {};
+          if (startDate && !isNaN(startDate.getTime())) where.createdAt[Op.gte] = startDate;
+          if (stopDate && !isNaN(stopDate.getTime())) where.createdAt[Op.lte] = stopDate;
+        }
+
+        allTickets = await Incident.findAll({
+          where,
+          order: [['createdAt', 'DESC']],
+        });
+      } catch (dbErr) {
+        console.warn('[Reports] Tickets query DB fallback:', dbErr.message);
+      }
+
+      let list = (allTickets && allTickets.length > 0)
+        ? allTickets.map(t => (t.toJSON ? t.toJSON() : { ...t }))
+        : [...memoryTickets];
+
+      // In-memory filters for fallback
+      if (!allTickets || allTickets.length === 0) {
+        if (siteId && siteId !== 'ALL') list = list.filter(t => String(t.siteId) === String(siteId));
+        if (deviceId && deviceId !== 'ALL') list = list.filter(t => String(t.deviceId) === String(deviceId));
+        if (status && status !== 'ALL') list = list.filter(t => (t.status || '').toUpperCase() === status.toUpperCase());
+        if (severity && severity !== 'ALL') list = list.filter(t => (t.severity || '').toUpperCase() === severity.toUpperCase());
+        if (source && source !== 'ALL') list = list.filter(t => (t.source || '').toUpperCase() === source.toUpperCase());
+        if (startDate && !isNaN(startDate.getTime())) {
+          list = list.filter(t => new Date(t.createdAt).getTime() >= startDate.getTime());
+        }
+        if (stopDate && !isNaN(stopDate.getTime())) {
+          list = list.filter(t => new Date(t.createdAt).getTime() <= stopDate.getTime());
+        }
+      }
+
+      const total = list.length;
+      const critical = list.filter(t => ['CRITICAL', 'EMERGENCY'].includes((t.severity || '').toUpperCase())).length;
+      const open = list.filter(t => ['OPEN', 'NEW'].includes((t.status || '').toUpperCase())).length;
+      const inProgress = list.filter(t => (t.status || '').toUpperCase() === 'IN_PROGRESS').length;
+      const resolved = list.filter(t => (t.status || '').toUpperCase() === 'RESOLVED').length;
+      const closed = list.filter(t => (t.status || '').toUpperCase() === 'CLOSED').length;
+      const reopened = list.filter(t => (t.status || '').toUpperCase() === 'REOPENED').length;
+      const autoAlert = list.filter(t => (t.source || '').toUpperCase() === 'AUTO_ALERT').length;
+      const manual = list.filter(t => (t.source || '').toUpperCase() === 'MANUAL').length;
+
+      let totalPhotos = 0;
+      list.forEach(t => {
+        if (Array.isArray(t.resolutionImages)) totalPhotos += t.resolutionImages.length;
+      });
+
+      return reply.send({
+        statusCode: 200,
+        filters: { siteId, deviceId, status, severity, source, fromDate, toDate },
+        summary: {
+          totalTickets: total,
+          criticalCount: critical,
+          openCount: open,
+          inProgressCount: inProgress,
+          resolvedCount: resolved,
+          closedCount: closed,
+          reopenedCount: reopened,
+          autoAlertCount: autoAlert,
+          manualCount: manual,
+          totalResolutionPhotos: totalPhotos,
+        },
+        tickets: list,
+      });
+    } catch (err) {
+      return reply.status(500).send({ statusCode: 500, error: 'Ticket Report Error', message: err.message });
     }
   });
 }

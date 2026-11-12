@@ -48,6 +48,10 @@ const deviceImagesDir = path.join(uploadsDir, 'device_image');
 if (!fs.existsSync(deviceImagesDir)) {
   fs.mkdirSync(deviceImagesDir, { recursive: true });
 }
+const ticketsDir = path.join(uploadsDir, 'tickets');
+if (!fs.existsSync(ticketsDir)) {
+  fs.mkdirSync(ticketsDir, { recursive: true });
+}
 
 const fastify = Fastify({
   logger: true,

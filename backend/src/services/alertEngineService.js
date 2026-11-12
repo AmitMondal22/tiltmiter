@@ -2,6 +2,7 @@ import { AlertRule, Alarm, Incident, Device, Site } from '../models/index.js';
 import { sendAlertEmail, getActiveRecipientEmails } from './emailService.js';
 import { broadcastAlarm } from '../websocket/websocket.service.js';
 import { getMemoryAlertRules } from '../modules/alarms/alarms.routes.js';
+import { createAutoAlertTicket, autoResolveTicketsForDevice } from './incidentService.js';
 
 // Rate-limiting cache to prevent email flood while still dispatching on breaches
 const lastEmailSentAt = new Map();
@@ -236,23 +237,23 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
         };
       }
 
-      // Create Incident if critical
+      // Auto-generate Incident Ticket if critical or emergency
       if (alt.severity === 'CRITICAL' || alt.severity === 'EMERGENCY') {
-        try {
-          const incidentCode = `INC-${Date.now().toString().slice(-6)}`;
-          await Incident.create({
-            incidentCode,
-            deviceId: alt.deviceId,
-            siteId: alt.siteId ? String(alt.siteId) : null,
-            alarmId: alarm.id,
-            title: alt.title,
-            severity: alt.severity,
-            status: 'NEW',
-            rootCause: `Automated ${alt.parameter} threshold breach detected by Alert Engine.`,
-          });
-        } catch (incErr) {
-          // Non-blocking
-        }
+        createAutoAlertTicket({
+          deviceId: alt.deviceId,
+          siteId: alt.siteId || device.siteId,
+          structureId: device.structureId,
+          organizationId: device.organizationId,
+          alarmId: alarm?.id || null,
+          title: alt.title,
+          severity: alt.severity,
+          message: alt.message,
+          parameter: alt.parameter,
+          value: alt.value,
+          threshold: alt.threshold,
+        }).catch(err => {
+          console.warn('[Alert Engine] Error generating auto-alert ticket:', err.message);
+        });
       }
 
       // Broadcast Alarm via WebSocket to live UI
@@ -278,6 +279,13 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
     } catch (e) {
       console.warn(`[Alert Engine] Error recording alert for ${alt.deviceId}:`, e.message);
     }
+  }
+
+  // If telemetry returned to normal (no triggered alerts), auto-resolve any active auto-alert tickets!
+  if (triggeredAlerts.length === 0) {
+    autoResolveTicketsForDevice(devId).catch(err => {
+      console.warn(`[Alert Engine] Error auto-resolving tickets for ${devId}:`, err.message);
+    });
   }
 
   return triggeredAlerts;
@@ -389,6 +397,20 @@ export async function triggerManualAlert({
       // Broadcast to WebSockets
       if (broadcastAlarm) {
         broadcastAlarm(alarm);
+      }
+
+      // Auto-generate Incident Ticket for critical alerts
+      if (alt.severity === 'CRITICAL' || alt.severity === 'EMERGENCY') {
+        createAutoAlertTicket({
+          deviceId: devId,
+          siteId: alt.siteId,
+          title: alt.title,
+          severity: alt.severity,
+          message: alt.message,
+          parameter: alt.parameter,
+          value: alt.value,
+          threshold: alt.threshold,
+        }).catch(() => {});
       }
 
         results.push({

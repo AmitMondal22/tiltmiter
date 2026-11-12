@@ -22,6 +22,7 @@ const UsersPage = lazy(() => import('./pages/UsersPage'));
 const TrendsPage = lazy(() => import('./pages/TrendsPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const AlarmsPage = lazy(() => import('./pages/AlarmsPage'));
+const TicketsPage = lazy(() => import('./pages/TicketsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
 // Sleek fallback component for lazy-loaded route transitions
@@ -118,6 +119,8 @@ function MainLayout() {
               <Route path="/reports" element={<ReportsPage currentDevice={currentDevice} isDark={false} />} />
               <Route path="/alarms" element={<AlarmsPage isDark={false} />} />
               <Route path="/alerts" element={<AlarmsPage isDark={false} />} />
+              <Route path="/tickets" element={<TicketsPage />} />
+              <Route path="/incidents" element={<TicketsPage />} />
               <Route path="/zero-readings" element={<Navigate to="/devices" replace />} />
               <Route path="/zero" element={<Navigate to="/devices" replace />} />
               <Route path="/zero-calibration" element={<Navigate to="/devices" replace />} />

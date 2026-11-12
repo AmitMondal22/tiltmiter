@@ -78,6 +78,15 @@ Event.belongsTo(Device, { foreignKey: 'deviceId' });
 Device.hasMany(Incident, { foreignKey: 'deviceId' });
 Incident.belongsTo(Device, { foreignKey: 'deviceId' });
 
+Site.hasMany(Incident, { foreignKey: 'siteId' });
+Incident.belongsTo(Site, { foreignKey: 'siteId' });
+
+Structure.hasMany(Incident, { foreignKey: 'structureId' });
+Incident.belongsTo(Structure, { foreignKey: 'structureId' });
+
+User.hasMany(Incident, { as: 'assignedIncidents', foreignKey: 'assignedUserId' });
+Incident.belongsTo(User, { as: 'assignedUser', foreignKey: 'assignedUserId' });
+
 Device.hasMany(MaintenanceRecord, { foreignKey: 'deviceId' });
 MaintenanceRecord.belongsTo(Device, { foreignKey: 'deviceId' });
 

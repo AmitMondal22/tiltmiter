@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   Download, Calendar, Filter, RefreshCw, BarChart2, Activity,
   ShieldCheck, Thermometer, Zap, Clock, FileSpreadsheet, MapPin,
-  ChevronLeft, ChevronRight, Layers, CheckCircle2, AlertTriangle, Printer
+  ChevronLeft, ChevronRight, Layers, CheckCircle2, AlertTriangle, Printer,
+  TicketCheck, Wrench, RotateCcw, Image as ImageIcon, Cpu, User
 } from 'lucide-react';
-import { getTelemetryHistory, getReportsAnalytics, getProjects, getSites, getDevices } from '../api/apiClient';
+import { getTelemetryHistory, getReportsAnalytics, getProjects, getSites, getDevices, getTicketsReport, getStructures } from '../api/apiClient';
 import { formatISTDateInput, istDatetimeToUTC, formatFullDateTime, formatTimeString } from '../utils/dateHelper';
 
 export default function ReportsPage({ currentDevice }) {
@@ -32,12 +33,30 @@ export default function ReportsPage({ currentDevice }) {
   const [summaryStats, setSummaryStats] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // --- Incident & Tickets Report States ---
+  const [reportCategory, setReportCategory] = useState('TELEMETRY'); // 'TELEMETRY' | 'TICKETS'
+  const [structures, setStructures] = useState([]);
+  const [ticketPreset, setTicketPreset] = useState('7d');
+  const [ticketFromDate, setTicketFromDate] = useState(lastWeekStr);
+  const [ticketToDate, setTicketToDate] = useState(todayStr);
+  const [ticketSite, setTicketSite] = useState('ALL');
+  const [ticketDevice, setTicketDevice] = useState('ALL');
+  const [ticketStatus, setTicketStatus] = useState('ALL');
+  const [ticketSeverity, setTicketSeverity] = useState('ALL');
+  const [ticketSource, setTicketSource] = useState('ALL');
+  const [ticketRows, setTicketRows] = useState([]);
+  const [ticketSummary, setTicketSummary] = useState(null);
+  const [ticketLoading, setTicketLoading] = useState(false);
+  const [ticketCurrentPage, setTicketCurrentPage] = useState(1);
+  const ticketRowsPerPage = 20;
+
   // Table pagination
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 25;
 
   useEffect(() => {
     getProjects().then(res => setProjects(res.projects || [])).catch(() => {});
+    getStructures().then(res => setStructures(res.structures || res || [])).catch(() => {});
     getSites().then(res => setSites(res.sites || [])).catch(() => {});
     getDevices().then(res => {
       if (res?.devices?.length) {
@@ -411,24 +430,200 @@ export default function ReportsPage({ currentDevice }) {
     window.print();
   };
 
+    // --- Incident Tickets Report Functions ---
+  const handleTicketPresetSelect = (preset) => {
+    setTicketPreset(preset);
+    const curr = new Date();
+    const to = formatISTDateInput(curr);
+    let from = todayStr;
+
+    if (preset === '24h') {
+      const d = new Date(curr.getTime() - 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    } else if (preset === '7d') {
+      const d = new Date(curr.getTime() - 7 * 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    } else if (preset === '30d') {
+      const d = new Date(curr.getTime() - 30 * 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    } else if (preset === '90d') {
+      const d = new Date(curr.getTime() - 90 * 24 * 60 * 60 * 1000);
+      from = formatISTDateInput(d);
+    } else if (preset === 'all') {
+      from = '2025-01-01';
+    }
+
+    setTicketFromDate(from);
+    setTicketToDate(to);
+    fetchTicketsReport(from, to, ticketSite, ticketDevice, ticketStatus, ticketSeverity, ticketSource);
+  };
+
+  const fetchTicketsReport = (
+    from = ticketFromDate,
+    to = ticketToDate,
+    siteId = ticketSite,
+    devId = ticketDevice,
+    status = ticketStatus,
+    severity = ticketSeverity,
+    source = ticketSource
+  ) => {
+    setTicketLoading(true);
+    setTicketCurrentPage(1);
+
+    const params = {
+      fromDate: from,
+      toDate: to,
+      siteId: siteId !== 'ALL' ? siteId : undefined,
+      deviceId: devId !== 'ALL' ? devId : undefined,
+      status: status !== 'ALL' ? status : undefined,
+      severity: severity !== 'ALL' ? severity : undefined,
+      source: source !== 'ALL' ? source : undefined,
+    };
+
+    getTicketsReport(params)
+      .then(res => {
+        if (res?.tickets) {
+          setTicketRows(res.tickets);
+          setTicketSummary(res.summary || null);
+        } else {
+          setTicketRows([]);
+          setTicketSummary(null);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching tickets report:', err);
+        setTicketRows([]);
+      })
+      .finally(() => {
+        setTicketLoading(false);
+      });
+  };
+
+  const handleExportTicketCSV = () => {
+    if (ticketRows.length === 0) {
+      alert('No ticket records available to export for the selected date range.');
+      return;
+    }
+
+    const headers = [
+      'Ticket_Code',
+      'Title',
+      'Category',
+      'Priority',
+      'Status',
+      'Source',
+      'Device_ID',
+      'Site_ID',
+      'Structure_ID',
+      'Assigned_Technician',
+      'Assigned_Email',
+      'Created_By',
+      'Diagnostic_Root_Cause',
+      'Site_Resolution_Remarks',
+      'Corrective_Action',
+      'Admin_Remarks',
+      'Uploaded_Photos_Count',
+      'Created_At',
+      'Resolved_At',
+      'Closed_At'
+    ].join(',');
+
+    const rows = ticketRows.map(t => [
+      `"${t.incidentCode || ''}"`,
+      `"${(t.title || '').replace(/"/g, '""')}"`,
+      `"${t.category || ''}"`,
+      `"${t.severity || ''}"`,
+      `"${t.status || ''}"`,
+      `"${t.source || ''}"`,
+      `"${t.deviceId || ''}"`,
+      `"${t.siteId || ''}"`,
+      `"${t.structureId || ''}"`,
+      `"${(t.assignedUserName || '').replace(/"/g, '""')}"`,
+      `"${t.assignedUserEmail || ''}"`,
+      `"${t.createdByUserName || ''}"`,
+      `"${(t.rootCause || '').replace(/"/g, '""')}"`,
+      `"${(t.siteRemarks || '').replace(/"/g, '""')}"`,
+      `"${(t.correctiveAction || '').replace(/"/g, '""')}"`,
+      `"${(t.adminRemarks || '').replace(/"/g, '""')}"`,
+      t.resolutionImages ? t.resolutionImages.length : 0,
+      `"${t.createdAt || ''}"`,
+      `"${t.resolvedAt || ''}"`,
+      `"${t.closedAt || ''}"`,
+    ].join(','));
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers, ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `incident_tickets_report_${ticketFromDate}_to_${ticketToDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const totalTicketPages = Math.ceil(ticketRows.length / ticketRowsPerPage) || 1;
+  const paginatedTickets = useMemo(() => {
+    const start = (ticketCurrentPage - 1) * ticketRowsPerPage;
+    return ticketRows.slice(start, start + ticketRowsPerPage);
+  }, [ticketRows, ticketCurrentPage, ticketRowsPerPage]);
+
   const activeDeviceObj = devices.find(d => d.id === selectedDevice) || currentDevice;
 
   return (
     <div className="space-y-4 font-sans text-slate-800 animate-fadeIn">
-      {/* Top Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-1 border-b border-slate-200">
+      {/* Top Header Bar & Report Type Switcher */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-blue-600" />
-            <span>Reports & Historical Analytics</span>
-          </h2>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Statistical multi-parameter inclinometer telemetry reports, time-range queries & data exports
-          </p>
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-xs">
+              <FileSpreadsheet className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                {reportCategory === 'TELEMETRY' ? 'Telemetry & Sensor Data Report' : 'Incident & Maintenance Tickets Report'}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                {reportCategory === 'TELEMETRY'
+                  ? 'Statistical multi-parameter inclinometer telemetry reports, time-range queries & data exports'
+                  : 'Comprehensive geotechnical incident log, field resolution remarks, photo proofs & admin verification audit'}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Action Controls & Report Category Switcher */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Report Category Switcher */}
+          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setReportCategory('TELEMETRY')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                reportCategory === 'TELEMETRY'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              <span>Telemetry Report</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setReportCategory('TICKETS');
+                if (ticketRows.length === 0) fetchTicketsReport();
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                reportCategory === 'TICKETS'
+                  ? 'bg-white text-blue-600 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <TicketCheck className="w-3.5 h-3.5" />
+              <span>Tickets & Incidents Report</span>
+            </button>
+          </div>
+
           <button
             onClick={handlePrint}
             className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 shadow-2xs transition-all cursor-pointer"
@@ -437,7 +632,7 @@ export default function ReportsPage({ currentDevice }) {
             <span>Print Report</span>
           </button>
           <button
-            onClick={handleExportCSV}
+            onClick={reportCategory === 'TELEMETRY' ? handleExportCSV : handleExportTicketCSV}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />

@@ -572,4 +572,80 @@ export async function getAlertHierarchy() {
   return await request('/alert-rules/hierarchy');
 }
 
+// Tickets & Incidents Management API
+export async function getTickets(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') query.append(k, v);
+  });
+  const qs = query.toString();
+  return await request(`/tickets${qs ? `?${qs}` : ''}`);
+}
+
+export async function getTicketStats() {
+  return await request('/tickets/stats');
+}
+
+export async function getTicketsReport(params = {}) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') query.append(k, v);
+  });
+  const qs = query.toString();
+  return await request(`/reports/tickets${qs ? `?${qs}` : ''}`);
+}
+
+export async function getTicket(id) {
+  return await request(`/tickets/${id}`);
+}
+
+export async function createTicket(data) {
+  return await request('/tickets', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function assignTicket(id, data) {
+  return await request(`/tickets/${id}/assign`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function resolveTicket(id, data) {
+  return await request(`/tickets/${id}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function closeTicket(id, data = {}) {
+  return await request(`/tickets/${id}/close`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function reopenTicket(id, data = {}) {
+  return await request(`/tickets/${id}/reopen`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function addTicketComment(id, data) {
+  return await request(`/tickets/${id}/comment`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTicket(id) {
+  return await request(`/tickets/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+
 

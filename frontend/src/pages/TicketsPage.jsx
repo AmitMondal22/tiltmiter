@@ -188,6 +188,20 @@ export default function TicketsPage() {
   const [devices, setDevices] = useState([]);
   const [usersList, setUsersList] = useState([]);
 
+  // Table pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 12;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, priorityFilter, sourceFilter, selectedSiteFilter]);
+
+  const totalPages = Math.ceil(filteredTickets.length / rowsPerPage) || 1;
+  const paginatedTickets = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredTickets.slice(start, start + rowsPerPage);
+  }, [filteredTickets, currentPage, rowsPerPage]);
+
   // Filter & Search states
   const [activeTab, setActiveTab] = useState('ALL'); // ALL, OPEN, IN_PROGRESS, RESOLVED, REOPENED, CLOSED
   const [searchQuery, setSearchQuery] = useState('');
@@ -618,7 +632,7 @@ export default function TicketsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4 md:p-6 lg:p-8 max-w-[1600px] mx-auto w-full space-y-6">
+    <div className="space-y-5 font-sans text-slate-800 pb-12 animate-fadeIn">
       {/* ── Top Header Bar ─────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
@@ -886,7 +900,8 @@ export default function TicketsPage() {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -901,7 +916,7 @@ export default function TicketsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredTickets.map(t => {
+                {paginatedTickets.map(t => {
                   const siteObj = sites.find(s => String(s.id) === String(t.siteId));
                   const structObj = structures.find(s => String(s.id) === String(t.structureId));
 
@@ -1113,15 +1128,49 @@ export default function TicketsPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-xs">
+              <span className="text-slate-500 font-medium text-[11px]">
+                Showing <span className="font-semibold text-slate-800">{(currentPage - 1) * rowsPerPage + 1}</span> to{' '}
+                <span className="font-semibold text-slate-800">{Math.min(currentPage * rowsPerPage, filteredTickets.length)}</span> of{' '}
+                <span className="font-semibold text-slate-800">{filteredTickets.length}</span> tickets
+              </span>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-slate-600 font-medium text-xs shadow-2xs"
+                >
+                  Previous
+                </button>
+                <span className="px-2.5 py-1 font-mono font-bold text-slate-800 text-xs bg-white rounded-lg border border-slate-200 shadow-2xs">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-slate-600 font-medium text-xs shadow-2xs"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
 
       {/* ── Slide-Over / Full Drawer: Ticket Details & Audit Trail ───── */}
       {detailDrawerOpen && selectedTicket && (
         <div className="fixed inset-0 z-50 overflow-hidden flex justify-end animate-in fade-in duration-200">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-2xs transition-opacity"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
             onClick={() => setDetailDrawerOpen(false)}
           />
 
@@ -1459,7 +1508,7 @@ export default function TicketsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCreateSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Title */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1632,7 +1681,7 @@ export default function TicketsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleResolveSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleResolveSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               {/* Site Remarks */}
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
@@ -1745,7 +1794,7 @@ export default function TicketsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCloseSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleCloseSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700">
                 <strong className="block text-slate-900 font-bold mb-1">Technician Resolution:</strong>
                 <p className="italic">{selectedTicket.siteRemarks || 'Site inspection completed.'}</p>
@@ -1813,7 +1862,7 @@ export default function TicketsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleReopenSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleReopenSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <p className="text-xs text-slate-600 leading-relaxed">
                 If the field work is incomplete, photos are inadequate, or telemetry remains unstable, return this ticket with feedback. The assigned technician will be notified to re-inspect.
               </p>
@@ -1876,7 +1925,7 @@ export default function TicketsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleAssignSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleAssignSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   Select Technician / Engineer <span className="text-red-500">*</span>

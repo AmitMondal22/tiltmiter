@@ -18,11 +18,15 @@ const MAX_DEVICE_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB max
 function deleteOldDeviceImageFile(oldImageUrl) {
   if (!oldImageUrl || typeof oldImageUrl !== 'string') return;
   try {
-    if (oldImageUrl.includes('/uploads/device_image/')) {
-      const fileName = oldImageUrl.split('/uploads/device_image/').pop();
+    const normalized = oldImageUrl.replace(/\\/g, '/');
+    if (normalized.includes('/uploads/device_image/') || normalized.includes('uploads/device_image/')) {
+      let fileName = normalized.split(/uploads\/device_image\//i).pop();
       if (fileName) {
+        fileName = path.basename(fileName.split('?')[0].split('#')[0]);
         const filePath = path.join(deviceImagesDir, fileName);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
     }
   } catch (err) {
@@ -31,15 +35,29 @@ function deleteOldDeviceImageFile(oldImageUrl) {
 }
 
 function saveDeviceImageToDisk(deviceId, base64DataUrl) {
-  if (!base64DataUrl.startsWith('data:image/')) return base64DataUrl;
-  if (!fs.existsSync(deviceImagesDir)) fs.mkdirSync(deviceImagesDir, { recursive: true });
-  const matches = base64DataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+  if (!base64DataUrl || typeof base64DataUrl !== 'string' || !base64DataUrl.startsWith('data:image/')) {
+    return base64DataUrl;
+  }
+  if (!fs.existsSync(deviceImagesDir)) {
+    fs.mkdirSync(deviceImagesDir, { recursive: true });
+  }
+
+  // Robust regex supporting all mime types and optional parameters (e.g. charset) with multiline/dotAll
+  const matches = base64DataUrl.match(/^data:image\/([a-zA-Z0-9+.-]+)(?:;[a-zA-Z0-9=-]+)*;base64,([\s\S]+)$/);
   if (!matches || matches.length < 3) return base64DataUrl;
+
   let ext = matches[1].toLowerCase();
-  if (ext === 'svg+xml') ext = 'svg';
-  if (ext === 'jpeg') ext = 'jpg';
-  const buffer = Buffer.from(matches[2], 'base64');
-  const filename = `device_${deviceId}_${Date.now()}.${ext}`;
+  if (ext.includes('svg')) ext = 'svg';
+  else if (ext === 'jpeg' || ext === 'pjpeg') ext = 'jpg';
+  else if (ext === 'png') ext = 'png';
+  else if (ext === 'webp') ext = 'webp';
+  else if (ext === 'gif') ext = 'gif';
+  else ext = 'jpg';
+
+  const cleanBase64 = matches[2].replace(/\s/g, '');
+  const buffer = Buffer.from(cleanBase64, 'base64');
+  const safeDeviceId = String(deviceId || 'device').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename = `device_${safeDeviceId}_${Date.now()}.${ext}`;
   const filePath = path.join(deviceImagesDir, filename);
   fs.writeFileSync(filePath, buffer);
   return `/uploads/device_image/${filename}`;
@@ -382,7 +400,9 @@ export async function devicesRoutes(fastify) {
         sleep_count: parsedSleep,
         wake_count: wake_count !== undefined ? parseInt(wake_count) : 30,
         calibrate: calibrate !== undefined ? Boolean(calibrate) : false,
-        imageUrl: req.body.imageUrl && req.body.imageUrl.startsWith('data:image/') ? saveDeviceImageToDisk(id || TILTIND, req.body.imageUrl) : (req.body.imageUrl || null),
+        imageUrl: req.body.imageUrl && typeof req.body.imageUrl === 'string' && req.body.imageUrl.startsWith('data:image/')
+          ? saveDeviceImageToDisk(id || `TILTIND${Date.now().toString().slice(-4)}`, req.body.imageUrl)
+          : (req.body.imageUrl && req.body.imageUrl !== 'null' && req.body.imageUrl !== 'undefined' ? req.body.imageUrl : null),
       });
 
       const loadedDevice = await Device.findByPk(device.id, {
@@ -466,10 +486,10 @@ export async function devicesRoutes(fastify) {
 
 
       if (updateData.imageUrl !== undefined) {
-        if (updateData.imageUrl && updateData.imageUrl.startsWith('data:image/')) {
+        if (updateData.imageUrl && typeof updateData.imageUrl === 'string' && updateData.imageUrl.startsWith('data:image/')) {
           deleteOldDeviceImageFile(device.imageUrl);
           updateData.imageUrl = saveDeviceImageToDisk(device.id, updateData.imageUrl);
-        } else if (!updateData.imageUrl) {
+        } else if (!updateData.imageUrl || updateData.imageUrl === 'null' || updateData.imageUrl === 'undefined' || updateData.imageUrl === '') {
           deleteOldDeviceImageFile(device.imageUrl);
           updateData.imageUrl = null;
         }
@@ -539,14 +559,26 @@ export async function devicesRoutes(fastify) {
   fastify.post('/api/devices/:id/image', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
-      let device = await Device.findByPk(id);
+      const cleanId = decodeURIComponent(id || '').trim();
+      let device = await Device.findByPk(cleanId);
       if (!device) {
-        device = await Device.findOne({ where: { [Op.or]: [{ id }, { id: String(id).toUpperCase() }, { id: String(id).toLowerCase() }] } });
+        device = await Device.findOne({
+          where: {
+            [Op.or]: [
+              { id: cleanId },
+              { id: cleanId.toUpperCase() },
+              { id: cleanId.toLowerCase() }
+            ]
+          }
+        });
       }
-      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Device ${cleanId} not found` });
 
-      const { imageUrl } = req.body || {};
-      if (!imageUrl) return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'imageUrl (base64 data URL) is required.' });
+      let { imageUrl } = req.body || {};
+      if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) {
+        return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: 'imageUrl (base64 data URL) is required.' });
+      }
+      imageUrl = imageUrl.trim();
 
       const approxBytes = Math.round((imageUrl.length * 3) / 4);
       if (approxBytes > MAX_DEVICE_IMAGE_BYTES) {
@@ -562,8 +594,18 @@ export async function devicesRoutes(fastify) {
       // Persist URL in database
       await device.update({ imageUrl: permanentUrl });
 
-      return reply.send({ statusCode: 200, message: 'Device image saved successfully.', imageUrl: permanentUrl, device });
+      const reloaded = await Device.findByPk(device.id, {
+        include: [{ model: Site, include: [Project, Organization] }, Structure]
+      });
+
+      return reply.send({
+        statusCode: 200,
+        message: 'Device image saved successfully.',
+        imageUrl: permanentUrl,
+        device: reloaded || device
+      });
     } catch (err) {
+      console.error('[Upload Device Image Error]', err);
       return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
     }
   });
@@ -572,17 +614,36 @@ export async function devicesRoutes(fastify) {
   fastify.delete('/api/devices/:id/image', { preHandler: [authenticateOptional(fastify), tenantScopeGuard()] }, async (req, reply) => {
     try {
       const { id } = req.params;
-      let device = await Device.findByPk(id);
+      const cleanId = decodeURIComponent(id || '').trim();
+      let device = await Device.findByPk(cleanId);
       if (!device) {
-        device = await Device.findOne({ where: { [Op.or]: [{ id }, { id: String(id).toUpperCase() }, { id: String(id).toLowerCase() }] } });
+        device = await Device.findOne({
+          where: {
+            [Op.or]: [
+              { id: cleanId },
+              { id: cleanId.toUpperCase() },
+              { id: cleanId.toLowerCase() }
+            ]
+          }
+        });
       }
-      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Device not found' });
+      if (!device) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: `Device ${cleanId} not found` });
 
       deleteOldDeviceImageFile(device.imageUrl);
       await device.update({ imageUrl: null });
 
-      return reply.send({ statusCode: 200, message: 'Device image removed.', imageUrl: null });
+      const reloaded = await Device.findByPk(device.id, {
+        include: [{ model: Site, include: [Project, Organization] }, Structure]
+      });
+
+      return reply.send({
+        statusCode: 200,
+        message: 'Device image removed successfully.',
+        imageUrl: null,
+        device: reloaded || device
+      });
     } catch (err) {
+      console.error('[Delete Device Image Error]', err);
       return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
     }
   });

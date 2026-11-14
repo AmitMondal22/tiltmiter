@@ -175,7 +175,7 @@ export default function DevicesPage() {
       })
     : [];
 
-    const handleImageFileSelect = (e) => {
+  const handleImageFileSelect = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
@@ -193,6 +193,26 @@ export default function DevicesPage() {
     };
     reader.readAsDataURL(file);
   };
+
+  const handleConfigImageFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    if (!file.type.startsWith('image/')) {
+      setMsg({ type: 'error', text: 'Please select a valid image file (PNG, JPG, WebP).' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg({ type: 'error', text: 'Image file size must be less than 5 MB.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setConfigForm(prev => ({ ...prev, imageUrl: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleOpenConfig = (dev, e) => {
     e?.stopPropagation();
     setSelectedDevice(dev);
@@ -201,6 +221,7 @@ export default function DevicesPage() {
       wake_count: dev.wake_count !== undefined ? dev.wake_count : '',
       calibrate: Boolean(dev.calibrate ?? dev.hasReferenceZero),
       status: dev.status || 'ONLINE',
+      imageUrl: dev.imageUrl || '',
     });
     setConfigModalOpen(true);
   };
@@ -225,7 +246,7 @@ export default function DevicesPage() {
       siteId: formData.siteId ? String(formData.siteId).trim() : null,
       latitude: formData.latitude !== '' && formData.latitude !== null && formData.latitude !== undefined && !isNaN(parseFloat(formData.latitude)) ? parseFloat(formData.latitude) : null,
       longitude: formData.longitude !== '' && formData.longitude !== null && formData.longitude !== undefined && !isNaN(parseFloat(formData.longitude)) ? parseFloat(formData.longitude) : null,
-      imageUrl: formData.imageUrl !== undefined ? formData.imageUrl : null,
+      imageUrl: formData.imageUrl !== undefined && formData.imageUrl !== '' ? formData.imageUrl : null,
     };
     try {
       if (editingDevice) {
@@ -261,6 +282,7 @@ export default function DevicesPage() {
       wake_count: wakeVal > 0 ? wakeVal : 30,
       calibrate: Boolean(configForm.calibrate),
       status: configForm.status || 'ONLINE',
+      imageUrl: configForm.imageUrl !== undefined && configForm.imageUrl !== '' ? configForm.imageUrl : null,
     };
     try {
       const res = await configureDeviceTelemetry(selectedDevice.id, payload);
@@ -366,11 +388,28 @@ export default function DevicesPage() {
                       className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
                     >
                       <td className="py-3.5 px-3.5">
-                        <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
-                          <span>{dev.name || dev.id}</span>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600" />
+                        <div className="flex items-center gap-3">
+                          {dev.imageUrl ? (
+                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-2xs">
+                              <img
+                                src={formatAssetUrl(dev.imageUrl)}
+                                alt={dev.name || dev.id}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 shrink-0 shadow-2xs">
+                              <Camera className="w-4 h-4 text-slate-400" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                              <span className="truncate">{dev.name || dev.id}</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                            </div>
+                            <div className="text-[11px] font-mono text-slate-500 mt-0.5">{dev.id}</div>
+                          </div>
                         </div>
-                        <div className="text-[11px] font-mono text-slate-500 mt-0.5">{dev.id}</div>
                       </td>
                       <td className="py-3.5 px-3.5">
                         <div className="text-slate-800">{struct?.name || 'No Asset Attached'}</div>
@@ -845,14 +884,14 @@ export default function DevicesPage() {
                 </label>
               </div>
 
-                            {/* Hardware Installation Photo */}
+              {/* Hardware Installation Photo */}
               <div>
                 <label className="block text-slate-700 font-semibold mb-1">Hardware Installation Photo</label>
                 <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50/80">
-                  {formData.imageUrl ? (
+                  {configForm.imageUrl ? (
                     <div className="relative w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white shadow-2xs flex-shrink-0">
                       <img
-                        src={formatAssetUrl(formData.imageUrl)}
+                        src={formatAssetUrl(configForm.imageUrl)}
                         alt="Hardware preview"
                         className="w-full h-full object-cover"
                       />
@@ -867,18 +906,18 @@ export default function DevicesPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer">
                         <Upload className="w-3.5 h-3.5" />
-                        <span>{formData.imageUrl ? 'Replace Image' : 'Upload Image'}</span>
+                        <span>{configForm.imageUrl ? 'Replace Image' : 'Upload Image'}</span>
                         <input
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          onChange={handleImageFileSelect}
+                          onChange={handleConfigImageFileSelect}
                         />
                       </label>
-                      {formData.imageUrl && (
+                      {configForm.imageUrl && (
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, imageUrl: null }))}
+                          onClick={() => setConfigForm(prev => ({ ...prev, imageUrl: null }))}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors cursor-pointer"
                         >
                           <Trash2 className="w-3 h-3" />

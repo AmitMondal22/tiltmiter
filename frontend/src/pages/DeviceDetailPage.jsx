@@ -245,13 +245,35 @@ function DeviceLocationMap({ device, deviceId, d }) {
 }
 
 // 2. Hardware Photo Section – Small size (Only show image, click to view full size)
-function DeviceImageSection({ device, deviceId }) {
+function DeviceImageSection({ device, deviceId, onUpload, onRemove, uploading, removing }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const fileInputRef = useRef(null);
   const deviceImage = device?.imageUrl ? formatAssetUrl(device.imageUrl) : null;
   const displayName = device?.name || (deviceId ? `Tiltmeter ${deviceId}` : 'Tiltmeter Node');
 
+  const handleTriggerUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleTriggerDelete = (e) => {
+    e?.stopPropagation();
+    if (window.confirm(`Are you sure you want to permanently delete the installation photo for "${displayName}"?`)) {
+      if (onRemove) onRemove();
+    }
+  };
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xs flex flex-col justify-between h-full">
+      {/* Hidden file input for direct upload/replace */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onUpload}
+        disabled={uploading || removing}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -260,15 +282,52 @@ function DeviceImageSection({ device, deviceId }) {
             Device Image
           </h4>
         </div>
-        {deviceImage && (
-          <button
-            type="button"
-            onClick={() => setLightboxOpen(true)}
-            className="text-[10px] font-semibold text-purple-600 hover:text-purple-700 cursor-pointer flex items-center gap-0.5 transition-colors flex-shrink-0"
-          >
-            <span>View Full</span>
-          </button>
-        )}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {deviceImage ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                className="text-[10px] font-semibold text-purple-600 hover:text-purple-700 hover:bg-purple-50 px-1.5 py-0.5 rounded cursor-pointer flex items-center gap-0.5 transition-colors"
+                title="View Full Preview"
+              >
+                <Maximize2 className="w-3 h-3" />
+                <span>View</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleTriggerUpload}
+                disabled={uploading || removing}
+                className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-1.5 py-0.5 rounded cursor-pointer flex items-center gap-0.5 transition-colors disabled:opacity-50"
+                title="Update / Replace Photo"
+              >
+                <Upload className="w-3 h-3" />
+                <span>Update</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleTriggerDelete}
+                disabled={uploading || removing}
+                className="text-[10px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 px-1.5 py-0.5 rounded cursor-pointer flex items-center gap-0.5 transition-colors disabled:opacity-50"
+                title="Delete Photo"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Delete</span>
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleTriggerUpload}
+              disabled={uploading || removing}
+              className="text-[10px] font-semibold text-purple-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-0.5 rounded cursor-pointer flex items-center gap-1 transition-colors disabled:opacity-50"
+              title="Upload Photo"
+            >
+              <Upload className="w-3 h-3" />
+              <span>Upload Photo</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Image Display */}
@@ -280,35 +339,74 @@ function DeviceImageSection({ device, deviceId }) {
               alt={displayName}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
-            {/* Bottom Gradient Overlay */}
+            {/* Bottom Gradient Overlay with quick action buttons */}
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent flex items-end justify-between p-2.5">
               <div className="min-w-0 pr-2">
                 <div className="text-white text-xs font-bold leading-tight truncate">
                   {displayName}
                 </div>
                 <div className="text-[10px] text-slate-300 font-mono truncate">
-                  Hardware Unit
+                  Physical Installation Photo
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setLightboxOpen(true)}
-                className="p-1 rounded-md bg-black/50 hover:bg-black/70 text-white transition-colors cursor-pointer shadow-sm flex-shrink-0"
-                title="Expand Image"
-              >
-                <Maximize2 className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleTriggerUpload}
+                  disabled={uploading || removing}
+                  className="p-1 rounded-md bg-black/60 hover:bg-blue-600 text-white transition-colors cursor-pointer shadow-sm"
+                  title="Update / Replace Photo"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleTriggerDelete}
+                  disabled={uploading || removing}
+                  className="p-1 rounded-md bg-black/60 hover:bg-red-600 text-white transition-colors cursor-pointer shadow-sm"
+                  title="Delete Photo"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(true)}
+                  className="p-1 rounded-md bg-black/60 hover:bg-black/80 text-white transition-colors cursor-pointer shadow-sm"
+                  title="Expand Image"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
           </>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-3 text-center">
-            <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200/80 flex items-center justify-center mb-1 text-slate-400 shadow-2xs">
-              <Camera className="w-5 h-5 text-slate-400" />
+          <div
+            onClick={handleTriggerUpload}
+            className="w-full h-full flex flex-col items-center justify-center p-3 text-center cursor-pointer hover:bg-slate-100/70 transition-colors group"
+          >
+            <div className="w-10 h-10 rounded-xl bg-purple-50 group-hover:bg-purple-100 border border-purple-200/80 flex items-center justify-center mb-1.5 text-purple-600 shadow-2xs transition-colors">
+              <Camera className="w-5 h-5 text-purple-600" />
             </div>
-            <span className="text-[11px] font-bold text-slate-700">No Image Available</span>
-            <p className="text-[10px] text-slate-400 max-w-[150px] mt-0.5 leading-tight">
-              No physical photo uploaded.
+            <span className="text-[11px] font-bold text-slate-700 group-hover:text-purple-700 transition-colors">
+              No Image Available
+            </span>
+            <p className="text-[10px] text-slate-400 max-w-[170px] mt-0.5 leading-tight mb-2">
+              Click here to upload physical hardware installation photo.
             </p>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-600 text-white text-[10px] font-semibold shadow-2xs group-hover:bg-purple-700 transition-colors">
+              <Upload className="w-3 h-3" />
+              Upload Image
+            </span>
+          </div>
+        )}
+
+        {/* Uploading / Removing Spinner Overlay */}
+        {(uploading || removing) && (
+          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-2xs flex flex-col items-center justify-center gap-2 z-20 text-white">
+            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-semibold">
+              {uploading ? 'Uploading to server...' : 'Deleting image...'}
+            </span>
           </div>
         )}
       </div>
@@ -317,19 +415,53 @@ function DeviceImageSection({ device, deviceId }) {
       {lightboxOpen && deviceImage && (
         <div
           onClick={() => setLightboxOpen(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 cursor-zoom-out"
         >
-          <div className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2" onClick={e => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setLightboxOpen(false)}
-              className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 cursor-pointer transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <img src={deviceImage} alt={displayName} className="max-w-full max-h-[82vh] object-contain rounded-xl mx-auto" />
-            <div className="text-center text-white text-xs font-mono py-2">
-              {displayName} ({deviceId})
+          <div className="relative max-w-4xl w-full max-h-[92vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-3 flex flex-col items-center" onClick={e => e.stopPropagation()}>
+            <div className="w-full flex items-center justify-between pb-2 text-white border-b border-slate-800 mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Camera className="w-4 h-4 text-purple-400" />
+                <span className="text-xs font-bold truncate">
+                  {displayName} ({deviceId})
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleTriggerUpload();
+                    setLightboxOpen(false);
+                  }}
+                  disabled={uploading || removing}
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Update Photo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    handleTriggerDelete(e);
+                    setLightboxOpen(false);
+                  }}
+                  disabled={uploading || removing}
+                  className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Photo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLightboxOpen(false)}
+                  className="p-1 rounded-full bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <img src={deviceImage} alt={displayName} className="max-w-full max-h-[75vh] object-contain rounded-xl mx-auto shadow-inner" />
+            <div className="text-center text-slate-400 text-[11px] font-mono pt-2">
+              Hardware Installation Proof • Stored in <code className="text-slate-300">/uploads/device_image/</code>
             </div>
           </div>
         </div>
@@ -891,9 +1023,11 @@ export default function DeviceDetailPage() {
       const b64 = reader.result;
       setUploadingImage(true);
       try {
-        const res = await uploadDeviceImage(deviceId, b64);
-        const permanentUrl = res?.imageUrl || b64;
-        setDevice(prev => ({ ...prev, imageUrl: permanentUrl }));
+        const targetId = device?.id || deviceId;
+        const res = await uploadDeviceImage(targetId, b64);
+        const permanentUrl = res?.imageUrl || res?.device?.imageUrl || b64;
+        setDevice(prev => ({ ...(prev || {}), ...(res?.device || {}), imageUrl: permanentUrl }));
+        setConfigForm(prev => ({ ...(prev || {}), imageUrl: permanentUrl }));
         setMsg({ type: 'success', text: 'Device installation image saved to server & database!' });
         setTimeout(() => setMsg({ type: '', text: '' }), 3500);
       } catch (err) {
@@ -909,8 +1043,10 @@ export default function DeviceDetailPage() {
   const handleModalImageRemove = async () => {
     setRemovingImage(true);
     try {
-      await deleteDeviceImage(deviceId);
-      setDevice(prev => ({ ...prev, imageUrl: null }));
+      const targetId = device?.id || deviceId;
+      await deleteDeviceImage(targetId);
+      setDevice(prev => ({ ...(prev || {}), imageUrl: null }));
+      setConfigForm(prev => ({ ...(prev || {}), imageUrl: null }));
       setMsg({ type: 'success', text: 'Device image removed from server & database.' });
       setTimeout(() => setMsg({ type: '', text: '' }), 3000);
     } catch (err) {
@@ -1454,7 +1590,14 @@ export default function DeviceDetailPage() {
           {/* Top row inside card: Location Map (small size) & Device Image (small size) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <DeviceLocationMap device={device} deviceId={deviceId} d={d} />
-            <DeviceImageSection device={device} deviceId={deviceId} />
+            <DeviceImageSection
+              device={device}
+              deviceId={deviceId}
+              onUpload={handleModalImageUpload}
+              onRemove={handleModalImageRemove}
+              uploading={uploadingImage}
+              removing={removingImage}
+            />
           </div>
 
           {/* Underneath in the same card: Device Sampling & Configuration */}

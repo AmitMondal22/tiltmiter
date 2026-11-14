@@ -128,10 +128,15 @@ export default function Sidebar({
             const active =
               location.pathname === item.path ||
               (item.path === '/' && (location.pathname === '' || location.pathname === '/dashboard')) ||
-              (item.path === '/sites' && (location.pathname === '/sites' || location.pathname === '/locations')) ||
-              (item.path === '/structures' && (location.pathname === '/structures' || location.pathname === '/assets')) ||
-              (item.path === '/trends' && (location.pathname === '/trends' || location.pathname === '/history')) ||
-              (item.path === '/alarms' && (location.pathname === '/alarms' || location.pathname === '/alerts'));
+              (item.path === '/sites' && (location.pathname.startsWith('/sites') || location.pathname.startsWith('/locations'))) ||
+              (item.path === '/structures' && (location.pathname.startsWith('/structures') || location.pathname.startsWith('/assets'))) ||
+              (item.path === '/devices' && location.pathname.startsWith('/devices')) ||
+              (item.path === '/trends' && (location.pathname.startsWith('/trends') || location.pathname.startsWith('/history'))) ||
+              (item.path === '/reports' && location.pathname.startsWith('/reports')) ||
+              (item.path === '/alarms' && (location.pathname.startsWith('/alarms') || location.pathname.startsWith('/alerts'))) ||
+              (item.path === '/tickets' && (location.pathname.startsWith('/tickets') || location.pathname.startsWith('/incidents'))) ||
+              (item.path === '/users' && location.pathname.startsWith('/users')) ||
+              (item.path === '/settings' && location.pathname.startsWith('/settings'));
 
             return (
               <button

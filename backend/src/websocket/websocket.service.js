@@ -1,3 +1,4 @@
+import cluster from 'node:cluster';
 import { Device, TelemetryRecord } from '../models/index.js';
 import pkg from 'sequelize';
 const { Op } = pkg;
@@ -5,6 +6,17 @@ const { Op } = pkg;
 // WebSocket Live Telemetry Stream Broadcaster
 const clients = new Set();
 const latestTelemetryByDevice = new Map();
+
+// Multi-Threading Cluster IPC synchronization listener
+if (process.on) {
+  process.on('message', (msg) => {
+    if (msg && msg.type === 'CLUSTER_BROADCAST_TELEMETRY') {
+      localBroadcastTelemetry(msg.data);
+    } else if (msg && msg.type === 'CLUSTER_BROADCAST_ALARM') {
+      localBroadcastAlarm(msg.data);
+    }
+  });
+}
 
 async function sendInitialData(socket, targetDeviceId) {
   if (!targetDeviceId) return;
@@ -141,7 +153,7 @@ export function registerWebSocketHandler(fastify) {
   }, 25000);
 }
 
-export function broadcastTelemetry(data) {
+export function localBroadcastTelemetry(data) {
   if (!data) return;
   const devId = (data.deviceId || data.id || '').toString().trim();
   const lowerDevId = devId.toLowerCase();
@@ -173,7 +185,31 @@ export function broadcastTelemetry(data) {
   }
 }
 
-export function broadcastAlarm(alarm) {
+export function broadcastTelemetry(data, isFromCluster = false) {
+  if (!data) return;
+  localBroadcastTelemetry(data);
+
+  if (isFromCluster) return;
+
+  // In cluster worker mode, notify primary process to broadcast to all sibling workers
+  if (cluster.isWorker && process.send) {
+    try {
+      process.send({ type: 'CLUSTER_BROADCAST_TELEMETRY', data });
+    } catch (_) {}
+  } else if (cluster.isPrimary && cluster.workers) {
+    // In primary process (e.g. simulator), broadcast to all workers
+    for (const id in cluster.workers) {
+      const w = cluster.workers[id];
+      if (w && w.isConnected()) {
+        try {
+          w.send({ type: 'CLUSTER_BROADCAST_TELEMETRY', data });
+        } catch (_) {}
+      }
+    }
+  }
+}
+
+export function localBroadcastAlarm(alarm) {
   if (!alarm) return;
   const payload = JSON.stringify({
     type: 'ALARM_TRIGGERED',
@@ -190,6 +226,29 @@ export function broadcastAlarm(alarm) {
       }
     } catch (err) {
       clients.delete(client);
+    }
+  }
+}
+
+export function broadcastAlarm(alarm, isFromCluster = false) {
+  if (!alarm) return;
+  localBroadcastAlarm(alarm);
+
+  if (isFromCluster) return;
+
+  // In cluster worker mode, notify primary process to broadcast to all sibling workers
+  if (cluster.isWorker && process.send) {
+    try {
+      process.send({ type: 'CLUSTER_BROADCAST_ALARM', data: alarm });
+    } catch (_) {}
+  } else if (cluster.isPrimary && cluster.workers) {
+    for (const id in cluster.workers) {
+      const w = cluster.workers[id];
+      if (w && w.isConnected()) {
+        try {
+          w.send({ type: 'CLUSTER_BROADCAST_ALARM', data: alarm });
+        } catch (_) {}
+      }
     }
   }
 }

@@ -323,6 +323,11 @@ export async function saveTelemetryPoint(data) {
     deviceHistory.shift();
   }
 
+  // Invalidate fast devices response cache so GET /api/devices serves the latest readings immediately
+  if (typeof global !== 'undefined' && global.__invalidateDevicesCache) {
+    global.__invalidateDevicesCache();
+  }
+
   return true;
 }
 

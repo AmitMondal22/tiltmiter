@@ -220,4 +220,10 @@ export const Device = sequelize.define('Device', {
 }, {
   tableName: 'devices',
   timestamps: true,
+  indexes: [
+    { fields: ['organizationId'] },
+    { fields: ['siteId'] },
+    { fields: ['structureId'] },
+    { fields: ['status'] },
+  ],
 });

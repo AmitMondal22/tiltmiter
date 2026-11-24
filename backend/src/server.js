@@ -24,6 +24,7 @@ import { incidentsRoutes } from './modules/incidents/incidents.routes.js';
 import { maintenanceRoutes } from './modules/maintenance/maintenance.routes.js';
 import { structuresRoutes } from './modules/structures/structures.routes.js';
 import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
+import { startTelemetrySimulator, stopTelemetrySimulator } from './services/telemetrySimulatorService.js';
 
 import fastifyStatic from '@fastify/static';
 import path from 'path';
@@ -169,6 +170,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 const closeGracefully = async (signal) => {
   console.log(`[Server] Received ${signal}, closing database connections cleanly...`);
   try {
+    stopTelemetrySimulator();
     await fastify.close();
     await sequelize.close();
     console.log('[Server] Database connections closed safely.');
@@ -193,6 +195,9 @@ async function startServer() {
     // 2. Start Fastify Server
     await fastify.listen({ port: PORT, host: HOST });
     console.log(`🚀 Fastify REST API & WebSocket Server running at http://${HOST}:${PORT}`);
+
+    // 3. Start Automatic 16-Minute Overdue Telemetry Simulator
+    startTelemetrySimulator();
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

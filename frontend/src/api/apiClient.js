@@ -647,5 +647,11 @@ export async function deleteTicket(id) {
   });
 }
 
+export async function clearAllTickets() {
+  return await request('/tickets/clear-all', {
+    method: 'DELETE',
+  });
+}
+
 
 

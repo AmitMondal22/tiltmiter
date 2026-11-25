@@ -62,20 +62,22 @@ export async function incidentsRoutes(fastify) {
         dbTickets = await Incident.findAll({
           where,
           order: [['createdAt', 'DESC']],
-          limit: 150,
+          limit: 250,
         });
+        dbSuccess = true;
       } catch (dbErr) {
         // Fallback to memory store
         console.warn('[Incidents] DB query fallback:', dbErr.message);
       }
 
-      // If DB returned nothing or failed, use memory store
-      let list = (dbTickets && dbTickets.length > 0)
-        ? dbTickets.map(enrichTicketData)
+      // If DB query succeeded, use dbTickets (even if empty [] when all tickets are cleared!)
+      // ONLY fallback to memoryTickets if DB query failed completely (e.g. table not created / DB offline)
+      let list = dbSuccess
+        ? (dbTickets || []).map(enrichTicketData)
         : [...memoryTickets];
 
-      // Apply in-memory filters if fallback active
-      if (!dbTickets || dbTickets.length === 0) {
+      // Apply in-memory filters only if fallback active
+      if (!dbSuccess) {
         if (status) {
           const statuses = status.split(',').map(s => s.trim().toUpperCase());
           list = list.filter(t => statuses.includes((t.status || '').toUpperCase()));
@@ -131,14 +133,18 @@ export async function incidentsRoutes(fastify) {
 
   // --- 2. Ticket Statistics & KPIs ---
   const handleGetStats = async (req, reply) => {
-    let list = [...memoryTickets];
+    let list = [];
+    let dbSuccess = false;
     try {
       const dbAll = await Incident.findAll();
-      if (dbAll && dbAll.length > 0) {
-        list = dbAll.map(enrichTicketData);
-      }
+      list = (dbAll || []).map(enrichTicketData);
+      dbSuccess = true;
     } catch (_) {
       // Memory fallback
+    }
+
+    if (!dbSuccess && list.length === 0) {
+      list = [...memoryTickets];
     }
 
     const stats = {
@@ -694,4 +700,23 @@ export async function incidentsRoutes(fastify) {
 
   fastify.delete('/api/incidents/:id', { preHandler: [authenticateOptional(fastify)] }, handleDeleteTicket);
   fastify.delete('/api/tickets/:id', { preHandler: [authenticateOptional(fastify)] }, handleDeleteTicket);
+
+  // --- 12. Clear All Tickets (Purge all tickets) ---
+  const handleClearAllTickets = async (req, reply) => {
+    try {
+      try {
+        await Incident.destroy({ where: {}, truncate: false });
+      } catch (e) {
+        console.warn('[Incidents] DB clear error:', e.message);
+      }
+      memoryTickets.length = 0; // Empty the in-memory array
+
+      return reply.send({ statusCode: 200, message: 'All tickets cleared successfully.' });
+    } catch (err) {
+      return reply.status(500).send({ statusCode: 500, error: 'Internal Server Error', message: err.message });
+    }
+  };
+
+  fastify.delete('/api/incidents/clear-all', { preHandler: [authenticateOptional(fastify)] }, handleClearAllTickets);
+  fastify.delete('/api/tickets/clear-all', { preHandler: [authenticateOptional(fastify)] }, handleClearAllTickets);
 }

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, X, CheckCircle2, ChevronRight, Cpu, Layers, Map as MapIcon, List, Shield, Box, MapPin, Activity, Zap, Radio, ExternalLink } from 'lucide-react';
-import { getStructures, getSites, getProjects, getOrganizations, createStructure, updateStructure, deleteStructure, createDevice, getDevices } from '../api/apiClient';
+import { getStructures, getSites, getProjects, getOrganizations, createStructure, updateStructure, deleteStructure, createDevice, getDevices, updateDevice, updateStructureDeviceLocationsBulk } from '../api/apiClient';
 import AssetsMapView, { ASSET_TYPES, getAssetTypeConfig } from '../components/AssetsMapView';
 import Landslide3DMapView from '../components/Landslide3DMapView';
+import LocationMapView from '../components/LocationMapView';
+import MapPicker from '../components/MapPicker';
+import DeviceLocationPickerModal from '../components/DeviceLocationPickerModal';
 
 export default function StructuresPage() {
   const navigate = useNavigate();
@@ -19,6 +22,8 @@ export default function StructuresPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStruct, setEditingStruct] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [selectedDeviceInAsset, setSelectedDeviceInAsset] = useState(null);
+  const [locationModalDevice, setLocationModalDevice] = useState(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [isCustomType, setIsCustomType] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -41,6 +46,8 @@ export default function StructuresPage() {
     name: '',
     sensorType: 'Inclinometer',
     macAddress: '',
+    latitude: '',
+    longitude: '',
   });
 
   const loadData = async () => {
@@ -152,11 +159,25 @@ export default function StructuresPage() {
   const handleSaveDevice = async (e) => {
     e.preventDefault();
     try {
-      await createDevice({
+      const res = await createDevice({
+        ...deviceForm,
+        structureId: selectedAsset.id,
+        siteId: selectedAsset.siteId || null,
+        projectId: selectedAsset.projectId || null,
+        organizationId: selectedAsset.organizationId || null,
+        latitude: deviceForm.latitude !== '' && deviceForm.latitude !== null ? parseFloat(deviceForm.latitude) : null,
+        longitude: deviceForm.longitude !== '' && deviceForm.longitude !== null ? parseFloat(deviceForm.longitude) : null,
+      });
+      const createdDev = res?.device || {
         ...deviceForm,
         structureId: selectedAsset.id,
         siteId: selectedAsset.siteId,
-      });
+        status: 'ONLINE',
+      };
+      setDevicesList(prev => [createdDev, ...prev]);
+      setSelectedAsset(prev =>
+        prev ? { ...prev, Devices: [createdDev, ...(prev.Devices || [])] } : prev
+      );
       setMsg({ type: 'success', text: `Device ${deviceForm.id} attached to ${selectedAsset.name}.` });
       setDeviceModalOpen(false);
       loadData();
@@ -164,6 +185,89 @@ export default function StructuresPage() {
       setMsg({ type: 'error', text: err.message || 'Error attaching device' });
     } finally {
       setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+    }
+  };
+
+  const handleDeviceLocationSaved = (updatedDevice) => {
+    setDevicesList(prev =>
+      prev.map(d => (String(d.id) === String(updatedDevice.id) ? { ...d, ...updatedDevice } : d))
+    );
+    setStructuresList(prev =>
+      prev.map(st => ({
+        ...st,
+        Devices: (st.Devices || []).map(d =>
+          String(d.id) === String(updatedDevice.id) ? { ...d, ...updatedDevice } : d
+        ),
+      }))
+    );
+    setSelectedAsset(prev =>
+      prev
+        ? {
+            ...prev,
+            Devices: (prev.Devices || []).map(d =>
+              String(d.id) === String(updatedDevice.id) ? { ...d, ...updatedDevice } : d
+            ),
+          }
+        : prev
+    );
+    if (selectedDeviceInAsset && String(selectedDeviceInAsset.id) === String(updatedDevice.id)) {
+      setSelectedDeviceInAsset(prev => ({ ...prev, ...updatedDevice }));
+    }
+    setMsg({
+      type: 'success',
+      text: `Updated location for ${updatedDevice.name || updatedDevice.id} (${Number(updatedDevice.latitude).toFixed(4)}°, ${Number(updatedDevice.longitude).toFixed(4)}°).`,
+    });
+    setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+  };
+
+  const handleSaveAllMovedDevices = async (movedItems) => {
+    if (!selectedAsset || !Array.isArray(movedItems) || movedItems.length === 0) return;
+    try {
+      const payload = movedItems.map(m => ({
+        id: m.id || m.deviceId,
+        deviceId: m.deviceId || m.id,
+        latitude: m.latitude,
+        longitude: m.longitude,
+      }));
+      try {
+        await updateStructureDeviceLocationsBulk(selectedAsset.id, payload);
+      } catch {
+        await Promise.all(
+          payload.map(item =>
+            updateDevice(item.id, {
+              latitude: item.latitude,
+              longitude: item.longitude,
+              structureId: selectedAsset.id,
+            }).catch(() => null)
+          )
+        );
+      }
+
+      const moveMap = new Map(payload.map(p => [String(p.id), p]));
+      const patchDevice = (d) => {
+        const m = moveMap.get(String(d.id));
+        return m ? { ...d, latitude: m.latitude, longitude: m.longitude } : d;
+      };
+
+      setDevicesList(prev => prev.map(patchDevice));
+      setStructuresList(prev =>
+        prev.map(st => ({ ...st, Devices: (st.Devices || []).map(patchDevice) }))
+      );
+      setSelectedAsset(prev =>
+        prev ? { ...prev, Devices: (prev.Devices || []).map(patchDevice) } : prev
+      );
+      if (selectedDeviceInAsset) {
+        setSelectedDeviceInAsset(prev => (prev ? patchDevice(prev) : prev));
+      }
+
+      setMsg({
+        type: 'success',
+        text: `Saved GPS locations for ${movedItems.length} moved device(s) under ${selectedAsset.name}.`,
+      });
+      setTimeout(() => setMsg({ type: '', text: '' }), 4000);
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Failed to save moved device locations.' });
+      setTimeout(() => setMsg({ type: '', text: '' }), 4000);
     }
   };
 
@@ -343,77 +447,171 @@ export default function StructuresPage() {
         />
       )}
 
-      {/* Attach Device Modal / Detailed Attached Devices Panel */}
-      {selectedAsset && (
-        <div className="p-5 rounded-2xl border-2 border-slate-300 bg-slate-50 text-black space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-black text-black">
-                Inclinometer Devices Attached to: {selectedAsset.name} ({selectedAsset.id || selectedAsset.code})
-              </h3>
-              <p className="text-xs text-slate-700">Hardware inclinometer nodes deployed on this structure</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  setDeviceForm({
-                    id: `TECHA${Date.now().toString().slice(-5)}`,
-                    name: `Node on ${selectedAsset.name}`,
-                    sensorType: 'Inclinometer',
-                    macAddress: 'AA:BB:CC:DD:EE:FF',
-                  });
-                  setDeviceModalOpen(true);
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 bg-black text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Device to Asset</span>
-              </button>
-              <button onClick={() => setSelectedAsset(null)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+      {/* Attach Device Modal / Detailed Attached Devices Panel (Scoped to selected Structural Asset) */}
+      {selectedAsset && (() => {
+        const assetDevices = (selectedAsset.Devices && selectedAsset.Devices.length > 0)
+          ? selectedAsset.Devices.map(d => devicesList.find(full => String(full.id) === String(d.id)) || d)
+          : devicesList.filter(d => String(d.structureId) === String(selectedAsset.id));
+        const parentSite = sitesList.find(s => String(s.id || s.siteId) === String(selectedAsset.siteId));
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-            {(!selectedAsset.Devices || selectedAsset.Devices.length === 0) ? (
-              <div className="col-span-full py-4 text-center text-slate-500 text-xs">
-                No sensor nodes attached yet. Click "Add Device to Asset".
+        return (
+          <div className="p-5 rounded-2xl border-2 border-slate-300 bg-slate-50 text-black space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-black flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-blue-600" />
+                  <span>Inclinometer Devices Attached to: {selectedAsset.name} ({selectedAsset.id || selectedAsset.code})</span>
+                </h3>
+                <p className="text-xs text-slate-700 mt-0.5">
+                  Showing only devices under this Structural Asset &bull; Select a device or click "Edit Location" to pick GPS on map
+                </p>
               </div>
-            ) : (
-              selectedAsset.Devices.map(d => {
-                const isOnline = (d.status || 'ONLINE') === 'ONLINE';
-                const disp = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 1.8);
-                const tilt = Number(d.resultantTilt || d.tilt?.tilt || 0.4);
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setDeviceForm({
+                      id: `TECHA${Date.now().toString().slice(-5)}`,
+                      name: `Node on ${selectedAsset.name}`,
+                      sensorType: 'Inclinometer',
+                      macAddress: 'AA:BB:CC:DD:EE:FF',
+                      latitude: selectedAsset.latitude || parentSite?.latitude || 26.7271,
+                      longitude: selectedAsset.longitude || parentSite?.longitude || 88.4315,
+                    });
+                    setDeviceModalOpen(true);
+                  }}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-black text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer hover:bg-neutral-800"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Device to Asset</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedAsset(null);
+                    setSelectedDeviceInAsset(null);
+                  }}
+                  className="p-1.5 text-black hover:bg-slate-200 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
 
-                return (
-                  <div key={d.id} className="p-3 rounded-xl border border-slate-300 bg-white font-mono text-xs space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <div className="font-bold text-black">{d.id}</div>
-                      <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
-                        isOnline ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-amber-100 text-amber-950 border border-amber-300'
-                      }`}>
-                        {d.status || 'ONLINE'}
-                      </span>
-                    </div>
-                    <div className="text-slate-700 text-[11px] font-sans font-medium">{d.name}</div>
-                    <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-100 text-[11px]">
-                      <div>
-                        <span className="text-slate-500 block text-[10px]">Disp Δ:</span>
-                        <span className="font-bold text-blue-700">{disp.toFixed(1)}mm</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 block text-[10px]">Tilt θ:</span>
-                        <span className="font-bold text-purple-700">{tilt.toFixed(1)}°</span>
-                      </div>
-                    </div>
+            {selectedDeviceInAsset && (
+              <div className="p-3 rounded-xl border border-blue-300 bg-blue-50 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+                  <div>
+                    <span className="font-bold text-black">Selected: {selectedDeviceInAsset.name || selectedDeviceInAsset.id}</span>
+                    <span className="ml-2 font-mono text-slate-600">({selectedDeviceInAsset.id})</span>
+                    <span className="ml-3 font-mono text-blue-800">
+                      {selectedDeviceInAsset.latitude != null && selectedDeviceInAsset.longitude != null
+                        ? `${Number(selectedDeviceInAsset.latitude).toFixed(5)}°, ${Number(selectedDeviceInAsset.longitude).toFixed(5)}°`
+                        : 'No GPS set'}
+                    </span>
                   </div>
-                );
-              })
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLocationModalDevice(selectedDeviceInAsset)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>Pick / Update Location on Map</span>
+                </button>
+              </div>
             )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+              {/* Left 7 Cols: Structural Asset Map showing ONLY this asset & its devices */}
+              <div className="lg:col-span-7 rounded-xl overflow-hidden border border-slate-200 bg-white">
+                <LocationMapView
+                  sites={[]}
+                  structures={[selectedAsset]}
+                  devices={assetDevices}
+                  projects={projectsList}
+                  organizations={orgsList}
+                  initialSelectedSiteId="ALL"
+                  onSelectSite={() => {}}
+                  enableDeviceDrag={true}
+                  onSaveAllDeviceLocations={handleSaveAllMovedDevices}
+                />
+              </div>
+
+              {/* Right 5 Cols: Device Cards with Location & Edit Location button */}
+              <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5 max-h-[520px] overflow-y-auto pr-1">
+                {assetDevices.length === 0 ? (
+                  <div className="col-span-full py-8 text-center text-slate-500 text-xs bg-white rounded-xl border border-slate-200">
+                    No sensor nodes attached yet. Click "Add Device to Asset".
+                  </div>
+                ) : (
+                  assetDevices.map(d => {
+                    const isOnline = (d.status || 'ONLINE') === 'ONLINE';
+                    const disp = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 1.8);
+                    const tilt = Number(d.resultantTilt || d.tilt?.tilt || 0.4);
+                    const isSelected = selectedDeviceInAsset?.id === d.id;
+                    const hasGps = d.latitude !== null && d.latitude !== undefined && d.latitude !== '' &&
+                                   d.longitude !== null && d.longitude !== undefined && d.longitude !== '';
+
+                    return (
+                      <div
+                        key={d.id}
+                        onClick={() => setSelectedDeviceInAsset(d)}
+                        className={`p-3 rounded-xl border font-mono text-xs space-y-2 cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-blue-600 bg-blue-50/70 shadow-xs'
+                            : 'border-slate-300 bg-white hover:border-blue-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="font-bold text-black">{d.id}</div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            isOnline ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-amber-100 text-amber-950 border border-amber-300'
+                          }`}>
+                            {d.status || 'ONLINE'}
+                          </span>
+                        </div>
+                        <div className="text-slate-700 text-[11px] font-sans font-semibold truncate">{d.name}</div>
+
+                        <div className="flex items-center justify-between text-[10.5px] bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                          <span className="flex items-center gap-1 text-slate-600 truncate">
+                            <MapPin className="w-3 h-3 text-blue-600 shrink-0" />
+                            {hasGps ? (
+                              <span>{Number(d.latitude).toFixed(4)}°, {Number(d.longitude).toFixed(4)}°</span>
+                            ) : (
+                              <span className="italic text-slate-400 font-sans">No GPS set</span>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLocationModalDevice(d);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 font-sans font-bold underline cursor-pointer shrink-0 ml-1"
+                          >
+                            Edit Location
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-1 pt-1 border-t border-slate-100 text-[11px]">
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">Disp Δ:</span>
+                            <span className="font-bold text-blue-700">{disp.toFixed(1)}mm</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">Tilt θ:</span>
+                            <span className="font-bold text-purple-700">{tilt.toFixed(1)}°</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal: Add / Edit Structural Asset */}
       {modalOpen && (
@@ -535,40 +733,82 @@ export default function StructuresPage() {
         </div>
       )}
 
-      {/* Device Modal */}
+      {/* Device Modal (Add Device with Map Picker) */}
       {deviceModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white text-black shadow-2xl p-6">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white text-black shadow-2xl p-6 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-200 mb-4">
-              <h3 className="text-base font-black text-black">Attach Device to Asset</h3>
+              <div>
+                <h3 className="text-base font-black text-black">Attach Device to {selectedAsset?.name || 'Asset'}</h3>
+                <p className="text-[11px] text-slate-500">Pick exact GPS location for the new device on the map</p>
+              </div>
               <button onClick={() => setDeviceModalOpen(false)} className="text-black hover:bg-slate-100 p-1 rounded-lg cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveDevice} className="space-y-3 text-xs text-black">
-              <div>
-                <label className="block text-black font-extrabold mb-1">Device ID *</label>
-                <input
-                  type="text"
-                  required
-                  value={deviceForm.id}
-                  onChange={e => setDeviceForm({ ...deviceForm, id: e.target.value })}
-                  placeholder="e.g. TECHA12346"
-                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-mono font-bold"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-black font-extrabold mb-1">Device ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={deviceForm.id}
+                    onChange={e => setDeviceForm({ ...deviceForm, id: e.target.value })}
+                    placeholder="e.g. TECHA12346"
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-black font-extrabold mb-1">Device Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={deviceForm.name}
+                    onChange={e => setDeviceForm({ ...deviceForm, name: e.target.value })}
+                    placeholder="e.g. Sensor Node A"
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-black font-extrabold mb-1">Device Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={deviceForm.name}
-                  onChange={e => setDeviceForm({ ...deviceForm, name: e.target.value })}
-                  placeholder="e.g. Sensor Node A"
-                  className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-bold"
-                />
+              <MapPicker
+                latitude={parseFloat(deviceForm.latitude) || parseFloat(selectedAsset?.latitude) || 26.7271}
+                longitude={parseFloat(deviceForm.longitude) || parseFloat(selectedAsset?.longitude) || 88.4315}
+                deployedDevices={
+                  selectedAsset
+                    ? devicesList.filter(d => String(d.structureId) === String(selectedAsset.id))
+                    : []
+                }
+                height="250px"
+                onChange={({ latitude, longitude }) =>
+                  setDeviceForm(prev => ({ ...prev, latitude, longitude }))
+                }
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-black font-extrabold mb-1">Latitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={deviceForm.latitude}
+                    onChange={e => setDeviceForm({ ...deviceForm, latitude: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-black font-extrabold mb-1">Longitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={deviceForm.longitude}
+                    onChange={e => setDeviceForm({ ...deviceForm, longitude: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-mono font-bold"
+                  />
+                </div>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
@@ -590,6 +830,21 @@ export default function StructuresPage() {
           </div>
         </div>
       )}
+
+      {/* Interactive Device Location Picker Modal */}
+      <DeviceLocationPickerModal
+        isOpen={Boolean(locationModalDevice)}
+        onClose={() => setLocationModalDevice(null)}
+        device={locationModalDevice}
+        structure={selectedAsset}
+        site={selectedAsset ? sitesList.find(s => String(s.id || s.siteId) === String(selectedAsset.siteId)) : null}
+        assetDevices={
+          selectedAsset
+            ? devicesList.filter(d => String(d.structureId) === String(selectedAsset.id))
+            : []
+        }
+        onSaved={handleDeviceLocationSaved}
+      />
     </div>
   );
 }

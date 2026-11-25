@@ -275,6 +275,8 @@ export default function LocationMapView({
   organizations = [],
   initialSelectedSiteId = 'ALL',
   onSelectSite,
+  enableDeviceDrag = false,
+  onSaveAllDeviceLocations = null,
 }) {
   const navigate = useNavigate();
   const mapContainerRef = useRef(null);
@@ -295,6 +297,9 @@ export default function LocationMapView({
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
   const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
+  const [dragMode, setDragMode] = useState(Boolean(enableDeviceDrag));
+  const [pendingMoves, setPendingMoves] = useState({});
+  const [savingMoves, setSavingMoves] = useState(false);
 
   // Lightbox Preview Modal State
   const [previewImageModal, setPreviewImageModal] = useState({
@@ -497,17 +502,26 @@ export default function LocationMapView({
     });
   }, [is3D]);
 
-  // Helper to reliably compute device coordinates with parent site anchoring fallback
+  // Helper to reliably compute device coordinates with parent site / structure anchoring fallback
   const getDeviceCoordinates = (dev) => {
+    const moved = pendingMoves[dev.id];
+    if (moved) {
+      return [moved.longitude, moved.latitude];
+    }
+
     let lat = parseFloat(dev.latitude);
     let lng = parseFloat(dev.longitude);
 
     if (isNaN(lat) || isNaN(lng)) {
       const parentSite = sites.find(s => s.id === dev.siteId || s.siteId === dev.siteId);
+      const parentStruct = structures.find(st => String(st.id) === String(dev.structureId));
       const hash = (dev.id || dev.name || 'dev').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       const angle = ((hash % 12) / 12) * 2 * Math.PI;
-      const dist = 0.0015 + ((hash % 5) * 0.0004);
-      if (parentSite && parentSite.latitude && parentSite.longitude) {
+      const dist = 0.0008 + ((hash % 5) * 0.00025);
+      if (parentStruct && parentStruct.latitude && parentStruct.longitude) {
+        lat = parseFloat(parentStruct.latitude) + Math.cos(angle) * dist;
+        lng = parseFloat(parentStruct.longitude) + Math.sin(angle) * dist;
+      } else if (parentSite && parentSite.latitude && parentSite.longitude) {
         lat = parseFloat(parentSite.latitude) + Math.cos(angle) * dist;
         lng = parseFloat(parentSite.longitude) + Math.sin(angle) * dist;
       } else {
@@ -786,22 +800,25 @@ export default function LocationMapView({
         : (dev.tilt?.tilt || 0.22);
       const devImage = dev.imageUrl ? formatAssetUrl(dev.imageUrl) : null;
 
+      const isMoved = Boolean(pendingMoves[dev.id]);
+
       // Custom Fixed Pin Marker
       const el = document.createElement('div');
       el.className = 'device-marker-wrapper select-none';
       el.style.width = 'fit-content';
       el.style.height = 'fit-content';
-      el.style.cursor = 'pointer';
+      el.style.cursor = dragMode ? 'grab' : 'pointer';
       el.innerHTML = `
         <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
-          <div style="background: ${isOnline ? '#0f172a' : '#78350f'}; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-family: monospace; font-weight: 800; font-size: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 1.5px solid ${isOnline ? '#34d399' : '#f59e0b'}; display: flex; align-items: center; gap: 5px; white-space: nowrap;">
-            <span style="width: 6px; height: 6px; border-radius: 50%; background: ${isOnline ? '#34d399' : '#f59e0b'};"></span>
+          <div style="background: ${isMoved ? '#1d4ed8' : (isOnline ? '#0f172a' : '#78350f')}; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-family: monospace; font-weight: 800; font-size: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: ${isMoved ? '2px solid #93c5fd' : `1.5px solid ${isOnline ? '#34d399' : '#f59e0b'}`}; display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: ${isMoved ? '#93c5fd' : (isOnline ? '#34d399' : '#f59e0b')};"></span>
             <span>${dev.name || dev.id}</span>
             <span style="color: #67e8f9; font-weight: bold;">Δ ${Number(devDisplacement).toFixed(2)}mm</span>
+            ${dragMode ? `<span style="background: rgba(255,255,255,0.18); padding: 1px 4px; border-radius: 4px; font-size: 9px; color: #e0f2fe;" title="Drag pin to move">${isMoved ? 'MOVED' : '⇄'}</span>` : ''}
             ${devImage ? `<span style="background: #9333ea; padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;">${cameraIconSvg}</span>` : ''}
           </div>
-          <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${isOnline ? '#0f172a' : '#78350f'};"></div>
-          <div style="width: 8px; height: 8px; border-radius: 50%; background: ${isOnline ? '#10b981' : '#f59e0b'}; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-top: -2px;"></div>
+          <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${isMoved ? '#1d4ed8' : (isOnline ? '#0f172a' : '#78350f')};"></div>
+          <div style="width: 9px; height: 9px; border-radius: 50%; background: ${isMoved ? '#3b82f6' : (isOnline ? '#10b981' : '#f59e0b')}; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-top: -2px;"></div>
         </div>
       `;
 
@@ -881,18 +898,41 @@ export default function LocationMapView({
 
       el.addEventListener('click', () => {
         setSelectedDevice(dev);
-        map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: is3D ? 55 : 0, duration: 1000 });
+        if (!dragMode) {
+          map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: is3D ? 55 : 0, duration: 1000 });
+        }
       });
 
       const marker = new maplibregl.Marker({
         element: el,
         anchor: 'bottom',
         pitchAlignment: 'viewport',
-        rotationAlignment: 'viewport'
+        rotationAlignment: 'viewport',
+        draggable: dragMode
       })
         .setLngLat([lng, lat])
         .setPopup(popup)
         .addTo(map);
+
+      if (dragMode) {
+        marker.on('dragstart', () => {
+          el.style.cursor = 'grabbing';
+        });
+        marker.on('dragend', () => {
+          el.style.cursor = 'grab';
+          const ll = marker.getLngLat();
+          setPendingMoves(prev => ({
+            ...prev,
+            [dev.id]: {
+              id: dev.id,
+              deviceId: dev.id,
+              latitude: parseFloat(ll.lat.toFixed(6)),
+              longitude: parseFloat(ll.lng.toFixed(6)),
+              device: dev,
+            },
+          }));
+        });
+      }
 
       markersRef.current.push(marker);
     });
@@ -907,7 +947,7 @@ export default function LocationMapView({
         initialBoundsFittedRef.current = true;
       } catch (e) {}
     }
-  }, [filteredSites, filteredDevices, structures]);
+  }, [filteredSites, filteredDevices, structures, dragMode, pendingMoves]);
 
   // Handle Site Selection
   const handleSiteSelect = (siteId) => {
@@ -1067,6 +1107,23 @@ export default function LocationMapView({
             <span>Heatmap</span>
           </button>
 
+          {/* Move All Device Pins Toggle (when enabled by parent) */}
+          {enableDeviceDrag && (
+            <button
+              type="button"
+              onClick={() => setDragMode(!dragMode)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-[11px] shadow-2xs transition-all cursor-pointer ${
+                dragMode
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-300'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+              }`}
+              title="Drag and move any device pin on the map to update its GPS location"
+            >
+              <MapPin className={`w-3.5 h-3.5 ${dragMode ? 'text-white' : 'text-blue-600'}`} />
+              <span>{dragMode ? 'Move Pins: ON' : 'Move Pins'}</span>
+            </button>
+          )}
+
           {/* Toggle Analytics Sidebar */}
           <button
             onClick={() => setShowAnalyticsPanel(!showAnalyticsPanel)}
@@ -1085,6 +1142,52 @@ export default function LocationMapView({
       {/* Main MapLibre 3D Canvas */}
       <div className="flex-1 relative flex overflow-hidden w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full relative z-0" />
+
+        {/* Floating All-Device Pin Move & Batch Save Bar */}
+        {enableDeviceDrag && dragMode && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-slate-900/95 text-white backdrop-blur-md border border-slate-700 shadow-2xl text-xs pointer-events-auto animate-fadeIn">
+            {Object.keys(pendingMoves).length === 0 ? (
+              <div className="flex items-center gap-2 text-slate-200 font-medium">
+                <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+                <span>Drag any device point on the map to move &amp; update its location</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5 font-bold text-blue-300">
+                  <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+                  <span>{Object.keys(pendingMoves).length} device(s) moved</span>
+                </div>
+                <button
+                  type="button"
+                  disabled={savingMoves}
+                  onClick={async () => {
+                    if (!onSaveAllDeviceLocations) return;
+                    setSavingMoves(true);
+                    try {
+                      await onSaveAllDeviceLocations(Object.values(pendingMoves));
+                      setPendingMoves({});
+                    } finally {
+                      setSavingMoves(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-xs shadow-xs cursor-pointer transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{savingMoves ? 'Saving...' : `Save All Locations (${Object.keys(pendingMoves).length})`}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={savingMoves}
+                  onClick={() => setPendingMoves({})}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Displacement Heatmap Legend */}
         {showHeatmap && (

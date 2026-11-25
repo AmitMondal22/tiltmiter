@@ -330,6 +330,20 @@ export async function updateStructure(id, data) {
   });
 }
 
+export async function updateStructureDeviceLocation(structureId, deviceId, data) {
+  return await request(`/structures/${structureId}/devices/${deviceId}/location`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateStructureDeviceLocationsBulk(structureId, updates) {
+  return await request(`/structures/${structureId}/devices/locations`, {
+    method: 'PUT',
+    body: JSON.stringify({ updates }),
+  });
+}
+
 export async function deleteStructure(id) {
   return await request(`/structures/${id}`, {
     method: 'DELETE',

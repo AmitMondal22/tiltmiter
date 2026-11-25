@@ -1,5 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Navigation, ZoomIn, ZoomOut, Compass, Crosshair, Layers, CheckCircle } from 'lucide-react';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { MapPin, ZoomIn, ZoomOut, Compass, CheckCircle } from 'lucide-react';
+
+const SATELLITE_STYLE = {
+  version: 8,
+  sources: {
+    'esri-satellite': {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      maxzoom: 18,
+      attribution: '&copy; Esri World Imagery',
+    },
+  },
+  layers: [
+    {
+      id: 'satellite-tiles-layer',
+      type: 'raster',
+      source: 'esri-satellite',
+      minzoom: 0,
+      maxzoom: 22,
+    },
+  ],
+};
 
 export default function MapPicker({
   latitude = 22.5726,
@@ -8,112 +34,243 @@ export default function MapPicker({
   isDark = false,
   presetSites = [],
   deployedDevices = [],
+  selectedDeviceId = null,
+  onSelectDevice = null,
   readOnly = false,
-  height = '320px'
+  height = '320px',
 }) {
-  const [currentLat, setCurrentLat] = useState(parseFloat(latitude) || 22.5726);
-  const [currentLng, setCurrentLng] = useState(parseFloat(longitude) || 88.3639);
-  const [zoom, setZoom] = useState(15);
-  const [mapType, setMapType] = useState('street'); // 'street' or 'satellite'
+  const initialLat = Number.isFinite(parseFloat(latitude)) ? parseFloat(latitude) : 22.5726;
+  const initialLng = Number.isFinite(parseFloat(longitude)) ? parseFloat(longitude) : 88.3639;
+
+  const [currentLat, setCurrentLat] = useState(initialLat);
+  const [currentLng, setCurrentLng] = useState(initialLng);
+  const [zoomLevel, setZoomLevel] = useState(16);
+
   const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const targetMarkerRef = useRef(null);
+  const siblingMarkersRef = useRef([]);
+  const onChangeRef = useRef(onChange);
+  const readOnlyRef = useRef(readOnly);
 
   useEffect(() => {
-    if (latitude !== undefined && latitude !== null) setCurrentLat(parseFloat(latitude));
-    if (longitude !== undefined && longitude !== null) setCurrentLng(parseFloat(longitude));
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    readOnlyRef.current = readOnly;
+  }, [readOnly]);
+
+  // Initialize MapLibre GL Satellite Map once
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: SATELLITE_STYLE,
+      center: [initialLng, initialLat],
+      zoom: 16,
+      minZoom: 3,
+      maxZoom: 21,
+      attributionControl: false,
+    });
+
+    mapRef.current = map;
+
+    // Create target pin DOM element
+    const targetEl = document.createElement('div');
+    targetEl.style.cursor = readOnlyRef.current ? 'default' : 'grab';
+    targetEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;pointer-events:auto;">
+        <div style="background:#2563eb;color:#ffffff;padding:2px 8px;border-radius:9999px;font-size:10px;font-weight:800;box-shadow:0 3px 8px rgba(37,99,235,0.45);border:1.5px solid #ffffff;white-space:nowrap;margin-bottom:2px;">
+          Target Pin
+        </div>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="#2563eb" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 3px 6px rgba(0,0,0,0.45));">
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+          <circle cx="12" cy="10" r="3" fill="#67e8f9" stroke="#ffffff" stroke-width="1.5"></circle>
+        </svg>
+      </div>
+    `;
+
+    const targetMarker = new maplibregl.Marker({
+      element: targetEl,
+      anchor: 'bottom',
+      draggable: !readOnlyRef.current,
+    })
+      .setLngLat([initialLng, initialLat])
+      .addTo(map);
+
+    targetMarkerRef.current = targetMarker;
+
+    const commitCoords = (lngLat) => {
+      const newLat = parseFloat(lngLat.lat.toFixed(6));
+      const newLng = parseFloat(lngLat.lng.toFixed(6));
+      setCurrentLat(newLat);
+      setCurrentLng(newLng);
+      if (onChangeRef.current) {
+        onChangeRef.current({ latitude: newLat, longitude: newLng });
+      }
+    };
+
+    targetMarker.on('dragstart', () => {
+      targetEl.style.cursor = 'grabbing';
+    });
+
+    targetMarker.on('dragend', () => {
+      targetEl.style.cursor = 'grab';
+      commitCoords(targetMarker.getLngLat());
+    });
+
+    map.on('click', (e) => {
+      if (readOnlyRef.current) return;
+      targetMarker.setLngLat(e.lngLat);
+      commitCoords(e.lngLat);
+    });
+
+    map.on('zoom', () => {
+      setZoomLevel(Number(map.getZoom().toFixed(1)));
+    });
+
+    map.on('load', () => {
+      map.resize();
+    });
+
+    const resizeTimer = setTimeout(() => {
+      try {
+        map.resize();
+      } catch {}
+    }, 150);
+
+    return () => {
+      clearTimeout(resizeTimer);
+      siblingMarkersRef.current.forEach((m) => m.remove());
+      siblingMarkersRef.current = [];
+      targetMarker.remove();
+      map.remove();
+      mapRef.current = null;
+      targetMarkerRef.current = null;
+    };
+  }, []);
+
+  // Sync external latitude / longitude prop changes to marker & map center
+  useEffect(() => {
+    const parsedLat = parseFloat(latitude);
+    const parsedLng = parseFloat(longitude);
+    if (isNaN(parsedLat) || isNaN(parsedLng)) return;
+
+    setCurrentLat(parsedLat);
+    setCurrentLng(parsedLng);
+
+    if (targetMarkerRef.current) {
+      const cur = targetMarkerRef.current.getLngLat();
+      if (Math.abs(cur.lat - parsedLat) > 1e-6 || Math.abs(cur.lng - parsedLng) > 1e-6) {
+        targetMarkerRef.current.setLngLat([parsedLng, parsedLat]);
+        if (mapRef.current) {
+          mapRef.current.panTo([parsedLng, parsedLat], { duration: 350 });
+        }
+      }
+    }
   }, [latitude, longitude]);
 
-  // Convert lat/lng to OpenStreetMap tile numbers
-  const lat2tile = (lat, z) => (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, z);
-  const lon2tile = (lon, z) => (lon + 180) / 360 * Math.pow(2, z);
+  // Plot sibling / deployed devices on the Satellite map
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
 
-  const tile2lat = (y, z) => {
-    const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
-    return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-  };
-  const tile2lon = (x, z) => x / Math.pow(2, z) * 360 - 180;
+    siblingMarkersRef.current.forEach((m) => m.remove());
+    siblingMarkersRef.current = [];
 
-  // Handle click on map to move marker
-  const handleMapClick = (e) => {
-    if (readOnly) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
+    (deployedDevices || []).forEach((d) => {
+      const devLat = parseFloat(d.latitude);
+      const devLng = parseFloat(d.longitude);
+      if (isNaN(devLat) || isNaN(devLng)) return;
 
-    const centerX = rect.width / 2;
-    const centerY = rect.height / 2;
+      const isSelectedDev = selectedDeviceId && String(d.id) === String(selectedDeviceId);
+      const isOnline = (d.status || 'ONLINE') === 'ONLINE';
 
-    const centerTileX = lon2tile(currentLng, zoom);
-    const centerTileY = lat2tile(currentLat, zoom);
+      const el = document.createElement('div');
+      el.style.cursor = onSelectDevice ? 'pointer' : 'default';
+      el.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div style="background:${isSelectedDev ? '#2563eb' : (isOnline ? '#059669' : '#d97706')};color:#ffffff;padding:2px 6px;border-radius:6px;font-size:9px;font-family:monospace;font-weight:800;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.4);border:1px solid #ffffff;margin-bottom:2px;">
+            ${d.name || d.id}
+          </div>
+          <div style="width:10px;height:10px;border-radius:50%;background:${isSelectedDev ? '#3b82f6' : (isOnline ? '#10b981' : '#f59e0b')};border:2px solid #ffffff;box-shadow:0 2px 4px rgba(0,0,0,0.5);"></div>
+        </div>
+      `;
 
-    const deltaTilesX = (clickX - centerX) / 256;
-    const deltaTilesY = (clickY - centerY) / 256;
+      if (onSelectDevice) {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onSelectDevice(d);
+        });
+      }
 
-    const newTileX = centerTileX + deltaTilesX;
-    const newTileY = centerTileY + deltaTilesY;
+      const marker = new maplibregl.Marker({
+        element: el,
+        anchor: 'bottom',
+      })
+        .setLngLat([devLng, devLat])
+        .addTo(map);
 
-    const newLat = parseFloat(tile2lat(newTileY, zoom).toFixed(6));
-    const newLng = parseFloat(tile2lon(newTileX, zoom).toFixed(6));
-
-    setCurrentLat(newLat);
-    setCurrentLng(newLng);
-    if (onChange) {
-      onChange({ latitude: newLat, longitude: newLng });
-    }
-  };
+      siblingMarkersRef.current.push(marker);
+    });
+  }, [deployedDevices, selectedDeviceId, onSelectDevice]);
 
   const handlePresetSelect = (site) => {
-    const lat = site.latitude || site.lat || 22.5726;
-    const lng = site.longitude || site.lng || 88.3639;
+    const lat = parseFloat(site.latitude || site.lat || 22.5726);
+    const lng = parseFloat(site.longitude || site.lng || 88.3639);
+    if (isNaN(lat) || isNaN(lng)) return;
+
     setCurrentLat(lat);
     setCurrentLng(lng);
-    setZoom(16);
+
+    if (targetMarkerRef.current) {
+      targetMarkerRef.current.setLngLat([lng, lat]);
+    }
+    if (mapRef.current) {
+      mapRef.current.flyTo({ center: [lng, lat], zoom: 17, duration: 500 });
+    }
     if (onChange) onChange({ latitude: lat, longitude: lng });
   };
 
-  // Compute 3x3 surrounding tiles for smooth pan representation
-  const centerTileX = lon2tile(currentLng, zoom);
-  const centerTileY = lat2tile(currentLat, zoom);
-  const tileIntX = Math.floor(centerTileX);
-  const tileIntY = Math.floor(centerTileY);
-  const fracX = centerTileX - tileIntX;
-  const fracY = centerTileY - tileIntY;
-
-  const tiles = [];
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const tx = tileIntX + dx;
-      const ty = tileIntY + dy;
-      const url = mapType === 'street'
-        ? `https://tile.openstreetmap.org/${zoom}/${tx}/${ty}.png`
-        : `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${ty}/${tx}`;
-      tiles.push({ tx, ty, dx, dy, url });
+  const handleZoomIn = () => {
+    if (mapRef.current) {
+      mapRef.current.zoomIn({ duration: 250 });
     }
-  }
+  };
+
+  const handleZoomOut = () => {
+    if (mapRef.current) {
+      mapRef.current.zoomOut({ duration: 250 });
+    }
+  };
 
   return (
     <div className={`rounded-xl border overflow-hidden flex flex-col ${isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
-      {/* Map Control Toolbar */}
+      {/* Map Control Toolbar (Satellite View Only) */}
       <div className={`flex flex-wrap items-center justify-between px-3 py-2 border-b text-xs gap-2 ${isDark ? 'bg-slate-950/80 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
         <div className="flex items-center gap-2 font-mono">
-          <div className="p-1 rounded bg-blue-500/20 text-blue-400">
+          <div className="p-1 rounded bg-blue-500/20 text-blue-500">
             <Compass className="w-3.5 h-3.5" />
           </div>
           <span className="font-semibold text-[11px]">
-            GPS: <span className="text-emerald-400">{currentLat.toFixed(5)}° N</span>, <span className="text-cyan-400">{currentLng.toFixed(5)}° E</span>
+            GPS: <span className="text-emerald-600 font-bold">{currentLat.toFixed(5)}° N</span>,{' '}
+            <span className="text-blue-600 font-bold">{currentLng.toFixed(5)}° E</span>
           </span>
         </div>
 
-        {/* Quick presets for sites */}
+        {/* Quick presets for asset / sites */}
         {presetSites.length > 0 && (
           <div className="flex items-center gap-1 overflow-x-auto max-w-[260px] py-0.5">
-            <span className="text-[10px] text-slate-400 font-bold uppercase mr-1">Sites:</span>
+            <span className="text-[10px] text-slate-400 font-bold uppercase mr-1">Jump:</span>
             {presetSites.map((s, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => handlePresetSelect(s)}
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap transition-colors ${
-                  Math.abs((s.latitude || s.lat) - currentLat) < 0.001 && Math.abs((s.longitude || s.lng) - currentLng) < 0.001
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                  Math.abs((s.latitude || s.lat) - currentLat) < 0.0005 && Math.abs((s.longitude || s.lng) - currentLng) < 0.0005
                     ? 'bg-blue-600 text-white'
                     : (isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300')
                 }`}
@@ -124,33 +281,26 @@ export default function MapPicker({
           </div>
         )}
 
-        {/* Zoom & Layer Toggle */}
+        {/* Satellite Badge + Zoom In / Out Controls */}
         <div className="flex items-center gap-1.5 ml-auto">
+          <span className="px-2 py-0.5 rounded bg-slate-900 text-white text-[10px] font-bold tracking-wide">
+            Satellite
+          </span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-bold">
+            Z {zoomLevel}
+          </span>
           <button
             type="button"
-            onClick={() => setMapType(mapType === 'street' ? 'satellite' : 'street')}
-            className={`p-1 rounded text-[10px] font-bold px-2 flex items-center gap-1 border ${
-              mapType === 'satellite'
-                ? 'bg-purple-600 text-white border-purple-500'
-                : (isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-200 text-slate-700 border-slate-300')
-            }`}
-            title="Toggle Map Imagery"
-          >
-            <Layers className="w-3 h-3" />
-            <span>{mapType === 'satellite' ? 'Satellite' : 'Street'}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setZoom(Math.min(18, zoom + 1))}
-            className={`p-1 rounded border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-slate-200 border-slate-300 text-slate-700 hover:bg-slate-300'}`}
+            onClick={handleZoomIn}
+            className="p-1.5 rounded border bg-white border-slate-300 text-slate-800 hover:bg-slate-100 cursor-pointer shadow-2xs"
             title="Zoom In"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
           <button
             type="button"
-            onClick={() => setZoom(Math.max(10, zoom - 1))}
-            className={`p-1 rounded border ${isDark ? 'bg-slate-800 border-slate-700 text-slate-300 hover:text-white' : 'bg-slate-200 border-slate-300 text-slate-700 hover:bg-slate-300'}`}
+            onClick={handleZoomOut}
+            className="p-1.5 rounded border bg-white border-slate-300 text-slate-800 hover:bg-slate-100 cursor-pointer shadow-2xs"
             title="Zoom Out"
           >
             <ZoomOut className="w-3.5 h-3.5" />
@@ -158,99 +308,15 @@ export default function MapPicker({
         </div>
       </div>
 
-      {/* Interactive Map Canvas Container */}
-      <div
-        ref={mapContainerRef}
-        onClick={handleMapClick}
-        style={{ height }}
-        className="relative w-full overflow-hidden cursor-crosshair select-none bg-slate-950 flex items-center justify-center"
-      >
-        {/* Render 3x3 Tile Matrix */}
-        <div
-          className="absolute pointer-events-none transition-transform duration-100"
-          style={{
-            width: '768px',
-            height: '768px',
-            left: `calc(50% - ${384 + fracX * 256}px)`,
-            top: `calc(50% - ${384 + fracY * 256}px)`
-          }}
-        >
-          {tiles.map((t, idx) => (
-            <img
-              key={idx}
-              src={t.url}
-              alt=""
-              crossOrigin="anonymous"
-              loading="eager"
-              className="absolute w-[256px] h-[256px] object-cover"
-              style={{
-                left: `${(t.dx + 1) * 256}px`,
-                top: `${(t.dy + 1) * 256}px`,
-                filter: isDark && mapType === 'street' ? 'invert(90%) hue-rotate(180deg) brightness(90%) contrast(90%)' : 'none'
-              }}
-              onError={(e) => {
-                e.target.style.display = 'none';
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Map Grid Crosshairs Overlay */}
-        <div className="absolute inset-0 pointer-events-none border border-blue-500/10">
-          <div className="absolute left-1/2 top-0 bottom-0 w-[1px] bg-blue-500/20"></div>
-          <div className="absolute top-1/2 left-0 right-0 h-[1px] bg-blue-500/20"></div>
-        </div>
-
-        {/* Other Deployed Devices plotted on map if provided */}
-        {deployedDevices.map((d, index) => {
-          if (!d.latitude || !d.longitude) return null;
-          const devTileX = lon2tile(d.longitude, zoom);
-          const devTileY = lat2tile(d.latitude, zoom);
-          const pxX = (devTileX - centerTileX) * 256;
-          const pxY = (devTileY - centerTileY) * 256;
-
-          const isNear = Math.abs(pxX) < 300 && Math.abs(pxY) < 300;
-          if (!isNear) return null;
-
-          return (
-            <div
-              key={d.id || index}
-              className="absolute pointer-events-auto transform -translate-x-1/2 -translate-y-full z-20 group"
-              style={{
-                left: `calc(50% + ${pxX}px)`,
-                top: `calc(50% + ${pxY}px)`
-              }}
-            >
-              <div className="flex flex-col items-center">
-                <div className={`px-1.5 py-0.5 rounded shadow text-[9px] font-bold font-mono whitespace-nowrap mb-0.5 ${
-                  d.status === 'ONLINE' ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
-                }`}>
-                  {d.name || d.id}
-                </div>
-                <MapPin className={`w-5 h-5 drop-shadow-md ${d.status === 'ONLINE' ? 'text-emerald-400' : 'text-amber-400'}`} fill="currentColor" />
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Selected Target Device Pin (Center Pin Marker) */}
-        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-full pointer-events-none z-30 flex flex-col items-center animate-bounce duration-700">
-          <div className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold shadow-lg shadow-blue-500/50 flex items-center gap-1 mb-0.5 whitespace-nowrap">
-            <Crosshair className="w-3 h-3 text-cyan-300" />
-            <span>Target Installation Pin</span>
-          </div>
-          <div className="relative">
-            <MapPin className="w-8 h-8 text-blue-500 drop-shadow-[0_4px_8px_rgba(59,130,246,0.6)]" fill="#2563eb" />
-            <div className="w-2.5 h-2.5 bg-cyan-300 rounded-full absolute top-2 left-1/2 -translate-x-1/2"></div>
-          </div>
-          <div className="w-3 h-1.5 bg-blue-500/50 rounded-full blur-[1px] mt-[-2px]"></div>
-        </div>
+      {/* Interactive MapLibre Satellite Canvas */}
+      <div className="relative w-full bg-slate-950" style={{ height }}>
+        <div ref={mapContainerRef} className="w-full h-full" />
 
         {/* Helper Hint Box */}
         {!readOnly && (
-          <div className="absolute bottom-2 left-2 z-20 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md text-white text-[10px] font-medium flex items-center gap-1.5">
-            <CheckCircle className="w-3 h-3 text-emerald-400" />
-            <span>Click anywhere on the map to place/adjust GPS coordinates</span>
+          <div className="absolute bottom-2 left-2 z-10 px-2.5 py-1 rounded-lg bg-black/75 backdrop-blur-md text-white text-[10px] font-medium flex items-center gap-1.5 pointer-events-none">
+            <CheckCircle className="w-3 h-3 text-emerald-400 shrink-0" />
+            <span>Click anywhere on the Satellite map or drag the blue pin to set exact GPS coordinates</span>
           </div>
         )}
       </div>

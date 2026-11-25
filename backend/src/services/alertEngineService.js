@@ -1,4 +1,4 @@
-import { AlertRule, Alarm, Incident, Device, Site } from '../models/index.js';
+import { AlertRule, Alarm, Incident, Device, Site, Structure, Project } from '../models/index.js';
 import { sendAlertEmail, getActiveRecipientEmails } from './emailService.js';
 import { broadcastAlarm } from '../websocket/websocket.service.js';
 import { getMemoryAlertRules } from '../modules/alarms/alarms.routes.js';
@@ -45,6 +45,10 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
   const rawTilt = telemetry.tilt?.tilt ?? telemetry.resultantTilt ?? device.resultantTilt ?? 0;
   const tiltVal = Math.abs(parseFloat(rawTilt) || 0);
 
+  const rawXTilt = telemetry.tilt?.x ?? telemetry.tilt?.tiltX ?? telemetry.xTilt ?? device.xTilt ?? null;
+  const rawYTilt = telemetry.tilt?.y ?? telemetry.tilt?.tiltY ?? telemetry.yTilt ?? device.yTilt ?? null;
+  const rawZTilt = telemetry.tilt?.z ?? telemetry.tilt?.tiltZ ?? telemetry.zTilt ?? device.zTilt ?? null;
+
   const rawXDisp = telemetry.displacement?.xDisplacement_mm ?? telemetry.xDisplacement ?? device.xDisplacement ?? 0;
   const rawYDisp = telemetry.displacement?.yDisplacement_mm ?? telemetry.yDisplacement ?? device.yDisplacement ?? 0;
   const rawTotalDisp = telemetry.displacement?.totalDisplacement_mm ?? telemetry.totalDisplacement ?? device.totalDisplacement ?? null;
@@ -52,6 +56,17 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
   const xDisp = Math.abs(parseFloat(rawXDisp) || 0);
   const yDisp = Math.abs(parseFloat(rawYDisp) || 0);
   const dispVal = rawTotalDisp !== null ? Math.abs(parseFloat(rawTotalDisp) || 0) : Math.sqrt(xDisp * xDisp + yDisp * yDisp);
+
+  // Metadata context for alert payload
+  const projectName = device.Project?.name || device.Site?.Project?.name || null;
+  const structureName = device.Structure?.name || null;
+  const structureType = device.Structure?.type || null;
+  const siteLatitude = device.Site?.latitude ?? null;
+  const siteLongitude = device.Site?.longitude ?? null;
+  const structureLatitude = device.Structure?.latitude ?? null;
+  const structureLongitude = device.Structure?.longitude ?? null;
+  const deviceLatitude = device.latitude ?? null;
+  const deviceLongitude = device.longitude ?? null;
 
   // 2. Fetch all enabled AlertRules matching THIS particular device
   let allRules = [];
@@ -123,6 +138,21 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
           title: `${breachedSeverity} ${param.toUpperCase()} Alert: ${rule.ruleName}`,
           message: rule.message || `${param.toUpperCase()} threshold limit (${limitValue}) breached on device ${devId} (${devName}). Rule: "${rule.ruleName}".`,
           recipients: Array.isArray(rule.emails) && rule.emails.length > 0 ? rule.emails : null,
+          tiltX: rawXTilt,
+          tiltY: rawYTilt,
+          resultantTilt: tiltVal,
+          dispX: rawXDisp,
+          dispY: rawYDisp,
+          totalDisp: dispVal,
+          projectName,
+          structureName,
+          structureType,
+          siteLatitude,
+          siteLongitude,
+          structureLatitude,
+          structureLongitude,
+          latitude: deviceLatitude,
+          longitude: deviceLongitude,
         });
       }
     }
@@ -132,6 +162,7 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
       triggeredAlerts.push({
         deviceId: devId,
         siteId,
+        siteName: device.Site?.name || 'Main Geotechnical Site',
         deviceName: devName,
         parameter: 'tilt',
         severity: 'CRITICAL',
@@ -139,11 +170,24 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
         threshold: '2.000° (Critical Limit)',
         title: `Critical Tilt Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
         message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, breaching the critical safety limit of 2.000°. Immediate inspection required.`,
+        tiltX: rawXTilt,
+        tiltY: rawYTilt,
+        resultantTilt: tiltVal,
+        projectName,
+        structureName,
+        structureType,
+        siteLatitude,
+        siteLongitude,
+        structureLatitude,
+        structureLongitude,
+        latitude: deviceLatitude,
+        longitude: deviceLongitude,
       });
     } else if (tiltVal > 1.0) {
       triggeredAlerts.push({
         deviceId: devId,
         siteId,
+        siteName: device.Site?.name || 'Main Geotechnical Site',
         deviceName: devName,
         parameter: 'tilt',
         severity: 'WARNING',
@@ -151,6 +195,18 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
         threshold: '1.000° (Warning Limit)',
         title: `Tilt Warning Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
         message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, exceeding the warning threshold of 1.000°.`,
+        tiltX: rawXTilt,
+        tiltY: rawYTilt,
+        resultantTilt: tiltVal,
+        projectName,
+        structureName,
+        structureType,
+        siteLatitude,
+        siteLongitude,
+        structureLatitude,
+        structureLongitude,
+        latitude: deviceLatitude,
+        longitude: deviceLongitude,
       });
     }
 
@@ -158,6 +214,7 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
       triggeredAlerts.push({
         deviceId: devId,
         siteId,
+        siteName: device.Site?.name || 'Main Geotechnical Site',
         deviceName: devName,
         parameter: 'displacement',
         severity: 'CRITICAL',
@@ -165,11 +222,27 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
         threshold: '10.00 mm (Critical Limit)',
         title: `Critical Displacement Exceeded: ${dispVal.toFixed(2)} mm`,
         message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the critical limit of 10.00 mm.`,
+        dispX: rawXDisp,
+        dispY: rawYDisp,
+        totalDisp: dispVal,
+        tiltX: rawXTilt,
+        tiltY: rawYTilt,
+        resultantTilt: tiltVal,
+        projectName,
+        structureName,
+        structureType,
+        siteLatitude,
+        siteLongitude,
+        structureLatitude,
+        structureLongitude,
+        latitude: deviceLatitude,
+        longitude: deviceLongitude,
       });
     } else if (dispVal > 5.0) {
       triggeredAlerts.push({
         deviceId: devId,
         siteId,
+        siteName: device.Site?.name || 'Main Geotechnical Site',
         deviceName: devName,
         parameter: 'displacement',
         severity: 'WARNING',
@@ -177,6 +250,21 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
         threshold: '5.00 mm (Warning Limit)',
         title: `Displacement Warning Exceeded: ${dispVal.toFixed(2)} mm`,
         message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the warning threshold of 5.00 mm.`,
+        dispX: rawXDisp,
+        dispY: rawYDisp,
+        totalDisp: dispVal,
+        tiltX: rawXTilt,
+        tiltY: rawYTilt,
+        resultantTilt: tiltVal,
+        projectName,
+        structureName,
+        structureType,
+        siteLatitude,
+        siteLongitude,
+        structureLatitude,
+        structureLongitude,
+        latitude: deviceLatitude,
+        longitude: deviceLongitude,
       });
     }
   }
@@ -306,6 +394,7 @@ export async function triggerManualAlert({
 }) {
   const targetDeviceIds = Array.isArray(deviceIds) && deviceIds.length > 0 ? deviceIds : ['DEV-001'];
   const results = [];
+  let primaryDeviceObj = null;
 
   // Determine recipients
   let targetEmails = recipients;
@@ -314,10 +403,16 @@ export async function triggerManualAlert({
   }
 
   for (const devId of targetDeviceIds) {
-    // 1. Fetch device details if available
+    // 1. Fetch device details with full hierarchical associations
     let deviceObj = { id: devId, name: `Inclinometer Sensor ${devId}` };
     try {
-      const dbDev = await Device.findByPk(devId, { include: [Site] });
+      const dbDev = await Device.findByPk(devId, {
+        include: [
+          { model: Site, include: [Project] },
+          { model: Structure },
+          { model: Project }
+        ]
+      });
       if (dbDev) {
         deviceObj = dbDev.toJSON ? dbDev.toJSON() : dbDev;
       }
@@ -325,11 +420,18 @@ export async function triggerManualAlert({
       // Use fallback
     }
 
+    if (!primaryDeviceObj) {
+      primaryDeviceObj = deviceObj;
+    }
+
     const alertsToTrigger = [];
 
     // Parameter checks
     if (parameter === 'tilt' || parameter === 'both') {
       const tVal = parseFloat(tiltValue) || 2.45;
+      const computedTiltX = deviceObj.xTilt ?? (tVal * 0.7071).toFixed(3);
+      const computedTiltY = deviceObj.yTilt ?? (tVal * 0.7071).toFixed(3);
+
       alertsToTrigger.push({
         deviceId: devId,
         siteId: deviceObj.siteId,
@@ -341,11 +443,26 @@ export async function triggerManualAlert({
         threshold: severity === 'CRITICAL' ? '2.000° (Critical Limit)' : '1.000° (Warning Limit)',
         title: `Operator Generated Tilt Alert: ${tVal.toFixed(3)}° on ${devId}`,
         message: customMessage || `Manual simulation breach: Resultant tilt reached ${tVal.toFixed(3)}° (Threshold: ${severity === 'CRITICAL' ? '2.000°' : '1.000°'}).`,
+        tiltX: computedTiltX,
+        tiltY: computedTiltY,
+        resultantTilt: tVal,
+        projectName: deviceObj.Project?.name || deviceObj.Site?.Project?.name,
+        structureName: deviceObj.Structure?.name,
+        structureType: deviceObj.Structure?.type,
+        siteLatitude: deviceObj.Site?.latitude,
+        siteLongitude: deviceObj.Site?.longitude,
+        structureLatitude: deviceObj.Structure?.latitude,
+        structureLongitude: deviceObj.Structure?.longitude,
+        latitude: deviceObj.latitude,
+        longitude: deviceObj.longitude,
       });
     }
 
     if (parameter === 'displacement' || parameter === 'both') {
       const dVal = parseFloat(displacementValue) || 12.8;
+      const computedDispX = (dVal * 0.7071).toFixed(2);
+      const computedDispY = (dVal * 0.7071).toFixed(2);
+
       alertsToTrigger.push({
         deviceId: devId,
         siteId: deviceObj.siteId,
@@ -357,6 +474,18 @@ export async function triggerManualAlert({
         threshold: severity === 'CRITICAL' ? '10.00 mm (Critical Limit)' : '5.00 mm (Warning Limit)',
         title: `Operator Generated Displacement Alert: ${dVal.toFixed(2)} mm on ${devId}`,
         message: customMessage || `Manual simulation breach: Subsurface lateral displacement reached ${dVal.toFixed(2)} mm (Threshold: ${severity === 'CRITICAL' ? '10.00 mm' : '5.00 mm'}).`,
+        dispX: `${computedDispX} mm`,
+        dispY: `${computedDispY} mm`,
+        totalDisp: `${dVal.toFixed(2)} mm`,
+        projectName: deviceObj.Project?.name || deviceObj.Site?.Project?.name,
+        structureName: deviceObj.Structure?.name,
+        structureType: deviceObj.Structure?.type,
+        siteLatitude: deviceObj.Site?.latitude,
+        siteLongitude: deviceObj.Site?.longitude,
+        structureLatitude: deviceObj.Structure?.latitude,
+        structureLongitude: deviceObj.Structure?.longitude,
+        latitude: deviceObj.latitude,
+        longitude: deviceObj.longitude,
       });
     }
 
@@ -429,21 +558,41 @@ export async function triggerManualAlert({
         ? targetDeviceIds[0]
         : `${targetDeviceIds.length} Devices (${targetDeviceIds.slice(0, 4).join(', ')}${targetDeviceIds.length > 4 ? '...' : ''})`;
 
+      const tNum = parseFloat(tiltValue) || 2.45;
+      const dNum = parseFloat(displacementValue) || 12.8;
+
       const primaryAlert = {
         deviceId: summaryDeviceLabel,
+        deviceName: primaryDeviceObj?.name || (targetDeviceIds.length === 1 ? `Inclinometer Sensor ${targetDeviceIds[0]}` : `Inclinometer Array (${targetDeviceIds.length} devices)`),
         parameter,
         severity: severity.toUpperCase(),
-        value: parameter === 'tilt' ? `${(parseFloat(tiltValue) || 2.45).toFixed(3)}°` : `${(parseFloat(displacementValue) || 12.8).toFixed(2)} mm`,
-        threshold: severity === 'CRITICAL' ? (parameter === 'tilt' ? '2.000°' : '10.00 mm') : (parameter === 'tilt' ? '1.000°' : '5.00 mm'),
+        value: parameter === 'tilt' ? `${tNum.toFixed(3)}°` : `${dNum.toFixed(2)} mm`,
+        threshold: severity === 'CRITICAL' ? (parameter === 'tilt' ? '2.000° (Critical Limit)' : '10.00 mm (Critical Limit)') : (parameter === 'tilt' ? '1.000° (Warning Limit)' : '5.00 mm (Warning Limit)'),
         title: targetDeviceIds.length === 1
           ? `Geotechnical Alert: ${targetDeviceIds[0]} - ${severity.toUpperCase()}`
           : `Geotechnical Multi-Device Alert: ${targetDeviceIds.length} Units - ${severity.toUpperCase()}`,
-        message: customMessage || `Geotechnical threshold limit exceeded for ${parameter.toUpperCase()} on ${targetDeviceIds.length} monitored device(s): ${targetDeviceIds.join(', ')}.`,
+        message: customMessage || `Geotechnical safety limit exceeded for ${parameter.toUpperCase()} on ${targetDeviceIds.length} monitored device(s): ${targetDeviceIds.join(', ')}.`,
+        tiltX: primaryDeviceObj?.xTilt ?? (tNum * 0.7071).toFixed(3),
+        tiltY: primaryDeviceObj?.yTilt ?? (tNum * 0.7071).toFixed(3),
+        resultantTilt: tNum,
+        dispX: `${(dNum * 0.7071).toFixed(2)} mm`,
+        dispY: `${(dNum * 0.7071).toFixed(2)} mm`,
+        totalDisp: `${dNum.toFixed(2)} mm`,
+        projectName: primaryDeviceObj?.Project?.name || primaryDeviceObj?.Site?.Project?.name,
+        siteName: primaryDeviceObj?.Site?.name,
+        siteLatitude: primaryDeviceObj?.Site?.latitude,
+        siteLongitude: primaryDeviceObj?.Site?.longitude,
+        structureName: primaryDeviceObj?.Structure?.name,
+        structureType: primaryDeviceObj?.Structure?.type,
+        structureLatitude: primaryDeviceObj?.Structure?.latitude,
+        structureLongitude: primaryDeviceObj?.Structure?.longitude,
+        latitude: primaryDeviceObj?.latitude,
+        longitude: primaryDeviceObj?.longitude,
       };
 
       emailResult = await sendAlertEmail({
         alert: primaryAlert,
-        device: { id: summaryDeviceLabel, name: `Inclinometer Array (${targetDeviceIds.length} devices)` },
+        device: primaryDeviceObj || { id: summaryDeviceLabel, name: `Inclinometer Array (${targetDeviceIds.length} devices)` },
         recipients: targetEmails,
       });
     } catch (mailErr) {

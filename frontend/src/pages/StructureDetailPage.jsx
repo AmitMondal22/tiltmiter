@@ -4,14 +4,16 @@ import {
   ArrowLeft, MapPin, Cpu, Shield, Layers, Box, Map as MapIcon,
   Activity, AlertTriangle, CheckCircle2, Battery, Signal, Zap,
   ExternalLink, TrendingUp, Navigation, RefreshCw, Radio, ShieldCheck,
-  Mountain, Calendar, Hash, Globe, Info, Search, X
+  Mountain, Calendar, Hash, Globe, Info, Search, X, Plus, Edit
 } from 'lucide-react';
 import {
   getStructure, getStructures, getSites, getDevices,
-  getProjects, getOrganizations
+  getProjects, getOrganizations, createDevice, updateDevice, updateStructureDeviceLocationsBulk
 } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
 import Landslide3DMapView from '../components/Landslide3DMapView';
+import MapPicker from '../components/MapPicker';
+import DeviceLocationPickerModal from '../components/DeviceLocationPickerModal';
 import { getAssetTypeConfig } from '../components/AssetsMapView';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
@@ -32,6 +34,18 @@ export default function StructureDetailPage() {
   const [sidebarTab, setSidebarTab] = useState('devices'); // 'devices' or 'structures'
   const [deviceSearch, setDeviceSearch] = useState('');
   const [structureSearch, setStructureSearch] = useState('');
+  const [locationModalDevice, setLocationModalDevice] = useState(null);
+  const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false);
+  const [savingDevice, setSavingDevice] = useState(false);
+  const [toastMsg, setToastMsg] = useState({ type: '', text: '' });
+  const [newDeviceForm, setNewDeviceForm] = useState({
+    id: '',
+    name: '',
+    sensorType: 'Inclinometer',
+    macAddress: '',
+    latitude: '',
+    longitude: '',
+  });
 
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
@@ -194,8 +208,129 @@ export default function StructureDetailPage() {
     );
   });
 
+  const showToast = (type, text) => {
+    setToastMsg({ type, text });
+    setTimeout(() => setToastMsg({ type: '', text: '' }), 4000);
+  };
+
+  const handleOpenAddDevice = () => {
+    const baseLat = parseFloat(structure?.latitude) || parseFloat(site?.latitude) || 26.7271;
+    const baseLng = parseFloat(structure?.longitude) || parseFloat(site?.longitude) || 88.4315;
+    setNewDeviceForm({
+      id: `TECHA${Date.now().toString().slice(-5)}`,
+      name: `Node on ${structure?.name || structureId}`,
+      sensorType: 'Inclinometer',
+      macAddress: 'AA:BB:CC:DD:EE:FF',
+      latitude: baseLat,
+      longitude: baseLng,
+    });
+    setAddDeviceModalOpen(true);
+  };
+
+  const handleSaveNewDevice = async (e) => {
+    e.preventDefault();
+    setSavingDevice(true);
+    try {
+      const res = await createDevice({
+        ...newDeviceForm,
+        structureId: structure?.id || structureId,
+        siteId: structure?.siteId || site?.id || site?.siteId || null,
+        projectId: structure?.projectId || project?.id || null,
+        organizationId: structure?.organizationId || org?.id || null,
+        latitude: newDeviceForm.latitude !== '' ? parseFloat(newDeviceForm.latitude) : null,
+        longitude: newDeviceForm.longitude !== '' ? parseFloat(newDeviceForm.longitude) : null,
+      });
+      if (res?.device) {
+        setAttachedDevices(prev => [res.device, ...prev]);
+        setSelectedDevice(res.device);
+      } else {
+        await loadData();
+      }
+      setAddDeviceModalOpen(false);
+      showToast('success', `Device ${newDeviceForm.id} added to ${structure?.name} with GPS location.`);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to add device.');
+    } finally {
+      setSavingDevice(false);
+    }
+  };
+
+  const handleDeviceLocationSaved = (updatedDevice) => {
+    setAttachedDevices(prev =>
+      prev.map(d => (String(d.id) === String(updatedDevice.id) ? { ...d, ...updatedDevice } : d))
+    );
+    if (selectedDevice && String(selectedDevice.id) === String(updatedDevice.id)) {
+      setSelectedDevice(prev => ({ ...prev, ...updatedDevice }));
+    }
+    showToast('success', `Location updated for device ${updatedDevice.name || updatedDevice.id}.`);
+  };
+
+  const handleSaveAllMovedDevices = async (movedItems) => {
+    if (!Array.isArray(movedItems) || movedItems.length === 0) return;
+    try {
+      const payload = movedItems.map(m => ({
+        id: m.id || m.deviceId,
+        deviceId: m.deviceId || m.id,
+        latitude: m.latitude,
+        longitude: m.longitude,
+      }));
+      let updatedList = [];
+      try {
+        const res = await updateStructureDeviceLocationsBulk(structure?.id || structureId, payload);
+        updatedList = Array.isArray(res?.devices) ? res.devices : [];
+      } catch {
+        const results = await Promise.all(
+          payload.map(item =>
+            updateDevice(item.id, {
+              latitude: item.latitude,
+              longitude: item.longitude,
+              structureId: structure?.id || structureId,
+            }).catch(() => null)
+          )
+        );
+        updatedList = results.map(r => r?.device).filter(Boolean);
+      }
+
+      const moveMap = new Map(payload.map(p => [String(p.id), p]));
+      const updatedMap = new Map(updatedList.map(d => [String(d.id), d]));
+
+      setAttachedDevices(prev =>
+        prev.map(d => {
+          const u = updatedMap.get(String(d.id));
+          if (u) return { ...d, ...u };
+          const m = moveMap.get(String(d.id));
+          return m ? { ...d, latitude: m.latitude, longitude: m.longitude } : d;
+        })
+      );
+      if (selectedDevice) {
+        const m = moveMap.get(String(selectedDevice.id));
+        if (m) {
+          setSelectedDevice(prev => ({ ...prev, latitude: m.latitude, longitude: m.longitude }));
+        }
+      }
+      showToast('success', `Updated GPS locations for ${movedItems.length} device(s) on the map.`);
+    } catch (err) {
+      showToast('error', err.message || 'Failed to save moved device locations.');
+    }
+  };
+
   return (
     <div className="space-y-4 font-sans text-black animate-fadeIn">
+      {toastMsg.text && (
+        <div className={`p-3 rounded-xl border flex items-center justify-between text-xs font-bold shadow-sm ${
+          toastMsg.type === 'error'
+            ? 'bg-rose-50 border-rose-200 text-rose-800'
+            : 'bg-emerald-50 border-emerald-300 text-emerald-950'
+        }`}>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{toastMsg.text}</span>
+          </div>
+          <button onClick={() => setToastMsg({ type: '', text: '' })} className="p-0.5 hover:opacity-70 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
       {/* Top Breadcrumb & Action Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -424,11 +559,46 @@ export default function StructureDetailPage() {
 
       {/* Main Layout: Left Map / Right Devices */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Left 8-9 Cols: Interactive Map */}
-        <div className="lg:col-span-8 space-y-4">
+        {/* Left 8-9 Cols: Interactive Map (Scoped strictly to THIS Structural Asset & its devices) */}
+        <div className="lg:col-span-8 space-y-3">
+          {selectedDevice && (
+            <div className="p-3 rounded-2xl border border-blue-200 bg-blue-50/80 flex flex-wrap items-center justify-between gap-2 text-xs shadow-2xs animate-fadeIn">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+                <div>
+                  <span className="font-bold text-slate-900">Selected Device: {selectedDevice.name || selectedDevice.id}</span>
+                  <span className="ml-2 font-mono text-[11px] text-slate-600">({selectedDevice.id})</span>
+                  <div className="text-[11px] font-mono text-blue-800 mt-0.5">
+                    {selectedDevice.latitude != null && selectedDevice.longitude != null
+                      ? `GPS: ${Number(selectedDevice.latitude).toFixed(5)}° N, ${Number(selectedDevice.longitude).toFixed(5)}° E`
+                      : 'GPS: Not set yet'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLocationModalDevice(selectedDevice)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Edit className="w-3.5 h-3.5" />
+                  <span>Pick / Update Location on Map</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDevice(null)}
+                  className="p-1.5 rounded-lg text-slate-500 hover:bg-blue-100 hover:text-black cursor-pointer"
+                  title="Clear selection"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {viewType === '3d' ? (
             <Landslide3DMapView
-              structures={siteStructures.length > 0 ? siteStructures : [structure]}
+              structures={structure ? [structure] : []}
               devices={attachedDevices}
               sites={site ? [site] : []}
               onSelectStructure={(st) => {
@@ -440,13 +610,15 @@ export default function StructureDetailPage() {
             />
           ) : (
             <LocationMapView
-              sites={[]} // Do not show generic location site name marker; focus on structure and attached devices
+              sites={[]} // Focus strictly on this Structural Asset and its attached devices
               devices={attachedDevices}
-              structures={siteStructures.length > 0 ? siteStructures : [structure]}
+              structures={structure ? [structure] : []}
               projects={project ? [project] : []}
               organizations={org ? [org] : []}
               initialSelectedSiteId="ALL"
               onSelectSite={() => {}}
+              enableDeviceDrag={true}
+              onSaveAllDeviceLocations={handleSaveAllMovedDevices}
             />
           )}
         </div>
@@ -486,25 +658,36 @@ export default function StructureDetailPage() {
             {/* TAB 1: Devices Under Asset */}
             {sidebarTab === 'devices' ? (
               <div className="space-y-3">
-                {/* Search Device Input */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={deviceSearch}
-                    onChange={(e) => setDeviceSearch(e.target.value)}
-                    placeholder="Search device by ID, node name, status..."
-                    className="w-full pl-8 pr-8 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all placeholder:text-slate-400 font-medium"
-                  />
-                  {deviceSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setDeviceSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                {/* Search Device + Add Device Row */}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={deviceSearch}
+                      onChange={(e) => setDeviceSearch(e.target.value)}
+                      placeholder="Search device ID, name..."
+                      className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-blue-500 rounded-xl outline-none transition-all placeholder:text-slate-400 font-medium"
+                    />
+                    {deviceSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setDeviceSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddDevice}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-black hover:bg-neutral-800 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer shrink-0"
+                    title="Add new device to this Structural Asset"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add</span>
+                  </button>
                 </div>
 
                 <div className="space-y-2 max-h-[440px] overflow-y-auto pr-1">
@@ -518,7 +701,7 @@ export default function StructureDetailPage() {
                       ) : (
                         <>
                           <p className="font-bold text-slate-700">No inclinometers attached</p>
-                          <p className="text-[11px] text-slate-400">Go to Structural Assets to attach an inclinometer node to this structure.</p>
+                          <p className="text-[11px] text-slate-400">Click "+ Add" above to attach an inclinometer node with GPS location.</p>
                         </>
                       )}
                     </div>
@@ -528,6 +711,8 @@ export default function StructureDetailPage() {
                       const disp = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 0.18);
                       const tiltVal = Number(d.resultantTilt || d.tilt?.tilt || 0.22);
                       const isSelected = selectedDevice?.id === d.id;
+                      const hasGps = d.latitude !== null && d.latitude !== undefined && d.latitude !== '' &&
+                                     d.longitude !== null && d.longitude !== undefined && d.longitude !== '';
 
                       return (
                         <div
@@ -557,6 +742,28 @@ export default function StructureDetailPage() {
                             <span className="font-bold text-black">Δ {disp.toFixed(1)}mm</span>
                           </div>
 
+                          {/* GPS Location Badge */}
+                          <div className="flex items-center justify-between text-[10.5px] font-mono bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/80">
+                            <span className="flex items-center gap-1 text-slate-600 truncate">
+                              <MapPin className="w-3 h-3 text-blue-600 shrink-0" />
+                              {hasGps ? (
+                                <span>{Number(d.latitude).toFixed(4)}°, {Number(d.longitude).toFixed(4)}°</span>
+                              ) : (
+                                <span className="italic text-slate-400 font-sans">No GPS set</span>
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLocationModalDevice(d);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 font-sans font-bold underline cursor-pointer shrink-0 ml-1"
+                            >
+                              Edit Map
+                            </button>
+                          </div>
+
                           <div className="flex items-center justify-between text-[11px] font-mono text-slate-700 pt-1 border-t border-slate-100">
                             <span className="text-purple-700 font-bold">θ {tiltVal.toFixed(1)}°</span>
                             <div className="flex items-center gap-2">
@@ -569,17 +776,30 @@ export default function StructureDetailPage() {
                             </div>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/devices/${d.id}`);
-                            }}
-                            className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white font-bold text-[10px] shadow-2xs transition-colors cursor-pointer mt-1"
-                          >
-                            <span>Open Telemetry Console</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
+                          <div className="grid grid-cols-2 gap-1.5 mt-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLocationModalDevice(d);
+                              }}
+                              className="flex items-center justify-center gap-1 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[10px] transition-colors cursor-pointer"
+                            >
+                              <MapPin className="w-3 h-3" />
+                              <span>Edit Location</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/devices/${d.id}`);
+                              }}
+                              className="flex items-center justify-center gap-1 py-1.5 rounded-lg bg-black hover:bg-neutral-800 text-white font-bold text-[10px] shadow-2xs transition-colors cursor-pointer"
+                            >
+                              <span>Console</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })
@@ -739,6 +959,118 @@ export default function StructureDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Interactive Device Location Picker Modal */}
+      <DeviceLocationPickerModal
+        isOpen={Boolean(locationModalDevice)}
+        onClose={() => setLocationModalDevice(null)}
+        device={locationModalDevice}
+        structure={structure}
+        site={site}
+        assetDevices={attachedDevices}
+        onSaved={handleDeviceLocationSaved}
+      />
+
+      {/* Add Device Modal with Map Picker */}
+      {addDeviceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 backdrop-blur-xs p-4">
+          <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white text-black shadow-2xl overflow-hidden animate-fadeIn">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+              <div>
+                <h3 className="text-sm font-black text-black flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-blue-600" />
+                  <span>Add Device to {structure?.name}</span>
+                </h3>
+                <p className="text-[11px] text-slate-600">Pick exact device GPS location on the map below</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddDeviceModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-500 hover:text-black hover:bg-slate-200/70 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewDevice} className="p-5 space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-extrabold text-slate-800 mb-1">Device ID *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newDeviceForm.id}
+                    onChange={(e) => setNewDeviceForm({ ...newDeviceForm, id: e.target.value })}
+                    placeholder="e.g. TECHA12346"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-blue-500 outline-none font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-extrabold text-slate-800 mb-1">Device Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newDeviceForm.name}
+                    onChange={(e) => setNewDeviceForm({ ...newDeviceForm, name: e.target.value })}
+                    placeholder="e.g. Slope Node A"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-blue-500 outline-none font-bold"
+                  />
+                </div>
+              </div>
+
+              <MapPicker
+                latitude={parseFloat(newDeviceForm.latitude) || parseFloat(structure?.latitude) || 26.7271}
+                longitude={parseFloat(newDeviceForm.longitude) || parseFloat(structure?.longitude) || 88.4315}
+                deployedDevices={attachedDevices}
+                height="260px"
+                onChange={({ latitude, longitude }) =>
+                  setNewDeviceForm(prev => ({ ...prev, latitude, longitude }))
+                }
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-extrabold text-slate-800 mb-1">Latitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newDeviceForm.latitude}
+                    onChange={(e) => setNewDeviceForm({ ...newDeviceForm, latitude: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-extrabold text-slate-800 mb-1">Longitude</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newDeviceForm.longitude}
+                    onChange={(e) => setNewDeviceForm({ ...newDeviceForm, longitude: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddDeviceModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingDevice}
+                  className="px-5 py-2 rounded-xl bg-black hover:bg-neutral-800 text-white font-bold shadow-xs cursor-pointer disabled:opacity-60"
+                >
+                  {savingDevice ? 'Attaching...' : 'Attach Device'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

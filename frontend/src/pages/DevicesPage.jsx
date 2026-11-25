@@ -28,6 +28,7 @@ export default function DevicesPage() {
     name: '',
     sensorType: 'Inclinometer',
     organizationId: '',
+    projectId: '',
     siteId: '',
     structureId: '',
     latitude: '',
@@ -79,7 +80,8 @@ export default function DevicesPage() {
       id: `TECHA${Date.now().toString().slice(-5)}`,
       name: '',
       sensorType: 'Inclinometer',
-      organizationId: orgsList[0]?.id || '',
+      organizationId: '',
+      projectId: '',
       siteId: '',
       structureId: '',
       latitude: '',
@@ -134,6 +136,7 @@ export default function DevicesPage() {
       name: dev.name,
       sensorType: dev.sensorType || 'Inclinometer',
       organizationId: orgId,
+      projectId: dev.projectId ? String(dev.projectId) : (parentProject?.id ? String(parentProject.id) : ''),
       siteId: effectiveSiteId,
       structureId: dev.structureId || '',
       latitude: dev.latitude !== undefined && dev.latitude !== null ? dev.latitude : '',
@@ -149,20 +152,26 @@ export default function DevicesPage() {
     setModalOpen(true);
   };
 
-  // Filtered sites: strictly ONLY show sites belonging to the selected organization
-  const filteredSites = formData.organizationId
-    ? sitesList.filter(s => {
-        if (s.organizationId && String(s.organizationId) === String(formData.organizationId)) return true;
-        if (s.projectId) {
-          const prj = projectsList.find(p => String(p.id) === String(s.projectId));
-          if (prj && String(prj.organizationId) === String(formData.organizationId)) return true;
-        }
-        if (orgsList.length === 1 && String(orgsList[0].id) === String(formData.organizationId)) return true;
-        return false;
-      })
-    : [];
+  // Filtered projects: if organization selected, filter by org; otherwise show all projects
+  const filteredProjects = formData.organizationId
+    ? projectsList.filter(p => String(p.organizationId) === String(formData.organizationId))
+    : projectsList;
 
-  // Filtered structures: strictly ONLY show structures belonging to the selected location site
+  // Filtered sites: if organization or project selected, filter accordingly; otherwise show all sites
+  const filteredSites = sitesList.filter(s => {
+    if (formData.projectId && String(s.projectId) !== String(formData.projectId)) return false;
+    if (formData.organizationId) {
+      if (s.organizationId && String(s.organizationId) === String(formData.organizationId)) return true;
+      if (s.projectId) {
+        const prj = projectsList.find(p => String(p.id) === String(s.projectId));
+        if (prj && String(prj.organizationId) === String(formData.organizationId)) return true;
+      }
+      return false;
+    }
+    return true;
+  });
+
+  // Filtered structures: if site selected, filter by site; otherwise show all structures
   const filteredStructures = formData.siteId
     ? structuresList.filter(st => {
         const targetSite = String(formData.siteId).trim().toLowerCase();
@@ -173,7 +182,7 @@ export default function DevicesPage() {
         )) return true;
         return false;
       })
-    : [];
+    : structuresList;
 
   const handleImageFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -242,8 +251,10 @@ export default function DevicesPage() {
       wake_count: wakeVal,
       gaugeLength_mm: gaugeVal,
       status: formData.status || 'ONLINE',
-      structureId: formData.structureId ? String(formData.structureId).trim() : null,
-      siteId: formData.siteId ? String(formData.siteId).trim() : null,
+      organizationId: formData.organizationId && String(formData.organizationId).trim() !== '' ? Number(formData.organizationId) : null,
+      projectId: formData.projectId && String(formData.projectId).trim() !== '' ? Number(formData.projectId) : null,
+      structureId: formData.structureId && String(formData.structureId).trim() !== '' ? String(formData.structureId).trim() : null,
+      siteId: formData.siteId && String(formData.siteId).trim() !== '' ? String(formData.siteId).trim() : null,
       latitude: formData.latitude !== '' && formData.latitude !== null && formData.latitude !== undefined && !isNaN(parseFloat(formData.latitude)) ? parseFloat(formData.latitude) : null,
       longitude: formData.longitude !== '' && formData.longitude !== null && formData.longitude !== undefined && !isNaN(parseFloat(formData.longitude)) ? parseFloat(formData.longitude) : null,
       imageUrl: formData.imageUrl !== undefined && formData.imageUrl !== '' ? formData.imageUrl : null,
@@ -528,10 +539,10 @@ export default function DevicesPage() {
                   </div>
                 </div>
 
-                {/* 1. Select Organization */}
+                {/* 1. Select Organization (Optional) */}
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
-                    <span>1. Select Organization</span>
+                    <span>1. Organization <span className="text-[10px] text-slate-500 font-normal">(Optional)</span></span>
                     {orgsList.length > 0 && <span className="text-[10px] text-slate-500 font-normal">{orgsList.length} registered</span>}
                   </label>
                   <select
@@ -541,78 +552,89 @@ export default function DevicesPage() {
                       setFormData(prev => ({
                         ...prev,
                         organizationId: newOrgId,
-                        siteId: '', // Reset site when organization changes
-                        structureId: '', // Reset structure when organization changes
                       }));
                     }}
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="">-- Select Organization --</option>
+                    <option value="">-- No Organization (Optional) --</option>
                     {orgsList.map(o => (
                       <option key={o.id} value={o.id}>{o.name}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* 2. Select Location Site */}
+                {/* 2. Select Parent Project (Optional) */}
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
-                    <span>2. Select Location Site</span>
+                    <span>2. Parent Project <span className="text-[10px] text-slate-500 font-normal">(Optional)</span></span>
                     <span className="text-[10px] text-slate-500 font-normal">
-                      {formData.organizationId ? `${filteredSites.length} available` : 'Select org first'}
+                      {filteredProjects.length} available
                     </span>
                   </label>
                   <select
-                    disabled={!formData.organizationId}
+                    value={formData.projectId || ''}
+                    onChange={e => {
+                      const newProjId = e.target.value;
+                      const matchedProj = projectsList.find(p => String(p.id) === String(newProjId));
+                      setFormData(prev => ({
+                        ...prev,
+                        projectId: newProjId,
+                        organizationId: prev.organizationId || (matchedProj?.organizationId ? String(matchedProj.organizationId) : ''),
+                      }));
+                    }}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="">-- No Project (Optional) --</option>
+                    {filteredProjects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 3. Select Location Site (Optional) */}
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
+                    <span>3. Location Site <span className="text-[10px] text-slate-500 font-normal">(Optional)</span></span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      {filteredSites.length} available
+                    </span>
+                  </label>
+                  <select
                     value={formData.siteId || ''}
                     onChange={e => {
                       const newSiteId = e.target.value;
                       const targetSite = sitesList.find(s => String(s.id) === String(newSiteId) || String(s.siteId) === String(newSiteId));
                       const autoOrgId = formData.organizationId || targetSite?.organizationId || (projectsList.find(p => String(p.id) === String(targetSite?.projectId))?.organizationId) || '';
+                      const autoProjId = formData.projectId || targetSite?.projectId || '';
 
                       setFormData(prev => ({
                         ...prev,
                         siteId: newSiteId,
-                        organizationId: autoOrgId,
-                        structureId: '', // Reset structure when site changes
-                        latitude: prev.latitude || targetSite?.latitude || '',
-                        longitude: prev.longitude || targetSite?.longitude || '',
+                        organizationId: autoOrgId ? String(autoOrgId) : prev.organizationId,
+                        projectId: autoProjId ? String(autoProjId) : prev.projectId,
+                        // NOTE: Latitude and Longitude are strictly NOT auto-filled on site selection
                       }));
                     }}
-                    className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
-                      !formData.organizationId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
-                    }`}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    {!formData.organizationId ? (
-                      <option value="">-- Please select an Organization first --</option>
-                    ) : (
-                      <>
-                        <option value="">-- Select Location Site under Organization --</option>
-                        {filteredSites.map(s => (
-                          <option key={s.id || s.siteId} value={s.id || s.siteId}>
-                            {s.name} ({s.id || s.siteId})
-                          </option>
-                        ))}
-                      </>
-                    )}
+                    <option value="">-- No Location Site (Optional) --</option>
+                    {filteredSites.map(s => (
+                      <option key={s.id || s.siteId} value={s.id || s.siteId}>
+                        {s.name} ({s.id || s.siteId})
+                      </option>
+                    ))}
                   </select>
-                  {formData.organizationId && filteredSites.length === 0 && (
-                    <p className="text-[10px] text-amber-600 mt-1">
-                      No location sites found under this organization.
-                    </p>
-                  )}
                 </div>
 
-                {/* 3. Select Attach to Structural Asset */}
+                {/* 4. Select Attach to Structural Asset (Optional) */}
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1 flex items-center justify-between">
-                    <span>3. Attach to Structural Asset</span>
+                    <span>4. Attach to Structural Asset <span className="text-[10px] text-slate-500 font-normal">(Optional)</span></span>
                     <span className="text-[10px] text-slate-500 font-normal">
-                      {formData.siteId ? `${filteredStructures.length} available` : 'Select site first'}
+                      {filteredStructures.length} available
                     </span>
                   </label>
                   <select
-                    disabled={!formData.siteId}
                     value={formData.structureId || ''}
                     onChange={e => {
                       const stId = e.target.value;
@@ -620,33 +642,20 @@ export default function DevicesPage() {
                       setFormData(prev => ({
                         ...prev,
                         structureId: stId,
-                        siteId: st?.siteId || prev.siteId,
-                        latitude: prev.latitude || st?.latitude || '',
-                        longitude: prev.longitude || st?.longitude || '',
+                        siteId: prev.siteId || (st?.siteId ? String(st.siteId) : ''),
+                        organizationId: prev.organizationId || (st?.organizationId ? String(st.organizationId) : ''),
+                        // NOTE: Latitude and Longitude are strictly NOT auto-filled on asset selection
                       }));
                     }}
-                    className={`w-full px-3 py-2 rounded-xl border text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors ${
-                      !formData.siteId ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-200'
-                    }`}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    {!formData.siteId ? (
-                      <option value="">-- Please select a Location Site first --</option>
-                    ) : (
-                      <>
-                        <option value="">No Asset (Standalone Hardware Node)</option>
-                        {filteredStructures.map(st => (
-                          <option key={st.id} value={st.id}>
-                            {st.name} ({st.type || 'Slope Asset'})
-                          </option>
-                        ))}
-                      </>
-                    )}
+                    <option value="">-- No Asset (Standalone Node) (Optional) --</option>
+                    {filteredStructures.map(st => (
+                      <option key={st.id} value={st.id}>
+                        {st.name} ({st.type || 'Slope Asset'})
+                      </option>
+                    ))}
                   </select>
-                  {formData.siteId && filteredStructures.length === 0 && (
-                    <p className="text-[10px] text-amber-600 mt-1">
-                      No structural assets registered under this location site yet.
-                    </p>
-                  )}
                 </div>
 
                 {/* Status & Gauge Length */}

@@ -453,14 +453,30 @@ export async function devicesRoutes(fastify) {
         });
       }
 
-      const targetOrgId = req.user.role === 'ORG_ADMIN' ? req.user.organizationId : (organizationId || req.user.organizationId || 1);
+      const targetOrgId = req.user.role === 'ORG_ADMIN'
+        ? req.user.organizationId
+        : (organizationId && organizationId !== '' && !isNaN(parseInt(organizationId, 10))
+            ? parseInt(organizationId, 10)
+            : (req.user.organizationId || null));
+
+      const targetProjectId = projectId && projectId !== '' && !isNaN(parseInt(projectId, 10))
+        ? parseInt(projectId, 10)
+        : null;
+
+      const targetSiteId = siteId && String(siteId).trim() !== ''
+        ? String(siteId).trim()
+        : null;
+
+      const targetStructureId = structureId && String(structureId).trim() !== ''
+        ? String(structureId).trim()
+        : null;
 
       const device = await Device.create({
         id: id || `TILTIND${Date.now().toString().slice(-4)}`,
         name: name || `Tilt Meter ${id}`,
-        siteId: siteId || 'SITE-KB01',
-        structureId: structureId || null,
-        projectId: projectId || 1,
+        siteId: targetSiteId,
+        structureId: targetStructureId,
+        projectId: targetProjectId,
         organizationId: targetOrgId,
         serialNumber: serialNumber || `SN-98210-${Date.now().toString().slice(-4)}`,
         status: status || 'ONLINE',

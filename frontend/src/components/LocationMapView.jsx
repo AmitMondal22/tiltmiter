@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatAssetUrl } from '../api/apiClient';
+import { getSiteStructures, getSiteDevices, isDeviceInSite } from '../utils/siteHelper';
 
 // Free, open map styles requiring NO API Key
 const MAP_STYLES = {
@@ -334,14 +335,7 @@ export default function LocationMapView({
     let lat = parseFloat(site.latitude);
     let lng = parseFloat(site.longitude);
 
-    const siteDevices = devices.filter(d =>
-      d.siteId === site.id ||
-      d.siteId === site.siteId ||
-      String(d.siteId) === String(site.id) ||
-      String(d.siteId) === String(site.siteId) ||
-      d.Site?.id === site.id ||
-      d.Site?.siteId === site.siteId
-    );
+    const siteDevices = getSiteDevices(site, devices, structures);
 
     const validDevs = siteDevices.filter(d => {
       const dLat = parseFloat(d.latitude);
@@ -538,7 +532,10 @@ export default function LocationMapView({
 
   const filteredDevices = useMemo(() => {
     return devices.filter(dev => {
-      if (selectedSiteId !== 'ALL' && dev.siteId !== selectedSiteId && String(dev.siteId) !== String(selectedSiteId) && dev.Site?.id !== selectedSiteId && dev.Site?.siteId !== selectedSiteId) return false;
+      if (selectedSiteId !== 'ALL') {
+        const targetSite = sites.find(s => String(s.id || s.siteId) === String(selectedSiteId)) || { id: selectedSiteId };
+        if (!isDeviceInSite(dev, targetSite, structures)) return false;
+      }
       if (statusFilter !== 'ALL' && dev.status !== statusFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -689,7 +686,7 @@ export default function LocationMapView({
         bounds.extend([lng, lat]);
         hasCoords = true;
 
-        const siteDevices = devices.filter(d => d.siteId === site.id || d.siteId === site.siteId);
+        const siteDevices = getSiteDevices(site, devices, structures);
 
         const el = document.createElement('div');
         el.className = 'site-marker-wrapper select-none';
@@ -948,7 +945,10 @@ export default function LocationMapView({
   // Location Analytics Calculations
   const activeLocationDevices = selectedSiteId === 'ALL'
     ? devices
-    : devices.filter(d => d.siteId === selectedSiteId);
+    : devices.filter(d => {
+        const targetSite = sites.find(s => String(s.id || s.siteId) === String(selectedSiteId)) || { id: selectedSiteId };
+        return isDeviceInSite(d, targetSite, structures);
+      });
 
   const locOnlineCount = activeLocationDevices.filter(d => (d.status || 'ONLINE') === 'ONLINE').length;
   const locOfflineCount = activeLocationDevices.length - locOnlineCount;

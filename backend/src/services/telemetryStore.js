@@ -176,9 +176,15 @@ export async function saveTelemetryPoint(data) {
         rockfallDeltaPeak,
         vibrationPeak: touchVibrationPeak,
         monitoringSettings,
+        // Geolocation coordinates are strictly fixed & never auto-created or auto-changed by telemetry
+        latitude: null,
+        longitude: null,
       },
     });
 
+    // NOTE: latitude and longitude are STRICTLY IMMUTABLE here.
+    // They are never modified or auto-changed by incoming telemetry or simulators,
+    // and can only be set or edited manually by administrators in device settings.
     await deviceInstance.update({
       xTilt: xTilt ?? deviceInstance.xTilt,
       yTilt: yTilt ?? deviceInstance.yTilt,

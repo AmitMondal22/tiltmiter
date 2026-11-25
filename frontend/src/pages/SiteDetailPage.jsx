@@ -10,6 +10,7 @@ import LocationMapView from '../components/LocationMapView';
 import Landslide3DMapView from '../components/Landslide3DMapView';
 import { getAssetTypeConfig } from '../components/AssetsMapView';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
+import { getSiteStructures, getSiteDevices } from '../utils/siteHelper';
 
 export default function SiteDetailPage() {
   const { siteId } = useParams();
@@ -53,29 +54,13 @@ export default function SiteDetailPage() {
 
       setSite(foundSite);
 
-      // Filter devices under this site
-      const devs = (devRes?.devices || []).filter(
-        d => d.siteId === foundSite.id ||
-             d.siteId === foundSite.siteId ||
-             d.siteId === siteId ||
-             String(d.siteId) === String(foundSite.id) ||
-             String(d.siteId) === String(foundSite.siteId) ||
-             String(d.siteId) === String(siteId) ||
-             String(d.Site?.id) === String(foundSite.id) ||
-             String(d.Site?.siteId) === String(foundSite.siteId)
-      );
-      setSiteDevices(devs);
-
-      // Filter structures under this site
-      const structs = (structRes?.structures || []).filter(
-        st => st.siteId === foundSite.id ||
-              st.siteId === foundSite.siteId ||
-              st.siteId === siteId ||
-              String(st.siteId) === String(foundSite.id) ||
-              String(st.siteId) === String(foundSite.siteId) ||
-              String(st.siteId) === String(siteId)
-      );
+      // Filter structures strictly under this site
+      const structs = getSiteStructures(foundSite, structRes?.structures || []);
       setSiteStructures(structs);
+
+      // Filter devices strictly added/assigned to this site
+      const devs = getSiteDevices(foundSite, devRes?.devices || [], structs);
+      setSiteDevices(devs);
 
       const proj = (projRes?.projects || []).find(p => p.id === foundSite.projectId);
       setProject(proj);

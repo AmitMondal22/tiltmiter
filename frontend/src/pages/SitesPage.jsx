@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, X, CheckCircle2, MapPin, Cpu, ExternalLink, ChevronRight, Layers, ShieldCheck, Map as MapIcon, List } from 'lucide-react';
 import { getSites, getProjects, getOrganizations, getDevices, getStructures, createSite, updateSite, deleteSite } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
+import { getSiteStructures, getSiteDevices, isDeviceInSite } from '../utils/siteHelper';
 
 
 export default function SitesPage() {
@@ -143,7 +144,7 @@ export default function SitesPage() {
             <span>Site Locations & Monitored Devices</span>
           </h2>
           <p className="text-xs text-slate-700 font-medium mt-0.5">
-            {sitesList.length} monitored geolocations &bull; {devicesList.length} hardware sensor nodes deployed
+            {sitesList.length} monitored geolocations &bull; {devicesList.filter(d => sitesList.some(s => isDeviceInSite(d, s, structuresList))).length} assigned nodes ({devicesList.length} total deployed)
           </p>
         </div>
 
@@ -215,23 +216,12 @@ export default function SitesPage() {
                     const proj = projectsList.find(p => String(p.id) === String(site.projectId));
                     const org = orgsList.find(o => String(o.id) === String(site.organizationId) || String(o.id) === String(proj?.organizationId));
 
-                    // Resiliently match structures belonging to this site
-                    const siteStructures = structuresList.filter(st =>
-                      String(st.siteId) === String(site.id) ||
-                      String(st.siteId) === String(site.siteId) ||
-                      String(st.siteId) === String(sId)
-                    );
+                    // Strictly match structures belonging to this site
+                    const siteStructures = getSiteStructures(site, structuresList);
                     const structCount = (site.Structures && site.Structures.length > 0) ? site.Structures.length : siteStructures.length;
 
-                    // Resiliently match devices belonging to this site (direct siteId or via structure)
-                    const siteDevices = devicesList.filter(d =>
-                      String(d.siteId) === String(site.id) ||
-                      String(d.siteId) === String(site.siteId) ||
-                      String(d.siteId) === String(sId) ||
-                      String(d.Site?.id) === String(site.id) ||
-                      String(d.Site?.siteId) === String(site.siteId) ||
-                      siteStructures.some(st => String(st.id) === String(d.structureId))
-                    );
+                    // Strictly match ONLY devices added/assigned to this specific site
+                    const siteDevices = getSiteDevices(site, devicesList, siteStructures);
                     const siteDevCount = siteDevices.length;
 
                     // Coordinate resolution: site coordinates, or fallback to its monitored devices
@@ -291,7 +281,7 @@ export default function SitesPage() {
                               <span>{siteDevCount} Devices</span>
                             </span>
                           </div>
-                          {siteDevices.length > 0 && (
+                          {siteDevices.length > 0 ? (
                             <div className="flex items-center gap-1 flex-wrap mt-1.5">
                               {siteDevices.slice(0, 3).map(dev => (
                                 <span
@@ -311,6 +301,10 @@ export default function SitesPage() {
                                   +{siteDevices.length - 3} more
                                 </span>
                               )}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-slate-500 font-medium italic mt-1">
+                              0 devices assigned
                             </div>
                           )}
                         </td>

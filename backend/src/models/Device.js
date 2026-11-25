@@ -115,11 +115,13 @@ export const Device = sequelize.define('Device', {
   },
   latitude: {
     type: DataTypes.FLOAT,
-    defaultValue: 22.5726,
+    allowNull: true,
+    defaultValue: null,
   },
   longitude: {
     type: DataTypes.FLOAT,
-    defaultValue: 88.3639,
+    allowNull: true,
+    defaultValue: null,
   },
   healthScore: {
     type: DataTypes.INTEGER,

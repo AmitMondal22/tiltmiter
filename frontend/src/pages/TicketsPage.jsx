@@ -188,20 +188,6 @@ export default function TicketsPage() {
   const [devices, setDevices] = useState([]);
   const [usersList, setUsersList] = useState([]);
 
-  // Table pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 12;
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchQuery, priorityFilter, sourceFilter, selectedSiteFilter]);
-
-  const totalPages = Math.ceil(filteredTickets.length / rowsPerPage) || 1;
-  const paginatedTickets = useMemo(() => {
-    const start = (currentPage - 1) * rowsPerPage;
-    return filteredTickets.slice(start, start + rowsPerPage);
-  }, [filteredTickets, currentPage, rowsPerPage]);
-
   // Filter & Search states
   const [activeTab, setActiveTab] = useState('ALL'); // ALL, OPEN, IN_PROGRESS, RESOLVED, REOPENED, CLOSED
   const [searchQuery, setSearchQuery] = useState('');
@@ -325,6 +311,20 @@ export default function TicketsPage() {
       return true;
     });
   }, [tickets, activeTab, priorityFilter, sourceFilter, selectedSiteFilter, searchQuery]);
+
+  // Table pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 12;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, priorityFilter, sourceFilter, selectedSiteFilter]);
+
+  const totalPages = Math.ceil(filteredTickets.length / rowsPerPage) || 1;
+  const paginatedTickets = useMemo(() => {
+    const start = (currentPage - 1) * rowsPerPage;
+    return filteredTickets.slice(start, start + rowsPerPage);
+  }, [filteredTickets, currentPage, rowsPerPage]);
 
   // Copy Ticket Code
   const copyToClipboard = (text) => {

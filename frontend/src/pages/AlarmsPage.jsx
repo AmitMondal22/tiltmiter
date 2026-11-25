@@ -326,7 +326,10 @@ export default function AlarmsPage() {
     if (!deviceSearchQuery.trim()) return userScopedDevices;
     const q = deviceSearchQuery.toLowerCase();
     return userScopedDevices.filter(d =>
-      d.id.toLowerCase().includes(q) || (d.name && d.name.toLowerCase().includes(q))
+      (d.id && d.id.toLowerCase().includes(q)) ||
+      (d.name && d.name.toLowerCase().includes(q)) ||
+      (d.siteName && d.siteName.toLowerCase().includes(q)) ||
+      (d.siteId && d.siteId.toLowerCase().includes(q))
     );
   }, [userScopedDevices, deviceSearchQuery]);
 
@@ -579,7 +582,7 @@ export default function AlarmsPage() {
                               <Radio className="w-4 h-4 text-blue-600 shrink-0" />
                               <span>{devCount} Device{devCount !== 1 ? 's' : ''}</span>
                             </div>
-                            <div className="flex flex-wrap gap-1 max-w-[220px]">
+                            <div className="flex flex-wrap gap-1 max-w-[220px] max-h-24 overflow-y-auto pr-1">
                               {Array.isArray(rule.deviceIds) && rule.deviceIds.length > 0 ? (
                                 rule.deviceIds.map((id) => (
                                   <span
@@ -821,32 +824,90 @@ export default function AlarmsPage() {
                   />
                 </div>
 
-                {/* Devices Checkbox Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-200">
-                  {filteredModalDevices.length === 0 ? (
-                    <div className="col-span-full py-4 text-center text-xs text-slate-400">
-                      No devices available for your user account.
-                    </div>
-                  ) : (
-                    filteredModalDevices.map(dev => {
-                      const isSelected = formDeviceIds.includes(dev.id);
-                      return (
-                        <button
-                          key={dev.id}
-                          type="button"
-                          onClick={() => handleToggleDevice(dev.id)}
-                          className={`flex items-center justify-between p-2 rounded-lg text-left text-xs font-mono transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-blue-600 text-white font-bold shadow-2xs'
-                              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-                          }`}
-                        >
-                          <span className="truncate">{dev.id}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
-                        </button>
-                      );
-                    })
-                  )}
+                {/* Target Devices Scrollable Fixed Table */}
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                  <div className="max-h-56 overflow-y-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="sticky top-0 bg-slate-100 text-slate-700 z-10 border-b border-slate-200 shadow-2xs">
+                        <tr>
+                          <th className="py-2 px-3 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              checked={filteredModalDevices.length > 0 && filteredModalDevices.every(d => formDeviceIds.includes(d.id))}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const toAdd = filteredModalDevices.map(d => d.id);
+                                  setFormDeviceIds(prev => Array.from(new Set([...prev, ...toAdd])));
+                                } else {
+                                  const toRemove = new Set(filteredModalDevices.map(d => d.id));
+                                  setFormDeviceIds(prev => prev.filter(id => !toRemove.has(id)));
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer align-middle"
+                              title="Toggle select all visible devices"
+                            />
+                          </th>
+                          <th className="py-2 px-3 font-semibold text-slate-700">Device ID</th>
+                          <th className="py-2 px-3 font-semibold text-slate-700">Device Name</th>
+                          <th className="py-2 px-3 font-semibold text-slate-700">Site Location</th>
+                          <th className="py-2 px-3 font-semibold text-slate-700 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700">
+                        {filteredModalDevices.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-xs text-slate-400">
+                              No devices available or matching your search filter.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredModalDevices.map(dev => {
+                            const isSelected = formDeviceIds.includes(dev.id);
+                            const isOnline = String(dev.status || '').toUpperCase() === 'ONLINE';
+                            return (
+                              <tr
+                                key={dev.id}
+                                onClick={() => handleToggleDevice(dev.id)}
+                                className={`cursor-pointer transition-colors ${
+                                  isSelected
+                                    ? 'bg-blue-50/80 hover:bg-blue-100/70 text-blue-900 font-medium'
+                                    : 'hover:bg-slate-50'
+                                }`}
+                              >
+                                <td className="py-2 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => handleToggleDevice(dev.id)}
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer align-middle"
+                                  />
+                                </td>
+                                <td className="py-2 px-3 font-mono font-bold text-xs text-slate-900">
+                                  {dev.id}
+                                </td>
+                                <td className="py-2 px-3 text-xs text-slate-600 truncate max-w-[130px]" title={dev.name || dev.id}>
+                                  {dev.name || dev.type || 'Inclinometer'}
+                                </td>
+                                <td className="py-2 px-3 text-xs text-slate-500 truncate max-w-[140px]" title={dev.siteName || dev.siteId || 'Unassigned'}>
+                                  {dev.siteName || dev.siteId || <span className="italic text-slate-400">Unassigned</span>}
+                                </td>
+                                <td className="py-2 px-3 text-center">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide ${
+                                    isOnline
+                                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full mr-1 ${isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                    {isOnline ? 'ONLINE' : 'OFFLINE'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 

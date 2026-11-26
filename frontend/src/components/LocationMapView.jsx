@@ -780,7 +780,8 @@ export default function LocationMapView({
     const maximizeIconSvg = renderToString(<Maximize2 style={{ width: 9, height: 9, color: '#ffffff', display: 'inline-block' }} />);
     const noPhotoIconSvg = renderToString(<Camera style={{ width: 22, height: 22, color: '#94a3b8', display: 'inline-block' }} />);
     const chevronRightSvg = renderToString(<ChevronRight style={{ width: 12, height: 12, color: '#ffffff', display: 'inline-block' }} />);
-    const mapPinSvg = renderToString(<MapPin style={{ width: 11, height: 11, color: '#ffffff', display: 'inline-block' }} />);
+    const mapPinSvg = renderToString(<MapPin style={{ width: 13, height: 13, color: '#ffffff', display: 'inline-block' }} />);
+    const layersIconSvg = renderToString(<Layers style={{ width: 13, height: 13, color: '#ffffff', display: 'inline-block' }} />);
 
     // Clear previous markers
     markersRef.current.forEach(m => m.remove());
@@ -804,22 +805,51 @@ export default function LocationMapView({
         el.style.width = 'fit-content';
         el.style.height = 'fit-content';
         el.style.cursor = 'pointer';
-        el.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
-            <div style="background: #2563eb; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 11px; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: 2px solid #ffffff; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-              ${mapPinSvg}
-              <span>${site.name}</span>
-              <span style="background: #1e40af; padding: 1px 6px; border-radius: 6px; font-size: 9px; font-family: monospace;">${siteDevices.length} Dev</span>
+        el.title = `${site.name} (Location) - Click to show name`;
+
+        if (pointOnlyMarkers) {
+          el.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+              <div style="width: 28px; height: 28px; border-radius: 8px; background: #2563eb; border: 2px solid #ffffff; box-shadow: 0 4px 12px rgba(37,99,235,0.45); display: flex; align-items: center; justify-content: center;">
+                ${mapPinSvg}
+              </div>
+              <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #2563eb; margin-top: -1px;"></div>
             </div>
-            <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #2563eb; margin-top: -1px;"></div>
+          `;
+        } else {
+          el.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+              <div style="background: #2563eb; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 11px; box-shadow: 0 4px 12px rgba(37,99,235,0.4); border: 2px solid #ffffff; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                ${mapPinSvg}
+                <span>${site.name}</span>
+                <span style="background: #1e40af; padding: 1px 6px; border-radius: 6px; font-size: 9px; font-family: monospace;">${siteDevices.length} Dev</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #2563eb; margin-top: -1px;"></div>
+            </div>
+          `;
+        }
+
+        const sitePopupHtml = `
+          <div style="font-family: system-ui, sans-serif; padding: 4px 6px; min-width: 170px; color: #0f172a;">
+            <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #2563eb; margin-bottom: 2px;">Location</div>
+            <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${site.name}</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${siteDevices.length} Assigned Device${siteDevices.length === 1 ? '' : 's'}</div>
           </div>
         `;
+        const sitePopup = new maplibregl.Popup({
+          offset: 26,
+          closeButton: true,
+          closeOnClick: true,
+          maxWidth: '240px',
+        }).setHTML(sitePopupHtml);
 
         el.addEventListener('click', () => {
           setSelectedSite(site);
-          setSelectedSiteId(site.id || site.siteId);
           setSelectedDevice(null);
-          map.flyTo({ center: [lng, lat], zoom: 15.5, pitch: is3D ? 50 : 0, duration: 1200 });
+          if (!pointOnlyMarkers) {
+            setSelectedSiteId(site.id || site.siteId);
+            map.flyTo({ center: [lng, lat], zoom: 15.5, pitch: is3D ? 50 : 0, duration: 1200 });
+          }
           if (onSelectSite) onSelectSite(site);
         });
 
@@ -830,6 +860,7 @@ export default function LocationMapView({
           rotationAlignment: 'viewport'
         })
           .setLngLat([lng, lat])
+          .setPopup(sitePopup)
           .addTo(map);
 
         markersRef.current.push(marker);
@@ -837,43 +868,92 @@ export default function LocationMapView({
     });
 
     // 1b. Geotechnical Structure / Asset Markers
-    structures.forEach(st => {
-      const lat = parseFloat(st.latitude) || 22.5726;
-      const lng = parseFloat(st.longitude) || 88.3639;
+    const visibleStructures = selectedSiteId === 'ALL'
+      ? structures
+      : structures.filter(st =>
+          String(st.siteId || '') === String(selectedSiteId) ||
+          String(st.site?.id || '') === String(selectedSiteId) ||
+          String(st.site?.siteId || '') === String(selectedSiteId)
+        );
+
+    visibleStructures.forEach(st => {
+      let lat = parseFloat(st.latitude);
+      let lng = parseFloat(st.longitude);
+      if (isNaN(lat) || isNaN(lng)) {
+        const parentSite = sites.find(s => String(s.id || s.siteId) === String(st.siteId));
+        if (parentSite) {
+          const [sLng, sLat] = getSiteCoordinates(parentSite);
+          lng = sLng;
+          lat = sLat;
+        }
+      }
 
       if (!isNaN(lat) && !isNaN(lng)) {
         bounds.extend([lng, lat]);
         hasCoords = true;
 
         const stDevices = devices.filter(d => d.structureId === st.id || d.structureId === st.structureId);
+        const stName = st.name || st.structureId || st.id;
 
         const el = document.createElement('div');
         el.className = 'structure-marker-wrapper select-none';
         el.style.width = 'fit-content';
         el.style.height = 'fit-content';
         el.style.cursor = 'pointer';
-        el.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
-            <div style="background: #0f172a; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 11px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2px solid #38bdf8; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #38bdf8;"></span>
-              <span>${st.name || st.structureId || st.id}</span>
-              <span style="background: #1e293b; color: #7dd3fc; padding: 1px 6px; border-radius: 6px; font-size: 9px; font-family: monospace;">${stDevices.length} Dev</span>
+        el.title = `${stName} (Structural Asset) - Click to show name`;
+
+        if (pointOnlyMarkers) {
+          el.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; pointer-events: auto;">
+              <div style="width: 22px; height: 22px; transform: rotate(45deg); border-radius: 5px; background: #7c3aed; border: 2px solid #ffffff; box-shadow: 0 4px 12px rgba(124,58,237,0.45); display: flex; align-items: center; justify-content: center;">
+                <div style="transform: rotate(-45deg); display: flex; align-items: center; justify-content: center;">
+                  ${layersIconSvg}
+                </div>
+              </div>
             </div>
-            <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #0f172a; margin-top: -1px;"></div>
+          `;
+        } else {
+          el.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+              <div style="background: #0f172a; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 800; font-size: 11px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); border: 2px solid #38bdf8; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                ${layersIconSvg}
+                <span>${stName}</span>
+                <span style="background: #1e293b; color: #7dd3fc; padding: 1px 6px; border-radius: 6px; font-size: 9px; font-family: monospace;">${stDevices.length} Dev</span>
+              </div>
+              <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #0f172a; margin-top: -1px;"></div>
+            </div>
+          `;
+        }
+
+        const stPopupHtml = `
+          <div style="font-family: system-ui, sans-serif; padding: 4px 6px; min-width: 170px; color: #0f172a;">
+            <div style="font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #7c3aed; margin-bottom: 2px;">Structural Asset</div>
+            <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${stName}</div>
+            ${st.type ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">Type: ${st.type}</div>` : ''}
+            <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${stDevices.length} Assigned Device${stDevices.length === 1 ? '' : 's'}</div>
           </div>
         `;
+        const stPopup = new maplibregl.Popup({
+          offset: 20,
+          closeButton: true,
+          closeOnClick: true,
+          maxWidth: '240px',
+        }).setHTML(stPopupHtml);
 
         el.addEventListener('click', () => {
-          map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: is3D ? 50 : 0, duration: 1200 });
+          if (!pointOnlyMarkers) {
+            map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: is3D ? 50 : 0, duration: 1200 });
+          }
         });
 
         const marker = new maplibregl.Marker({
           element: el,
-          anchor: 'bottom',
+          anchor: pointOnlyMarkers ? 'center' : 'bottom',
           pitchAlignment: 'viewport',
           rotationAlignment: 'viewport'
         })
           .setLngLat([lng, lat])
+          .setPopup(stPopup)
           .addTo(map);
 
         markersRef.current.push(marker);

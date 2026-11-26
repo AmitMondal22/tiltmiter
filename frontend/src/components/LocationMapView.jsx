@@ -5,16 +5,17 @@ import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {
   MapPin, Cpu, Radio, Battery, Signal, Layers, Search, Filter,
-  Navigation, ExternalLink, ChevronRight, Activity, ShieldCheck,
+  Navigation, ExternalLink, ChevronLeft, ChevronRight, Activity, ShieldCheck,
   BarChart3, Zap, TrendingUp, AlertTriangle, CheckCircle2, Box,
   Map as MapIcon, Globe, Mountain, Flame, Eye, Maximize2, Camera,
   X, RotateCcw, Compass, Home, Plus, Minus
 } from 'lucide-react';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
-import { formatAssetUrl, getDeviceTelemetry } from '../api/apiClient';
+import { formatAssetUrl, getDeviceTelemetry, getAlertRules } from '../api/apiClient';
 import { getSiteStructures, getSiteDevices, isDeviceInSite } from '../utils/siteHelper';
 import { formatHHMM, formatFullDateTime } from '../utils/dateHelper';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import UnifiedTelemetryChart from './UnifiedTelemetryChart';
 
 // Free, open map styles requiring NO API Key
 const MAP_STYLES = {
@@ -314,14 +315,28 @@ export default function LocationMapView({
   const deviceMarkerMapRef = useRef(new Map());
   const pendingFocusDeviceIdRef = useRef(null); // Inclinometer displacement heatmap
   const [selectedDevice, setSelectedDevice] = useState(null);
+  const [inspectorExpanded, setInspectorExpanded] = useState(false);
+  const [inspectorRawHistory, setInspectorRawHistory] = useState([]);
   const [inspectorChartData, setInspectorChartData] = useState([]);
   const [inspectorChartLoading, setInspectorChartLoading] = useState(false);
+  const [alertRulesList, setAlertRulesList] = useState([]);
+
+  useEffect(() => {
+    if (!selectedDevice || alertRulesList.length > 0) return;
+    getAlertRules()
+      .then((res) => {
+        const list = res?.rules || (Array.isArray(res) ? res : []);
+        setAlertRulesList(list);
+      })
+      .catch(() => {});
+  }, [selectedDevice]);
 
   // Fetch last 24h Tilt X / Y telemetry whenever a device is selected in the Sensor Node Inspector
   useEffect(() => {
     const devId = selectedDevice?.id || selectedDevice?.deviceId;
     if (!devId) {
       setInspectorChartData([]);
+      setInspectorRawHistory([]);
       return;
     }
     let cancelled = false;
@@ -330,6 +345,7 @@ export default function LocationMapView({
       .then((res) => {
         if (cancelled) return;
         const rows = res?.telemetry || res?.data || res?.history || (Array.isArray(res) ? res : []);
+        setInspectorRawHistory(rows);
         const parseNum = (v) => {
           if (v === null || v === undefined || v === '' || v === '--') return null;
           const n = typeof v === 'number' ? v : parseFloat(v);
@@ -352,7 +368,10 @@ export default function LocationMapView({
         setInspectorChartData(formatted);
       })
       .catch(() => {
-        if (!cancelled) setInspectorChartData([]);
+        if (!cancelled) {
+          setInspectorChartData([]);
+          setInspectorRawHistory([]);
+        }
       })
       .finally(() => {
         if (!cancelled) setInspectorChartLoading(false);
@@ -365,13 +384,16 @@ export default function LocationMapView({
   const [selectedSite, setSelectedSite] = useState(null);
   const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
   const [internalDragMode, setInternalDragMode] = useState(false);
+  const [selectedDragDevice, setSelectedDragDevice] = useState(null);
   const dragMode = dragActive !== undefined ? Boolean(dragActive) : internalDragMode;
+  const activeDragDevice = editingDevice || selectedDragDevice;
   const setDragMode = (nextVal) => {
     const resolved = typeof nextVal === 'function' ? nextVal(dragMode) : Boolean(nextVal);
     setInternalDragMode(resolved);
     if (onDragActiveChange) onDragActiveChange(resolved);
     if (!resolved) {
       setPendingMoves({});
+      setSelectedDragDevice(null);
       if (onClearEditingDevice) onClearEditingDevice();
     }
   };
@@ -382,7 +404,8 @@ export default function LocationMapView({
   useEffect(() => {
     if (!editingDevice) return;
     if (enableDeviceDrag) setDragMode(true);
-    setSelectedDevice(editingDevice);
+    setSelectedDragDevice(editingDevice);
+    setSelectedDevice(null);
     try {
       mapContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch {}
@@ -395,23 +418,24 @@ export default function LocationMapView({
     }
   }, [editingDevice]);
 
-  // Allow clicking directly on the map to move the active editingDevice pin
+  // Allow clicking directly on the map to move the active selected/editing device pin
   useEffect(() => {
     const map = mapInstanceRef.current;
-    if (!map || !enableDeviceDrag || !dragMode || !editingDevice) return;
+    if (!map || !enableDeviceDrag || !dragMode || !activeDragDevice) return;
 
     const handleMapClickToMove = (e) => {
       // Ignore clicks that originated on an existing marker DOM element
       if (e.originalEvent?.target?.closest?.('.maplibregl-marker')) return;
       const { lng, lat } = e.lngLat;
+      const targetId = activeDragDevice.id || activeDragDevice.deviceId;
       setPendingMoves(prev => ({
         ...prev,
-        [editingDevice.id]: {
-          id: editingDevice.id,
-          deviceId: editingDevice.id,
+        [targetId]: {
+          id: targetId,
+          deviceId: targetId,
           latitude: parseFloat(lat.toFixed(6)),
           longitude: parseFloat(lng.toFixed(6)),
-          device: editingDevice,
+          device: activeDragDevice,
         },
       }));
     };
@@ -420,7 +444,7 @@ export default function LocationMapView({
     return () => {
       map.off('click', handleMapClickToMove);
     };
-  }, [enableDeviceDrag, dragMode, editingDevice]);
+  }, [enableDeviceDrag, dragMode, activeDragDevice]);
 
   // Lightbox Preview Modal State
   const [previewImageModal, setPreviewImageModal] = useState({
@@ -1063,7 +1087,7 @@ export default function LocationMapView({
       const devImage = dev.imageUrl ? formatAssetUrl(dev.imageUrl) : null;
 
       const isMoved = Boolean(pendingMoves[dev.id]);
-      const isEditingTarget = editingDevice && String(editingDevice.id) === String(dev.id);
+      const isEditingTarget = activeDragDevice && String(activeDragDevice.id) === String(dev.id);
       const isAlertDev = isDeviceInAlert(dev);
 
       // Custom Fixed Pin Marker
@@ -1097,9 +1121,13 @@ export default function LocationMapView({
         `;
       }
 
-      el.addEventListener('click', () => {
-        setSelectedDevice(dev);
-        if (!dragMode) {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (enableDeviceDrag && dragMode) {
+          setSelectedDragDevice(dev);
+          setSelectedDevice(null);
+        } else {
+          setSelectedDevice(dev);
           map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: is3D ? 55 : 0, duration: 1000 });
         }
       });
@@ -1121,6 +1149,7 @@ export default function LocationMapView({
         marker.on('dragend', () => {
           el.style.cursor = 'grab';
           const ll = marker.getLngLat();
+          setSelectedDragDevice(dev);
           setPendingMoves(prev => ({
             ...prev,
             [dev.id]: {
@@ -1164,7 +1193,7 @@ export default function LocationMapView({
         lastFittedKeyRef.current = fitKey;
       } catch (e) {}
     }
-  }, [filteredSites, filteredDevices, structures, dragMode, pendingMoves, editingDevice, pointOnlyMarkers]);
+  }, [filteredSites, filteredDevices, structures, dragMode, pendingMoves, editingDevice, selectedDragDevice, pointOnlyMarkers]);
 
   // Handle Site Selection
   const handleSiteSelect = (siteId) => {
@@ -1835,27 +1864,28 @@ export default function LocationMapView({
 
         {/* Floating All-Device Pin Move & Batch Save Bar */}
         {enableDeviceDrag && dragMode && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-slate-900/95 text-white backdrop-blur-md border border-slate-700 shadow-2xl text-xs pointer-events-auto animate-fadeIn">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-slate-900/95 text-white backdrop-blur-md border border-slate-700 shadow-2xl text-xs pointer-events-auto max-w-[92%] animate-fadeIn">
             {Object.keys(pendingMoves).length === 0 ? (
               <div className="flex items-center gap-2 text-slate-200 font-medium">
                 <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
-                {editingDevice ? (
+                {activeDragDevice ? (
                   <>
                     <span>
-                      Editing <strong className="text-white">{editingDevice.name || editingDevice.id}</strong>: Drag pin or click anywhere on the map to move
+                      Editing <strong className="text-white">{activeDragDevice.name || activeDragDevice.id}</strong>: Drag pin or click anywhere on the map to move
                     </span>
-                    {onClearEditingDevice && (
-                      <button
-                        type="button"
-                        onClick={onClearEditingDevice}
-                        className="ml-2 px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
-                      >
-                        Cancel
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDragDevice(null);
+                        if (onClearEditingDevice) onClearEditingDevice();
+                      }}
+                      className="ml-2 px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
+                    >
+                      Cancel
+                    </button>
                   </>
                 ) : (
-                  <span>Drag any device point on the map to move &amp; update its location</span>
+                  <span>Click any device point to select &amp; move, or drag it directly on the map</span>
                 )}
               </div>
             ) : (
@@ -1873,6 +1903,7 @@ export default function LocationMapView({
                     try {
                       await onSaveAllDeviceLocations(Object.values(pendingMoves));
                       setPendingMoves({});
+                      setSelectedDragDevice(null);
                       if (onClearEditingDevice) onClearEditingDevice();
                     } finally {
                       setSavingMoves(false);
@@ -1888,6 +1919,7 @@ export default function LocationMapView({
                   disabled={savingMoves}
                   onClick={() => {
                     setPendingMoves({});
+                    setSelectedDragDevice(null);
                     if (onClearEditingDevice) onClearEditingDevice();
                   }}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs cursor-pointer transition-colors"
@@ -2044,12 +2076,24 @@ export default function LocationMapView({
           </div>
         )}
 
-        {/* Right Floating Device Inspector Drawer */}
+        {/* Right Floating Device Inspector Drawer (Compact or Expanded Full Device Details) */}
         {selectedDevice && (
-          <div className="absolute right-3 top-3 bottom-3 w-84 max-w-[90%] bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-2xl p-4 flex flex-col justify-between z-10 animate-fadeIn">
-            <div>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-3">
+          <div className={`absolute bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-2xl p-4 flex flex-col justify-between animate-fadeIn ${
+            inspectorExpanded
+              ? 'inset-3 z-20 overflow-hidden'
+              : 'right-3 top-3 bottom-3 w-84 max-w-[90%] z-10'
+          }`}>
+            <div className={inspectorExpanded ? 'flex flex-col flex-1 min-h-0' : ''}>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-3 shrink-0">
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInspectorExpanded(prev => !prev)}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-600 transition-colors cursor-pointer"
+                    title={inspectorExpanded ? 'Collapse Inspector' : 'Expand Full Device Details (All Charts & Table)'}
+                  >
+                    {inspectorExpanded ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                  </button>
                   <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
                     <Cpu className="w-4 h-4" />
                   </div>
@@ -2057,7 +2101,7 @@ export default function LocationMapView({
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                       SENSOR NODE INSPECTOR
                     </div>
-                    <div className="font-bold text-slate-900 text-sm truncate max-w-[190px]">
+                    <div className={`font-bold text-slate-900 text-sm truncate ${inspectorExpanded ? 'max-w-[420px]' : 'max-w-[160px]'}`}>
                       {selectedDevice.name || selectedDevice.id}
                     </div>
                   </div>
@@ -2085,7 +2129,10 @@ export default function LocationMapView({
                     <Camera className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => setSelectedDevice(null)}
+                    onClick={() => {
+                      setSelectedDevice(null);
+                      setInspectorExpanded(false);
+                    }}
                     className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
@@ -2093,6 +2140,159 @@ export default function LocationMapView({
                 </div>
               </div>
 
+              {inspectorExpanded ? (
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {/* Top KPI Summary Strip */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 text-xs">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase">Device ID</div>
+                      <div className="font-mono font-bold text-slate-900 truncate mt-0.5">{selectedDevice.id}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase">Location</div>
+                      <div className="font-bold text-slate-900 truncate mt-0.5">
+                        {sites.find(s => s.id === selectedDevice.siteId || s.siteId === selectedDevice.siteId)?.name || 'Standalone'}
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-100">
+                      <div className="text-[10px] text-blue-600 font-bold uppercase">Displacement</div>
+                      <div className="font-mono font-bold text-blue-900 mt-0.5">
+                        {Number(selectedDevice.totalDisplacement || 0.18).toFixed(2)} mm
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-100">
+                      <div className="text-[10px] text-purple-600 font-bold uppercase">Resultant Tilt</div>
+                      <div className="font-mono font-bold text-purple-900 mt-0.5">
+                        {Number(selectedDevice.resultantTilt || 0.22).toFixed(1)}°
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-100">
+                      <div className="text-[10px] text-emerald-700 font-bold uppercase">Battery</div>
+                      <div className="font-mono font-bold text-emerald-900 mt-0.5">
+                        {formatBatteryPercentage(selectedDevice.battery ?? selectedDevice.batteryVoltage)}
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-100">
+                      <div className="text-[10px] text-sky-700 font-bold uppercase">Signal</div>
+                      <div className="font-mono font-bold text-sky-900 mt-0.5">
+                        {formatCSQPercentage(selectedDevice.signal ?? selectedDevice.signalStrength)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Single Unified Customizable Chart (Line / Area / Bar, Color, Thickness & Metric Selector) */}
+                  <UnifiedTelemetryChart
+                    telemetryHistory={inspectorRawHistory}
+                    loading={inspectorChartLoading}
+                  />
+
+                  {/* Device Alert Threshold Values */}
+                  {(() => {
+                    const devRules = alertRulesList.filter(r =>
+                      Array.isArray(r.deviceIds) && r.deviceIds.includes(selectedDevice.id)
+                    );
+                    return (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                            <span>Alert Threshold Values</span>
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-500">
+                            {devRules.length > 0 ? `${devRules.length} Assigned Rule(s)` : 'Default Safety Limits'}
+                          </span>
+                        </div>
+                        {devRules.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {devRules.map(rule => {
+                              const unit = rule.parameter === 'displacement' ? 'mm' : '°';
+                              const cVal = rule.criticalThreshold ?? rule.thresholdValue ?? (unit === 'mm' ? 10 : 2);
+                              const wVal = rule.warningThreshold ?? (unit === 'mm' ? 5 : 1);
+                              const iVal = rule.infoThreshold ?? (unit === 'mm' ? 2 : 0.5);
+                              return (
+                                <div key={rule.id} className="p-2 rounded-lg bg-white border border-slate-200 flex items-center justify-between gap-2 text-[11px]">
+                                  <div className="min-w-0">
+                                    <div className="font-bold text-slate-800 truncate">{rule.ruleName || rule.parameter}</div>
+                                    <div className="text-[10px] text-slate-500 uppercase font-mono">{rule.parameter}</div>
+                                  </div>
+                                  <div className="flex items-center gap-1 font-mono text-[10px] shrink-0">
+                                    <span className="px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold">Crit: {cVal}{unit}</span>
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-bold">Warn: {wVal}{unit}</span>
+                                    <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 font-bold">Info: {iVal}{unit}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+                            <span className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-bold">Critical: &gt; 2.00°</span>
+                            <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-bold">Warning: &gt; 1.00°</span>
+                            <span className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 font-bold">Info: &gt; 0.50°</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Telemetry History Table */}
+                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800">Recent 24h Telemetry History</span>
+                      <span className="text-[11px] font-mono text-slate-500">{inspectorRawHistory.length} records</span>
+                    </div>
+                    <div className="max-h-64 overflow-auto">
+                      <table className="w-full text-left text-[11px] border-collapse">
+                        <thead className="bg-slate-50 sticky top-0 text-slate-600 font-bold border-b border-slate-200">
+                          <tr>
+                            <th className="px-3 py-2">Timestamp</th>
+                            <th className="px-3 py-2">Tilt X (°)</th>
+                            <th className="px-3 py-2">Tilt Y (°)</th>
+                            <th className="px-3 py-2">Tilt Z (°)</th>
+                            <th className="px-3 py-2">Total Disp (mm)</th>
+                            <th className="px-3 py-2">Temp (°C)</th>
+                            <th className="px-3 py-2">Battery</th>
+                            <th className="px-3 py-2">Signal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-mono">
+                          {inspectorRawHistory.length === 0 ? (
+                            <tr>
+                              <td colSpan={8} className="px-3 py-6 text-center text-slate-400 font-sans">
+                                {inspectorChartLoading ? 'Loading telemetry records...' : 'No telemetry records in last 24h'}
+                              </td>
+                            </tr>
+                          ) : (
+                            [...inspectorRawHistory].reverse().slice(0, 100).map((row, idx) => {
+                              const ts = row.timestamp || row.time || row.createdAt;
+                              const xV = row.tilt?.roll ?? row.roll ?? row.presentX ?? row.xTilt ?? row.deltaX;
+                              const yV = row.tilt?.pitch ?? row.pitch ?? row.presentY ?? row.yTilt ?? row.deltaY;
+                              const zV = row.tilt?.yaw ?? row.yaw ?? row.presentZ ?? row.zTilt ?? row.deltaZ;
+                              const dV = row.displacement?.totalDisplacement_mm ?? row.totalDisplacement_mm ?? row.totalDisp ?? row.totalDisplacement;
+                              const tV = row.environment?.temperature_c ?? row.temperature ?? row.temp;
+                              const bV = row.power?.batteryVoltage ?? row.batteryVoltage ?? row.battery;
+                              const sV = row.network?.csq ?? row.csq ?? row.signalStrength ?? row.signal;
+                              return (
+                                <tr key={row.id || idx} className="hover:bg-slate-50">
+                                  <td className="px-3 py-1.5 text-slate-700 whitespace-nowrap">{ts ? formatFullDateTime(ts) : '--'}</td>
+                                  <td className="px-3 py-1.5 text-blue-700 font-semibold">{xV != null && !isNaN(Number(xV)) ? Number(xV).toFixed(2) : '--'}</td>
+                                  <td className="px-3 py-1.5 text-emerald-700 font-semibold">{yV != null && !isNaN(Number(yV)) ? Number(yV).toFixed(2) : '--'}</td>
+                                  <td className="px-3 py-1.5 text-purple-700">{zV != null && !isNaN(Number(zV)) ? Number(zV).toFixed(2) : '--'}</td>
+                                  <td className="px-3 py-1.5 text-slate-800">{dV != null && !isNaN(Number(dV)) ? Number(dV).toFixed(2) : '--'}</td>
+                                  <td className="px-3 py-1.5 text-slate-700">{tV != null && !isNaN(Number(tV)) ? Number(tV).toFixed(1) : '--'}</td>
+                                  <td className="px-3 py-1.5 text-emerald-700">{bV != null ? formatBatteryPercentage(bV) : '--'}</td>
+                                  <td className="px-3 py-1.5 text-blue-700">{sV != null ? formatCSQPercentage(sV) : '--'}</td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
               {/* Last 24h Tilt X / Y Angle Chart */}
               <div className="mb-3">
                 <div className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between">
@@ -2213,7 +2413,45 @@ export default function LocationMapView({
                     <span>{formatCSQPercentage(selectedDevice.signal ?? selectedDevice.signalStrength)}</span>
                   </div>
                 </div>
+
+                {/* Alert Threshold Values (Compact Inspector View) */}
+                {(() => {
+                  const devRules = alertRulesList.filter(r =>
+                    Array.isArray(r.deviceIds) && r.deviceIds.includes(selectedDevice.id)
+                  );
+                  const primaryRule = devRules[0];
+                  const unit = primaryRule?.parameter === 'displacement' ? 'mm' : '°';
+                  const cVal = primaryRule ? (primaryRule.criticalThreshold ?? primaryRule.thresholdValue ?? (unit === 'mm' ? 10 : 2)) : 2.0;
+                  const wVal = primaryRule ? (primaryRule.warningThreshold ?? (unit === 'mm' ? 5 : 1)) : 1.0;
+                  const iVal = primaryRule ? (primaryRule.infoThreshold ?? (unit === 'mm' ? 2 : 0.5)) : 0.5;
+                  return (
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
+                        <span className="flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3 text-rose-500" />
+                          <span>Alert Thresholds</span>
+                        </span>
+                        <span className="text-slate-400 font-normal">
+                          {primaryRule ? (primaryRule.ruleName || primaryRule.parameter) : 'Default Tilt'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1 font-mono text-[10px] text-center">
+                        <div className="px-1.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 font-bold">
+                          Crit: {cVal}{unit}
+                        </div>
+                        <div className="px-1.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 font-bold">
+                          Warn: {wVal}{unit}
+                        </div>
+                        <div className="px-1.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 font-bold">
+                          Info: {iVal}{unit}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
+                </>
+              )}
             </div>
 
             <div className="pt-3 border-t border-slate-100">

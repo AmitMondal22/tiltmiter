@@ -282,7 +282,7 @@ export default function LocationMapView({
   onSaveAllDeviceLocations = null,
   editingDevice = null,
   onClearEditingDevice = null,
-  pointOnlyMarkers = false,
+  pointOnlyMarkers = true,
   controlsInsideMap = false,
 }) {
   const navigate = useNavigate();

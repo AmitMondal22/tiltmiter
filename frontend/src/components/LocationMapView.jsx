@@ -302,7 +302,7 @@ export default function LocationMapView({
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [mapType, setMapType] = useState('satellite'); // 'satellite', 'google', 'street', 'topo', 'hillshade', 'analytics'
-  const [is3D, setIs3D] = useState(true); // 3D Pitch tilt (55deg vs 0deg)
+  const [is3D, setIs3D] = useState(false); // 2D Top-Down default (0deg), toggleable to 3D Pitch (55deg)
   const [isGlobe, setIsGlobe] = useState(false); // 3D Globe vs Mercator projection
   const [isTerrain, setIsTerrain] = useState(true); // 3D Terrain elevation mesh
   const [showHeatmap, setShowHeatmap] = useState(false);

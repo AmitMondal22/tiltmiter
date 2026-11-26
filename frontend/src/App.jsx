@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Sidebar from './components/Sidebar';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { getDevices } from './api/apiClient';
-import { Menu } from 'lucide-react';
+import { Menu, PanelLeftOpen } from 'lucide-react';
 
 // Eagerly loaded critical pages
 import LoginPage from './pages/LoginPage';
@@ -43,6 +43,7 @@ function MainLayout() {
   const [devices, setDevices] = useState([]);
   const [currentDevice, setCurrentDevice] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Set pure Light Mode on document
   useEffect(() => {
@@ -79,21 +80,37 @@ function MainLayout() {
       <Sidebar
         mobileOpen={mobileSidebarOpen}
         onCloseMobile={() => setMobileSidebarOpen(false)}
+        desktopOpen={sidebarOpen}
+        onToggleDesktop={() => setSidebarOpen(prev => !prev)}
         user={user}
         logout={logout}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
         {/* Mobile Hamburger Button */}
         <div className="md:hidden p-3 pb-0 flex items-center justify-between">
           <button
             onClick={() => setMobileSidebarOpen(true)}
             className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 shadow-2xs cursor-pointer"
+            title="Show Sidebar"
           >
             <Menu className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Desktop Show Sidebar Button when Sidebar is Hidden */}
+        {!sidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="hidden md:flex fixed top-4 left-4 z-40 items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md text-slate-700 hover:text-blue-600 hover:bg-blue-50 shadow-md text-xs font-bold transition-all cursor-pointer"
+            title="Show Sidebar"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+            <span>Show Sidebar</span>
+          </button>
+        )}
 
         {/* Scrollable Page Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">

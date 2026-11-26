@@ -11,6 +11,7 @@ import {
 import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceReference, resetDeviceReference, uploadDeviceImage, deleteDeviceImage, formatAssetUrl } from '../api/apiClient';
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
+import { formatLatLngPair, getStoredCoordFormat, setStoredCoordFormat } from '../utils/coordinateHelper';
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 // 1. Interactive OpenStreetMap Component for Device Location (Small size with Full Screen Modal)
 function DeviceLocationMap({ device, deviceId, d }) {
@@ -19,6 +20,7 @@ function DeviceLocationMap({ device, deviceId, d }) {
   const fullMapRef = useRef(null);
   const fullMapInstanceRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [coordFormat, setCoordFormat] = useState(getStoredCoordFormat);
 
   const lat = parseFloat(device?.latitude ?? d?.latitude ?? 22.5726);
   const lng = parseFloat(device?.longitude ?? d?.longitude ?? 88.3639);
@@ -143,9 +145,35 @@ function DeviceLocationMap({ device, deviceId, d }) {
               Device Location
             </h4>
           </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+            <div className="flex items-center bg-slate-100 border border-slate-200 rounded-md p-0.5 text-[9.5px] font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setCoordFormat('DD');
+                  setStoredCoordFormat('DD');
+                }}
+                className={`px-1.5 py-0.5 rounded cursor-pointer ${
+                  coordFormat === 'DD' ? 'bg-blue-600 text-white' : 'text-slate-600'
+                }`}
+              >
+                DD
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCoordFormat('DMS');
+                  setStoredCoordFormat('DMS');
+                }}
+                className={`px-1.5 py-0.5 rounded cursor-pointer ${
+                  coordFormat === 'DMS' ? 'bg-blue-600 text-white' : 'text-slate-600'
+                }`}
+              >
+                DMS
+              </button>
+            </div>
             <span className="font-mono text-[10px] font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
-              {lat.toFixed(4)}°, {lng.toFixed(4)}°
+              {formatLatLngPair(lat, lng, coordFormat, 4)}
             </span>
             <button
               type="button"

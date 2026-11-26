@@ -15,7 +15,8 @@ import {
   Settings,
   CheckCircle,
   ChevronsUpDown,
-  LogOut
+  LogOut,
+  PanelLeftClose
 } from 'lucide-react';
 import appLogo from '../assets/logo/logo250x150.png';
 import { formatAssetUrl } from '../api/apiClient';
@@ -38,6 +39,8 @@ const ALL_NAV_ITEMS = [
 export default function Sidebar({
   mobileOpen,
   onCloseMobile,
+  desktopOpen = true,
+  onToggleDesktop,
   user,
   logout
 }) {
@@ -88,12 +91,26 @@ export default function Sidebar({
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between w-64 border-r border-slate-200/80 bg-white text-slate-800 transition-all duration-200 select-none ${
-          mobileOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between border-r border-slate-200/80 bg-white text-slate-800 transition-all duration-200 select-none ${
+          mobileOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full md:translate-x-0'
+        } ${
+          desktopOpen
+            ? 'md:w-64'
+            : 'md:w-0 md:overflow-hidden md:border-r-0 md:opacity-0 md:pointer-events-none'
         }`}
       >
-        {/* Top Logo & Platform Title */}
-        <div className="p-4 pb-3 border-b border-slate-100 flex flex-col items-center justify-center w-full">
+        {/* Top Logo & Platform Title + Desktop Hide Sidebar Button */}
+        <div className="p-4 pb-3 border-b border-slate-100 flex flex-col items-center justify-center w-full relative">
+          {onToggleDesktop && (
+            <button
+              type="button"
+              onClick={onToggleDesktop}
+              className="hidden md:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer absolute top-2.5 right-2.5"
+              title="Hide Sidebar"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
           <div className="w-full flex items-center justify-center">
             <img
               src={

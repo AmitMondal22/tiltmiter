@@ -112,3 +112,4 @@ export function formatLatLngPair(lat, lng, format = 'DD', decimals = 4) {
 
   return `${latNum.toFixed(decimals)}°, ${lngNum.toFixed(decimals)}°`;
 }
+

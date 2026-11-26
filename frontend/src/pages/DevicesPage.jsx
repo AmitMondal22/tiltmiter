@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { getDevices, getSites, getStructures, getOrganizations, getProjects, createDevice, updateDevice, deleteDevice, configureDeviceTelemetry, formatAssetUrl } from '../api/apiClient';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
+import { ddToDms, dmsToDd, formatLatLngPair, getStoredCoordFormat, setStoredCoordFormat } from '../utils/coordinateHelper';
 
 export default function DevicesPage() {
   const navigate = useNavigate();
@@ -22,6 +23,10 @@ export default function DevicesPage() {
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
+  const [coordViewFormat, setCoordViewFormat] = useState(getStoredCoordFormat);
+  const [coordInputType, setCoordInputType] = useState(() => getStoredCoordFormat());
+  const [dmsLat, setDmsLat] = useState({ deg: '', min: '', sec: '', dir: 'N' });
+  const [dmsLng, setDmsLng] = useState({ deg: '', min: '', sec: '', dir: 'E' });
 
   const [formData, setFormData] = useState({
     id: '',
@@ -94,6 +99,9 @@ export default function DevicesPage() {
       calibrate: false,
       imageUrl: '',
     });
+    setCoordInputType(coordViewFormat);
+    setDmsLat({ deg: '', min: '', sec: '', dir: 'N' });
+    setDmsLng({ deg: '', min: '', sec: '', dir: 'E' });
     setModalOpen(true);
   };
 
@@ -149,6 +157,9 @@ export default function DevicesPage() {
       calibrate: Boolean(dev.calibrate),
       imageUrl: dev.imageUrl || '',
     });
+    setCoordInputType(coordViewFormat);
+    setDmsLat(ddToDms(dev.latitude, true));
+    setDmsLng(ddToDms(dev.longitude, false));
     setModalOpen(true);
   };
 
@@ -353,8 +364,37 @@ export default function DevicesPage() {
           </p>
         </div>
 
-        {/* Action Buttons */}
+        {/* Action Buttons & Coordinate Format View Switcher */}
         <div className="flex items-center gap-2">
+          <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setCoordViewFormat('DD');
+                setStoredCoordFormat('DD');
+              }}
+              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                coordViewFormat === 'DD' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Display Coordinates in Decimal Degrees (DD)"
+            >
+              DD
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCoordViewFormat('DMS');
+                setStoredCoordFormat('DMS');
+              }}
+              className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
+                coordViewFormat === 'DMS' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="Display Coordinates in Degrees, Minutes, Seconds (DMS)"
+            >
+              DMS
+            </button>
+          </div>
+
           <button
             onClick={handleOpenAdd}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-xl shadow-xs transition-all cursor-pointer"
@@ -426,9 +466,9 @@ export default function DevicesPage() {
                         <div className="text-slate-800">{struct?.name || 'No Asset Attached'}</div>
                         <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
                           <span>{site?.name || 'Standalone'}</span>
-                          {dev.latitude && dev.longitude && (
+                          {dev.latitude !== null && dev.latitude !== undefined && dev.longitude !== null && dev.longitude !== undefined && (
                             <span className="font-mono text-[10px] text-slate-400">
-                              ({Number(dev.latitude).toFixed(4)}, {Number(dev.longitude).toFixed(4)})
+                              ({formatLatLngPair(dev.latitude, dev.longitude, coordViewFormat, 4)})
                             </span>
                           )}
                         </div>
@@ -686,30 +726,214 @@ export default function DevicesPage() {
                   </div>
                 </div>
 
-                {/* Geographic Coordinates (Latitude & Longitude) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Latitude (°N)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={formData.latitude ?? ''}
-                      onChange={e => setFormData({ ...formData, latitude: e.target.value })}
-                      placeholder="e.g. 22.5726"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
+                {/* Geographic Coordinates (Fast Select: Decimal Degrees (DD) or Degrees, Minutes, Seconds (DMS)) */}
+                <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-slate-800 font-bold text-xs">Geographic Coordinates</span>
+                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 text-[11px] font-bold shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setCoordInputType('DD')}
+                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                          coordInputType === 'DD'
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Decimal Degrees (DD)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDmsLat(ddToDms(formData.latitude, true));
+                          setDmsLng(ddToDms(formData.longitude, false));
+                          setCoordInputType('DMS');
+                        }}
+                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                          coordInputType === 'DMS'
+                            ? 'bg-blue-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Degrees, Minutes, Seconds (DMS)
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-slate-700 font-semibold mb-1">Longitude (°E)</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={formData.longitude ?? ''}
-                      onChange={e => setFormData({ ...formData, longitude: e.target.value })}
-                      placeholder="e.g. 88.3639"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-                  </div>
+
+                  {coordInputType === 'DD' ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-slate-700 font-semibold mb-1">Latitude (DD)</label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={formData.latitude ?? ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setFormData({ ...formData, latitude: val });
+                              setDmsLat(ddToDms(val, true));
+                            }}
+                            placeholder="e.g. 26.7271"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-700 font-semibold mb-1">Longitude (DD)</label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={formData.longitude ?? ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setFormData({ ...formData, longitude: val });
+                              setDmsLng(ddToDms(val, false));
+                            }}
+                            placeholder="e.g. 88.4315"
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                      {(formData.latitude !== '' || formData.longitude !== '') && (
+                        <div className="text-[11px] font-mono text-slate-600 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200/80">
+                          <span className="font-sans font-semibold text-slate-500 mr-1.5">DMS Preview:</span>
+                          {formatLatLngPair(formData.latitude, formData.longitude, 'DMS')}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {/* Latitude DMS */}
+                      <div>
+                        <label className="block text-slate-700 font-semibold mb-1">Latitude (DMS)</label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            max="90"
+                            value={dmsLat.deg}
+                            onChange={e => {
+                              const next = { ...dmsLat, deg: e.target.value };
+                              setDmsLat(next);
+                              setFormData(prev => ({ ...prev, latitude: dmsToDd(next) }));
+                            }}
+                            placeholder="Deg °"
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            max="59"
+                            value={dmsLat.min}
+                            onChange={e => {
+                              const next = { ...dmsLat, min: e.target.value };
+                              setDmsLat(next);
+                              setFormData(prev => ({ ...prev, latitude: dmsToDd(next) }));
+                            }}
+                            placeholder="Min '"
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            max="59.999"
+                            value={dmsLat.sec}
+                            onChange={e => {
+                              const next = { ...dmsLat, sec: e.target.value };
+                              setDmsLat(next);
+                              setFormData(prev => ({ ...prev, latitude: dmsToDd(next) }));
+                            }}
+                            placeholder='Sec "'
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <select
+                            value={dmsLat.dir}
+                            onChange={e => {
+                              const next = { ...dmsLat, dir: e.target.value };
+                              setDmsLat(next);
+                              setFormData(prev => ({ ...prev, latitude: dmsToDd(next) }));
+                            }}
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="N">N</option>
+                            <option value="S">S</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Longitude DMS */}
+                      <div>
+                        <label className="block text-slate-700 font-semibold mb-1">Longitude (DMS)</label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            max="180"
+                            value={dmsLng.deg}
+                            onChange={e => {
+                              const next = { ...dmsLng, deg: e.target.value };
+                              setDmsLng(next);
+                              setFormData(prev => ({ ...prev, longitude: dmsToDd(next) }));
+                            }}
+                            placeholder="Deg °"
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            max="59"
+                            value={dmsLng.min}
+                            onChange={e => {
+                              const next = { ...dmsLng, min: e.target.value };
+                              setDmsLng(next);
+                              setFormData(prev => ({ ...prev, longitude: dmsToDd(next) }));
+                            }}
+                            placeholder="Min '"
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            max="59.999"
+                            value={dmsLng.sec}
+                            onChange={e => {
+                              const next = { ...dmsLng, sec: e.target.value };
+                              setDmsLng(next);
+                              setFormData(prev => ({ ...prev, longitude: dmsToDd(next) }));
+                            }}
+                            placeholder='Sec "'
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <select
+                            value={dmsLng.dir}
+                            onChange={e => {
+                              const next = { ...dmsLng, dir: e.target.value };
+                              setDmsLng(next);
+                              setFormData(prev => ({ ...prev, longitude: dmsToDd(next) }));
+                            }}
+                            className="px-2.5 py-2 rounded-xl border border-slate-200 bg-white font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="E">E</option>
+                            <option value="W">W</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Converted DD Preview */}
+                      {(formData.latitude !== '' || formData.longitude !== '') && (
+                        <div className="text-[11px] font-mono text-blue-700 bg-blue-50/70 px-2.5 py-1.5 rounded-lg border border-blue-200/80">
+                          <span className="font-sans font-semibold text-blue-800 mr-1.5">Converted DD (Stored):</span>
+                          {formatLatLngPair(formData.latitude, formData.longitude, 'DD', 6)}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Hardware Installation Photo */}

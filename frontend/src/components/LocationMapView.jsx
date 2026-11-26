@@ -276,6 +276,8 @@ export default function LocationMapView({
   initialSelectedSiteId = 'ALL',
   onSelectSite,
   enableDeviceDrag = false,
+  dragActive = undefined,
+  onDragActiveChange = null,
   onSaveAllDeviceLocations = null,
   editingDevice = null,
   onClearEditingDevice = null,
@@ -300,7 +302,17 @@ export default function LocationMapView({
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
   const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
-  const [dragMode, setDragMode] = useState(Boolean(enableDeviceDrag));
+  const [internalDragMode, setInternalDragMode] = useState(false);
+  const dragMode = dragActive !== undefined ? Boolean(dragActive) : internalDragMode;
+  const setDragMode = (nextVal) => {
+    const resolved = typeof nextVal === 'function' ? nextVal(dragMode) : Boolean(nextVal);
+    setInternalDragMode(resolved);
+    if (onDragActiveChange) onDragActiveChange(resolved);
+    if (!resolved) {
+      setPendingMoves({});
+      if (onClearEditingDevice) onClearEditingDevice();
+    }
+  };
   const [pendingMoves, setPendingMoves] = useState({});
   const [savingMoves, setSavingMoves] = useState(false);
 
@@ -1175,7 +1187,7 @@ export default function LocationMapView({
             <span>Heatmap</span>
           </button>
 
-          {/* Move All Device Pins Toggle (when enabled by parent) */}
+          {/* Move All Device Pins Toggle (default OFF, when enabled by parent) */}
           {enableDeviceDrag && (
             <button
               type="button"
@@ -1185,10 +1197,10 @@ export default function LocationMapView({
                   ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-300'
                   : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
               }`}
-              title="Drag and move any device pin on the map to update its GPS location"
+              title="Enable or disable dragging device pins on the map"
             >
               <MapPin className={`w-3.5 h-3.5 ${dragMode ? 'text-white' : 'text-blue-600'}`} />
-              <span>{dragMode ? 'Move Pins: ON' : 'Move Pins'}</span>
+              <span>{dragMode ? 'Location Drag: ON' : 'Location Drag: OFF'}</span>
             </button>
           )}
 

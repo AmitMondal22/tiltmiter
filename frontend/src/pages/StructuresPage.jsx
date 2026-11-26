@@ -21,6 +21,7 @@ export default function StructuresPage() {
   const [editingStruct, setEditingStruct] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [selectedDeviceInAsset, setSelectedDeviceInAsset] = useState(null);
+  const [dragLocationEnabled, setDragLocationEnabled] = useState(false);
   const [editingMapDevice, setEditingMapDevice] = useState(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [isCustomType, setIsCustomType] = useState(false);
@@ -355,7 +356,12 @@ export default function StructuresPage() {
                         </td>
                         <td className="py-4 px-3.5">
                           <button
-                            onClick={() => setSelectedAsset({ ...st, Devices: attachedDevs })}
+                            onClick={() => {
+                              setDragLocationEnabled(false);
+                              setEditingMapDevice(null);
+                              setSelectedDeviceInAsset(null);
+                              setSelectedAsset({ ...st, Devices: attachedDevs });
+                            }}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 font-bold text-black text-[11px] shadow-2xs cursor-pointer"
                           >
                             <Cpu className="w-3.5 h-3.5 text-black" />
@@ -411,7 +417,25 @@ export default function StructuresPage() {
                   Showing only devices under this Structural Asset &bull; Select a device or click "Edit Location" to pick GPS on map
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Top Enable / Disable Device Location Drag Button (Default OFF) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !dragLocationEnabled;
+                    setDragLocationEnabled(next);
+                    if (!next) setEditingMapDevice(null);
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold text-xs shadow-2xs transition-all cursor-pointer ${
+                    dragLocationEnabled
+                      ? 'bg-emerald-600 border-emerald-600 text-white ring-2 ring-emerald-200'
+                      : 'bg-white border-slate-300 hover:bg-slate-100 text-black'
+                  }`}
+                  title="Enable or disable dragging device locations on the map"
+                >
+                  <MapPin className={`w-3.5 h-3.5 ${dragLocationEnabled ? 'text-white' : 'text-blue-600'}`} />
+                  <span>{dragLocationEnabled ? 'Disable Drag Location' : 'Enable Drag Location'}</span>
+                </button>
                 <button
                   onClick={() => {
                     setDeviceForm({
@@ -478,7 +502,12 @@ export default function StructuresPage() {
                   initialSelectedSiteId="ALL"
                   onSelectSite={() => {}}
                   enableDeviceDrag={true}
-                  onSaveAllDeviceLocations={handleSaveAllMovedDevices}
+                  dragActive={dragLocationEnabled}
+                  onDragActiveChange={setDragLocationEnabled}
+                  onSaveAllDeviceLocations={async (items) => {
+                    await handleSaveAllMovedDevices(items);
+                    setDragLocationEnabled(false);
+                  }}
                   editingDevice={editingMapDevice}
                   onClearEditingDevice={() => setEditingMapDevice(null)}
                 />

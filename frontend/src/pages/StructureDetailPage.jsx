@@ -32,6 +32,7 @@ export default function StructureDetailPage() {
   const [sidebarTab, setSidebarTab] = useState('devices'); // 'devices' or 'structures'
   const [deviceSearch, setDeviceSearch] = useState('');
   const [structureSearch, setStructureSearch] = useState('');
+  const [dragLocationEnabled, setDragLocationEnabled] = useState(false);
   const [editingMapDevice, setEditingMapDevice] = useState(null);
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false);
   const [savingDevice, setSavingDevice] = useState(false);
@@ -148,6 +149,9 @@ export default function StructureDetailPage() {
   };
 
   useEffect(() => {
+    setDragLocationEnabled(false);
+    setEditingMapDevice(null);
+    setSelectedDevice(null);
     loadData();
   }, [structureId]);
 
@@ -374,6 +378,25 @@ export default function StructureDetailPage() {
             <span>Satellite Map</span>
           </div>
 
+          {/* Top Enable / Disable Device Location Drag Button (Default OFF) */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !dragLocationEnabled;
+              setDragLocationEnabled(next);
+              if (!next) setEditingMapDevice(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+              dragLocationEnabled
+                ? 'bg-emerald-600 border-emerald-600 text-white ring-2 ring-emerald-200'
+                : 'border-slate-300 bg-white hover:bg-slate-50 text-black'
+            }`}
+            title="Enable or disable dragging device locations on the map"
+          >
+            <MapPin className={`w-3.5 h-3.5 ${dragLocationEnabled ? 'text-white' : 'text-blue-600'}`} />
+            <span>{dragLocationEnabled ? 'Disable Drag Location' : 'Enable Drag Location'}</span>
+          </button>
+
           {/* Collapsible Analytics Toggle */}
           <button
             onClick={() => setShowAnalytics(!showAnalytics)}
@@ -582,7 +605,12 @@ export default function StructureDetailPage() {
             initialSelectedSiteId="ALL"
             onSelectSite={() => {}}
             enableDeviceDrag={true}
-            onSaveAllDeviceLocations={handleSaveAllMovedDevices}
+            dragActive={dragLocationEnabled}
+            onDragActiveChange={setDragLocationEnabled}
+            onSaveAllDeviceLocations={async (items) => {
+              await handleSaveAllMovedDevices(items);
+              setDragLocationEnabled(false);
+            }}
             editingDevice={editingMapDevice}
             onClearEditingDevice={() => setEditingMapDevice(null)}
           />

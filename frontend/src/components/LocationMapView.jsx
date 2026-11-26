@@ -305,7 +305,11 @@ export default function LocationMapView({
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [hoverCoords, setHoverCoords] = useState(null);
   const [showStyleMenu, setShowStyleMenu] = useState(false);
-  const mapWrapperRef = useRef(null); // Inclinometer displacement heatmap
+  const [showAlertLayerPanel, setShowAlertLayerPanel] = useState(false);
+  const [alertSeverityFilter, setAlertSeverityFilter] = useState('ALL');
+  const mapWrapperRef = useRef(null);
+  const deviceMarkerMapRef = useRef(new Map());
+  const pendingFocusDeviceIdRef = useRef(null); // Inclinometer displacement heatmap
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
   const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
@@ -649,6 +653,13 @@ export default function LocationMapView({
     return false;
   };
 
+  const normalizeAlarmTier = (severity) => {
+    const s = String(severity || '').toUpperCase();
+    if (s === 'CRITICAL' || s === 'EMERGENCY') return 'CRITICAL';
+    if (s === 'WARNING' || s === 'MAJOR') return 'WARNING';
+    return 'INFO';
+  };
+
   const filteredDevices = useMemo(() => {
     return devices.filter(dev => {
       // Do not show standalone / unassigned devices (must belong to a site or structural asset)
@@ -661,6 +672,15 @@ export default function LocationMapView({
       if (statusFilter === 'ALERT' && !isDeviceInAlert(dev)) return false;
       if (statusFilter === 'NORMAL' && isDeviceInAlert(dev)) return false;
       if (statusFilter !== 'ALL' && statusFilter !== 'ALERT' && statusFilter !== 'NORMAL' && dev.status !== statusFilter) return false;
+      if (alertSeverityFilter !== 'ALL') {
+        const devIdStr = String(dev.id || dev.deviceId || '');
+        const hasMatchingAlarm = Array.isArray(alarms) && alarms.some(a =>
+          String(a.deviceId) === devIdStr &&
+          String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE' &&
+          normalizeAlarmTier(a.severity) === alertSeverityFilter
+        );
+        if (!hasMatchingAlarm) return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -671,7 +691,7 @@ export default function LocationMapView({
       }
       return true;
     });
-  }, [devices, sites, structures, alarms, selectedSiteId, statusFilter, searchQuery]);
+  }, [devices, sites, structures, alarms, selectedSiteId, statusFilter, alertSeverityFilter, searchQuery]);
 
   // 7. Update Heatmap Layer
   const updateHeatmapLayer = () => {
@@ -799,6 +819,7 @@ export default function LocationMapView({
     // Clear previous markers
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
+    deviceMarkerMapRef.current.clear();
 
     const bounds = new maplibregl.LngLatBounds();
     let hasCoords = false;
@@ -1141,7 +1162,26 @@ export default function LocationMapView({
       }
 
       markersRef.current.push(marker);
+      deviceMarkerMapRef.current.set(String(dev.id || dev.deviceId), {
+        marker,
+        popup,
+        device: dev,
+        lng,
+        lat,
+      });
     });
+
+    // If an alert click requested focusing a device after filter reset, open its popup now
+    if (pendingFocusDeviceIdRef.current) {
+      const targetEntry = deviceMarkerMapRef.current.get(pendingFocusDeviceIdRef.current);
+      pendingFocusDeviceIdRef.current = null;
+      if (targetEntry) {
+        map.flyTo({ center: [targetEntry.lng, targetEntry.lat], zoom: 17, pitch: is3D ? 55 : 0, duration: 900 });
+        if (!targetEntry.popup.isOpen()) {
+          targetEntry.marker.togglePopup();
+        }
+      }
+    }
 
     // Fit map bounds when sites/devices load or site filter changes
     const fitKey = `${sites.length}-${devices.length}-${structures.length}-${selectedSiteId}`;
@@ -1242,11 +1282,11 @@ export default function LocationMapView({
   };
 
   const renderSearchAndDropdowns = (insideMap = false) => (
-    <div className={`flex flex-wrap items-center ${insideMap ? 'gap-1 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200/90 shadow-lg' : 'gap-2 flex-1 min-w-[280px]'}`}>
+    <div className={`flex flex-wrap items-center ${insideMap ? 'gap-1 bg-slate-900/80 backdrop-blur-md p-1 rounded-xl border border-white/15 shadow-lg' : 'gap-2 flex-1 min-w-[280px]'}`}>
       {/* Search Input + Search Button */}
       <form onSubmit={handleSearchSubmit} className="flex items-center gap-1">
-        <div className={`relative ${insideMap ? 'w-[140px] sm:w-[165px]' : 'min-w-[165px] max-w-[230px]'}`}>
-          <Search className={`${insideMap ? 'w-3 h-3 left-2' : 'w-3.5 h-3.5 left-2.5'} text-slate-400 absolute top-1/2 -translate-y-1/2`} />
+        <div className={`relative ${insideMap ? 'w-[115px] sm:w-[140px]' : 'min-w-[165px] max-w-[230px]'}`}>
+          <Search className={`${insideMap ? 'w-3 h-3 left-2 text-slate-300' : 'w-3.5 h-3.5 left-2.5 text-slate-400'} absolute top-1/2 -translate-y-1/2`} />
           <input
             type="text"
             value={searchInput}
@@ -1254,9 +1294,11 @@ export default function LocationMapView({
               setSearchInput(e.target.value);
               if (!e.target.value.trim()) setSearchQuery('');
             }}
-            placeholder="Search site or device..."
-            className={`w-full border border-slate-200 bg-white font-medium text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs ${
-              insideMap ? 'pl-6 pr-5 py-1 rounded-lg text-[11px]' : 'pl-8 pr-6 py-1.5 rounded-xl text-xs'
+            placeholder="Search..."
+            className={`w-full border font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs ${
+              insideMap
+                ? 'h-7 pl-6 pr-5 rounded-lg text-[11px] bg-slate-800/90 border-white/15 text-white placeholder-slate-400'
+                : 'pl-8 pr-6 py-1.5 rounded-xl text-xs bg-white border-slate-200 text-slate-900'
             }`}
           />
           {searchInput && (
@@ -1266,7 +1308,7 @@ export default function LocationMapView({
                 setSearchInput('');
                 setSearchQuery('');
               }}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+              className={`absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer ${insideMap ? 'text-slate-300 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
               title="Clear search"
             >
               <X className="w-3 h-3" />
@@ -1276,23 +1318,26 @@ export default function LocationMapView({
         <button
           type="submit"
           className={`bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-2xs transition-colors cursor-pointer flex items-center justify-center gap-1 ${
-            insideMap ? 'p-1.5 rounded-lg' : 'px-2.5 py-1.5 rounded-xl text-xs'
+            insideMap ? 'w-7 h-7 p-0 rounded-lg' : 'px-2.5 py-1.5 rounded-xl text-xs'
           }`}
           title="Search on map"
         >
-          <Search className={insideMap ? 'w-3.5 h-3.5' : 'w-3 h-3'} />
+          <Search className="w-3.5 h-3.5" />
           {!insideMap && <span>Search</span>}
         </button>
       </form>
 
       {/* Location / Site Dropdown */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center">
         <select
           value={selectedSiteId}
           onChange={e => handleSiteSelect(e.target.value)}
-          className={`border border-slate-200 bg-white font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer ${
-            insideMap ? 'px-2 py-1 rounded-lg text-[11px] max-w-[125px]' : 'px-2.5 py-1.5 rounded-xl text-xs'
+          className={`border font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer ${
+            insideMap
+              ? 'h-7 px-1.5 rounded-lg text-[11px] max-w-[115px] bg-slate-800/90 border-white/15 text-white'
+              : 'px-2.5 py-1.5 rounded-xl text-xs bg-white border-slate-200 text-slate-900'
           }`}
+          title="Select Location"
         >
           <option value="ALL">All Locations ({sites.length})</option>
           {sites.map(s => (
@@ -1304,22 +1349,22 @@ export default function LocationMapView({
       </div>
 
       {/* Alert / Normal / All Device Layer Dropdown */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center">
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
           className={`border font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer ${
-            insideMap ? 'px-2 py-1 rounded-lg text-[11px]' : 'px-2.5 py-1.5 rounded-xl text-xs'
+            insideMap ? 'h-7 px-1.5 rounded-lg text-[11px] max-w-[108px]' : 'px-2.5 py-1.5 rounded-xl text-xs'
           } ${
             statusFilter === 'ALERT'
-              ? 'bg-rose-50 border-rose-300 text-rose-800'
+              ? insideMap ? 'bg-rose-900/90 border-rose-400/50 text-rose-100' : 'bg-rose-50 border-rose-300 text-rose-800'
               : statusFilter === 'NORMAL'
-              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-              : 'bg-white border-slate-200 text-slate-900'
+              ? insideMap ? 'bg-emerald-900/90 border-emerald-400/50 text-emerald-100' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+              : insideMap ? 'bg-slate-800/90 border-white/15 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}
-          title="Filter map devices by Alert / Normal state"
+          title="Filter Devices (All / Alert / Normal)"
         >
-          <option value="ALL">All Devices ({assignedDevices.length})</option>
+          <option value="ALL">Devices ({assignedDevices.length})</option>
           <option value="ALERT">Alert ({alertDeviceCount})</option>
           <option value="NORMAL">Normal ({normalDeviceCount})</option>
         </select>
@@ -1353,6 +1398,63 @@ export default function LocationMapView({
     } else {
       document.exitFullscreen?.().catch(() => {});
     }
+  };
+
+  // Active alerts grouped across the 3 severity tiers: CRITICAL, WARNING, INFO
+  const activeAlarmsList = useMemo(() => {
+    if (!Array.isArray(alarms)) return [];
+    return alarms.filter(a => String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE');
+  }, [alarms]);
+
+  const criticalAlarms = useMemo(
+    () => activeAlarmsList.filter(a => normalizeAlarmTier(a.severity) === 'CRITICAL'),
+    [activeAlarmsList]
+  );
+  const warningAlarms = useMemo(
+    () => activeAlarmsList.filter(a => normalizeAlarmTier(a.severity) === 'WARNING'),
+    [activeAlarmsList]
+  );
+  const infoAlarms = useMemo(
+    () => activeAlarmsList.filter(a => normalizeAlarmTier(a.severity) === 'INFO'),
+    [activeAlarmsList]
+  );
+
+  const visibleAlertPanelItems = useMemo(() => {
+    if (alertSeverityFilter === 'CRITICAL') return criticalAlarms;
+    if (alertSeverityFilter === 'WARNING') return warningAlarms;
+    if (alertSeverityFilter === 'INFO') return infoAlarms;
+    return activeAlarmsList;
+  }, [alertSeverityFilter, activeAlarmsList, criticalAlarms, warningAlarms, infoAlarms]);
+
+  const handleFocusAlertDevice = (alarm) => {
+    const map = mapInstanceRef.current;
+    if (!map || !alarm) return;
+    const targetDevId = String(alarm.deviceId || '');
+    const dev = devices.find(d => String(d.id || d.deviceId) === targetDevId);
+    if (!dev) return;
+
+    setSelectedDevice(dev);
+
+    // Close any currently open device popups
+    deviceMarkerMapRef.current.forEach(entry => {
+      if (entry?.popup?.isOpen()) {
+        entry.marker.togglePopup();
+      }
+    });
+
+    const existingEntry = deviceMarkerMapRef.current.get(targetDevId);
+    if (existingEntry) {
+      map.flyTo({ center: [existingEntry.lng, existingEntry.lat], zoom: 17, pitch: is3D ? 55 : 0, duration: 900 });
+      if (!existingEntry.popup.isOpen()) {
+        existingEntry.marker.togglePopup();
+      }
+      return;
+    }
+
+    // If the device is currently filtered out (e.g. NORMAL filter or another site), make it visible and open popup after re-render
+    pendingFocusDeviceIdRef.current = targetDevId;
+    if (statusFilter === 'NORMAL') setStatusFilter('ALL');
+    if (selectedSiteId !== 'ALL') setSelectedSiteId('ALL');
   };
 
   return (
@@ -1528,11 +1630,31 @@ export default function LocationMapView({
                 {/* Map Layer Style Switcher */}
                 <button
                   type="button"
-                  onClick={() => setShowStyleMenu(prev => !prev)}
+                  onClick={() => {
+                    setShowStyleMenu(prev => !prev);
+                    setShowAlertLayerPanel(false);
+                  }}
                   className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showStyleMenu ? 'bg-blue-600/80' : ''}`}
-                  title={`Map Style: ${MAP_STYLES[mapType]?.name || 'Satellite 3D'}`}
+                  title={`Map Layer: ${MAP_STYLES[mapType]?.name || 'Satellite 3D'}`}
                 >
                   <Layers className="w-3.5 h-3.5" />
+                </button>
+                {/* 3-Type Alert Layer Panel Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAlertLayerPanel(prev => !prev);
+                    setShowStyleMenu(false);
+                  }}
+                  className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 relative ${showAlertLayerPanel ? 'bg-rose-600/85 text-white' : activeAlarmsList.length > 0 ? 'text-rose-400' : ''}`}
+                  title={`Alert Layers (${activeAlarmsList.length} Active)`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {activeAlarmsList.length > 0 && (
+                    <span className="absolute top-0.5 right-0.5 min-w-[13px] h-[13px] px-0.5 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center leading-none">
+                      {activeAlarmsList.length > 99 ? '99+' : activeAlarmsList.length}
+                    </span>
+                  )}
                 </button>
                 {/* 3D Tilt Pitch */}
                 <button
@@ -1590,9 +1712,12 @@ export default function LocationMapView({
                 </button>
               </div>
 
-              {/* Popout Map Style Selector */}
+              {/* Popout Map Style Selector (All Map Layer Types) */}
               {showStyleMenu && (
-                <div className="bg-slate-900/90 backdrop-blur-md border border-white/15 rounded-xl p-1.5 shadow-2xl flex flex-col gap-1 min-w-[145px]">
+                <div className="bg-slate-900/90 backdrop-blur-md border border-white/15 rounded-xl p-1.5 shadow-2xl flex flex-col gap-1 min-w-[160px]">
+                  <div className="px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+                    Map Layer Type
+                  </div>
                   {Object.entries(MAP_STYLES).map(([key, styleObj]) => (
                     <button
                       key={key}
@@ -1608,6 +1733,117 @@ export default function LocationMapView({
                       {styleObj.name}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* 3-Type Alert Layer Section (Critical / Warning / Info) + Click Alert to Focus Device on Map */}
+              {showAlertLayerPanel && (
+                <div className="bg-slate-900/92 backdrop-blur-md border border-white/15 rounded-xl p-2 shadow-2xl w-[265px] max-h-[340px] flex flex-col gap-2 text-white">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Alert Layers ({activeAlarmsList.length})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAlertLayerPanel(false)}
+                      className="text-slate-400 hover:text-white cursor-pointer"
+                      title="Close"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* 3 Alert Severity Type Filter Buttons */}
+                  <div className="grid grid-cols-4 gap-1 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setAlertSeverityFilter('ALL')}
+                      className={`py-1 px-1 rounded-lg cursor-pointer transition-colors ${
+                        alertSeverityFilter === 'ALL'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-white/10 text-slate-200 hover:bg-white/20'
+                      }`}
+                    >
+                      All ({activeAlarmsList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAlertSeverityFilter('CRITICAL')}
+                      className={`py-1 px-1 rounded-lg cursor-pointer transition-colors ${
+                        alertSeverityFilter === 'CRITICAL'
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-rose-500/20 text-rose-200 hover:bg-rose-500/35'
+                      }`}
+                    >
+                      Crit ({criticalAlarms.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAlertSeverityFilter('WARNING')}
+                      className={`py-1 px-1 rounded-lg cursor-pointer transition-colors ${
+                        alertSeverityFilter === 'WARNING'
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-amber-500/20 text-amber-200 hover:bg-amber-500/35'
+                      }`}
+                    >
+                      Warn ({warningAlarms.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAlertSeverityFilter('INFO')}
+                      className={`py-1 px-1 rounded-lg cursor-pointer transition-colors ${
+                        alertSeverityFilter === 'INFO'
+                          ? 'bg-sky-600 text-white'
+                          : 'bg-sky-500/20 text-sky-200 hover:bg-sky-500/35'
+                      }`}
+                    >
+                      Info ({infoAlarms.length})
+                    </button>
+                  </div>
+
+                  {/* Clickable Alert Items -> Focuses & Opens Device on Map */}
+                  <div className="flex-1 overflow-y-auto space-y-1 pr-0.5 max-h-[225px]">
+                    {visibleAlertPanelItems.length === 0 ? (
+                      <div className="text-[11px] text-slate-400 text-center py-4">
+                        No active alerts in this layer
+                      </div>
+                    ) : (
+                      visibleAlertPanelItems.map(alm => {
+                        const tier = normalizeAlarmTier(alm.severity);
+                        const devObj = devices.find(d => String(d.id || d.deviceId) === String(alm.deviceId));
+                        const devName = devObj?.name || alm.deviceId || 'Unknown Device';
+                        const tierBadgeCls =
+                          tier === 'CRITICAL'
+                            ? 'bg-rose-500/25 text-rose-200 border-rose-400/40'
+                            : tier === 'WARNING'
+                            ? 'bg-amber-500/25 text-amber-200 border-amber-400/40'
+                            : 'bg-sky-500/25 text-sky-200 border-sky-400/40';
+
+                        return (
+                          <button
+                            key={alm.id || `${alm.deviceId}-${alm.parameter}-${alm.createdAt}`}
+                            type="button"
+                            onClick={() => handleFocusAlertDevice(alm)}
+                            className="w-full text-left p-2 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 transition-colors cursor-pointer flex flex-col gap-1"
+                            title="Click to locate & view device on map"
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="font-bold text-[11px] text-white truncate">
+                                {devName}
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold border shrink-0 ${tierBadgeCls}`}>
+                                {tier}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-300 truncate">
+                              {alm.message || `${alm.parameter || 'Alert'} threshold exceeded`}
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               )}
             </div>

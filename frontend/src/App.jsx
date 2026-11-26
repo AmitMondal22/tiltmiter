@@ -43,7 +43,7 @@ function MainLayout() {
   const [devices, setDevices] = useState([]);
   const [currentDevice, setCurrentDevice] = useState(null);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Set pure Light Mode on document
   useEffect(() => {

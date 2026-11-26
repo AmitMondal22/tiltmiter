@@ -618,10 +618,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
     const deltaZ = parseNum(angleDelta.z ?? tilt.yaw ?? pt.zTilt ?? pt.deltaZ);
     const tiltRes = parseNum(tilt.tilt ?? pt.resultantTilt ?? pt.resultant) ?? (deltaX !== null && deltaY !== null ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null);
 
-    const xD = parseNum(disp.xDisplacement_mm ?? pt.xDisplacement ?? pt.xDisp);
-    const yD = parseNum(disp.yDisplacement_mm ?? pt.yDisplacement ?? pt.yDisp);
-    const zD = parseNum(disp.zDisplacement_mm ?? pt.zDisplacement ?? pt.zDisp);
-    const totalD = parseNum(disp.totalDisplacement_mm ?? pt.totalDisplacement ?? pt.totalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
+    const xD = 0.0;
+    const yD = 0.0;
+    const zD = 0.0;
+    const totalD = 0.0;
 
     const rockfallPeak = parseNum(accelDelta.peak ?? pt.rockfallDeltaPeak);
     const vibPeak = parseNum(vib.vibrationPeak ?? pt.touchVibrationPeak ?? pt.vibPeak);
@@ -1118,11 +1118,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const touchThresh = appliedSettings.human_touch_on || 5.0;
   const windThresh = appliedSettings.air_wind_on || 0.8;
 
-  // Displacement
-  const xDisp = parseNum(d.xDisp ?? rawP.displacement?.xDisplacement_mm ?? d.xDisplacement);
-  const yDisp = parseNum(d.yDisp ?? rawP.displacement?.yDisplacement_mm ?? d.yDisplacement);
-  const zDisp = parseNum(d.zDisp ?? rawP.displacement?.zDisplacement_mm ?? d.zDisplacement);
-  const totalDisp = parseNum(d.totalDisp ?? rawP.displacement?.totalDisplacement_mm ?? d.totalDisplacement) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
+  // Displacement (static 0.0)
+  const xDisp = 0.0;
+  const yDisp = 0.0;
+  const zDisp = 0.0;
+  const totalDisp = 0.0;
   const temp = parseNum(d.temp ?? d.temperature ?? rawP.environment?.temperature ?? rawP.temperature);
 
   // Accel, Gyro, Angle vectors
@@ -1417,7 +1417,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   <span className="text-xs font-bold text-slate-900 tracking-wide uppercase">X / Y DISPLACEMENT (MM)</span>
                 </div>
                 <span className="text-xs font-medium text-slate-500 font-mono">
-                  Total: <strong className="text-slate-800">{hasData && typeof totalDisp === 'number' ? `${totalDisp.toFixed(2)} mm` : '--'}</strong>
+                  Total: <strong className="text-slate-800">0.0 mm</strong>
                 </span>
               </div>
 
@@ -1429,7 +1429,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-xl sm:text-2xl font-extrabold text-blue-600 tracking-tight">
-                      {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
+                      0.0
                     </span>
                     <span className="text-xs sm:text-sm font-semibold text-slate-700 ml-1 font-sans">mm</span>
                   </div>
@@ -1442,7 +1442,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-xl sm:text-2xl font-extrabold text-amber-600 tracking-tight">
-                      {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
+                      0.0
                     </span>
                     <span className="text-xs sm:text-sm font-semibold text-slate-700 ml-1 font-sans">mm</span>
                   </div>

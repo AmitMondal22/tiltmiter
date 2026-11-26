@@ -169,10 +169,10 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
         xTilt: xT,
         yTilt: yT,
         zTilt: zT,
-        xDisp: xD !== null ? Number(xD.toFixed(1)) : null,
-        yDisp: yD !== null ? Number(yD.toFixed(1)) : null,
-        zDisp: zD !== null ? Number(zD.toFixed(1)) : null,
-        totalDisp: totalD !== null ? Number(totalD.toFixed(1)) : null,
+        xDisp: 0.0,
+        yDisp: 0.0,
+        zDisp: 0.0,
+        totalDisp: 0.0,
         axG: axG !== null ? Number(axG.toFixed(1)) : null,
         ayG: ayG !== null ? Number(ayG.toFixed(1)) : null,
         azG: azG !== null ? Number(azG.toFixed(1)) : null,
@@ -357,9 +357,9 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
               X / Y Displacement (mm)
             </h3>
           </div>
-          {lastPt && typeof lastPt.totalDisp === 'number' && (
+          {lastPt && (
             <span className="text-[10px] font-mono font-bold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded">
-              Total: {lastPt.totalDisp.toFixed(2)} mm
+              Total: 0.0 mm
             </span>
           )}
         </div>
@@ -396,7 +396,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                 <YAxis
                   stroke="#64748b"
                   tick={{ fontSize: 9.5, fill: '#64748b' }}
-                  domain={['auto', 'auto']}
+                  domain={[-1.0, 1.0]}
                   tickFormatter={(v) => Number(v).toFixed(1)}
                   label={{ value: 'Displacement (mm)', angle: -90, position: 'insideLeft', offset: 18, style: { fontSize: 9.5, fill: '#64748b', fontWeight: 600, textAnchor: 'middle' } }}
                 />
@@ -404,7 +404,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   content={
                     <CustomTooltip
                       unit="mm"
-                      formatVal={(v) => `${Number(v).toFixed(2)} mm`}
+                      formatVal={(v) => `${Number(v).toFixed(1)} mm`}
                     />
                   }
                 />
@@ -415,7 +415,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   stroke="#0284c7"
                   strokeWidth={2}
                   isAnimationActive={false}
-                  dot={renderCalloutDot('xDisp', totalPoints, '#0284c7', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.x)}
+                  dot={renderCalloutDot('xDisp', totalPoints, '#0284c7', (v) => `${Number(v).toFixed(1)} mm`, dispOffsets.x)}
                 />
                 <Line
                   type="monotone"
@@ -424,7 +424,7 @@ export default function TiltmeterChartsRow({ telemetryHistory = [], loading = fa
                   stroke="#0d9488"
                   strokeWidth={2}
                   isAnimationActive={false}
-                  dot={renderCalloutDot('yDisp', totalPoints, '#0d9488', (v) => `${Number(v).toFixed(2)} mm`, dispOffsets.y)}
+                  dot={renderCalloutDot('yDisp', totalPoints, '#0d9488', (v) => `${Number(v).toFixed(1)} mm`, dispOffsets.y)}
                 />
               </LineChart>
             </ResponsiveContainer>

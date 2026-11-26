@@ -103,10 +103,10 @@ export default function TrendsPage() {
     const rawZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisp ?? pt.zDisplacement;
     const rawTotalDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisp ?? pt.totalDisplacement;
 
-    const xD = parseNum(rawXDisp);
-    const yD = parseNum(rawYDisp);
-    const zD = parseNum(rawZDisp);
-    const totD = parseNum(rawTotalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
+    const xD = 0.0;
+    const yD = 0.0;
+    const zD = 0.0;
+    const totD = 0.0;
     const deltaRes = (deltaX !== null && deltaY !== null) ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
 
     const rawAxRaw = pt.axG ?? pt.ax ?? pt.acceleration?.ax ?? pt.acceleration?.x ?? null;
@@ -155,10 +155,10 @@ export default function TrendsPage() {
       yTilt: presentY !== null ? Number(presentY.toFixed(1)) : null,
       zTilt: presentZ !== null ? Number(presentZ.toFixed(1)) : null,
       resultant: deltaRes !== null ? Number(deltaRes.toFixed(1)) : null,
-      totalDisp: totD !== null ? Number(totD.toFixed(1)) : null,
-      xDisp: xD !== null ? Number(xD.toFixed(1)) : null,
-      yDisp: yD !== null ? Number(yD.toFixed(1)) : null,
-      zDisp: zD !== null ? Number(zD.toFixed(1)) : null,
+      totalDisp: 0.0,
+      xDisp: 0.0,
+      yDisp: 0.0,
+      zDisp: 0.0,
       axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(1)) : null,
       ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(1)) : null,
       azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(1)) : null,
@@ -437,13 +437,13 @@ export default function TrendsPage() {
                       {r.resultant !== null && r.resultant !== undefined ? `${r.resultant.toFixed(1)}°` : '--'}
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
-                      {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${r.xDisp.toFixed(1)} mm` : '--'}
+                      0.0 mm
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.yDisp !== null && r.yDisp !== undefined ? `${r.yDisp >= 0 ? '+' : ''}${r.yDisp.toFixed(1)} mm` : '--'}
+                      0.0 mm
                     </td>
                     <td className="py-2 px-3 font-bold text-pink-700">
-                      {r.totalDisp !== null && r.totalDisp !== undefined ? `${r.totalDisp.toFixed(1)} mm` : '--'}
+                      0.0 mm
                     </td>
                     <td className="py-2 px-3 text-slate-700">
                       {r.vibPeak !== null && r.vibPeak !== undefined ? `${r.vibPeak.toFixed(1)} g` : (r.accMag !== null && r.accMag !== undefined ? `${r.accMag.toFixed(1)} g` : '--')}

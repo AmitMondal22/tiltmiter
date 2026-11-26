@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { getSites, getDevices, getStructures, getProjects, getOrganizations } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
-import Landslide3DMapView from '../components/Landslide3DMapView';
 import { getAssetTypeConfig } from '../components/AssetsMapView';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { getSiteStructures, getSiteDevices } from '../utils/siteHelper';
@@ -237,27 +236,17 @@ export default function SiteDetailPage() {
 
       {/* Main Map Viewport & Devices List */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Left 3 Cols: Map (Satellite/Street) OR 3D Landslide Model */}
+        {/* Left 3 Cols: Map (Satellite/Street) */}
         <div className="lg:col-span-3">
-          {viewType === '3d' ? (
-            <Landslide3DMapView
-              structures={siteStructures}
-              devices={siteDevices}
-              sites={[effectiveSite]}
-              onSelectStructure={() => {}}
-              onSelectDevice={(d) => setSelectedDevice(d)}
-            />
-          ) : (
-            <LocationMapView
-              sites={[effectiveSite]}
-              devices={siteDevices}
-              structures={siteStructures}
-              projects={project ? [project] : []}
-              organizations={org ? [org] : []}
-              initialSelectedSiteId={site?.siteId || site?.id}
-              onSelectSite={() => {}}
-            />
-          )}
+          <LocationMapView
+            sites={[effectiveSite]}
+            devices={siteDevices}
+            structures={siteStructures}
+            projects={project ? [project] : []}
+            organizations={org ? [org] : []}
+            initialSelectedSiteId={site?.siteId || site?.id}
+            onSelectSite={() => {}}
+          />
         </div>
 
         {/* Right 1 Col: Tabs for Assets & Hardware Inclinometers */}

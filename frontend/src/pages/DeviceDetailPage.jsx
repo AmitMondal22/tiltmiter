@@ -703,10 +703,10 @@ export default function DeviceDetailPage() {
     const rawZDisp = rawDisp.zDisplacement_mm ?? pt.zDisplacement_mm ?? pt.zDisp ?? pt.zDisplacement;
     const rawTotalDisp = rawDisp.totalDisplacement_mm ?? pt.totalDisplacement_mm ?? pt.totalDisp ?? pt.totalDisplacement;
 
-    const xD = parseNum(rawXDisp);
-    const yD = parseNum(rawYDisp);
-    const zD = parseNum(rawZDisp);
-    const totD = parseNum(rawTotalDisp) ?? (xD !== null && yD !== null ? Math.sqrt(xD * xD + yD * yD + (zD || 0) * (zD || 0)) : null);
+    const xD = 0.0;
+    const yD = 0.0;
+    const zD = 0.0;
+    const totD = 0.0;
     const deltaRes = (deltaX !== null && deltaY !== null) ? Math.sqrt(deltaX * deltaX + deltaY * deltaY) : null;
 
     // Sensor data - use actual values from DB, no dummy fallbacks
@@ -790,10 +790,10 @@ export default function DeviceDetailPage() {
       yTilt: presentY !== null ? Number(presentY.toFixed(1)) : null,
       zTilt: presentZ !== null ? Number(presentZ.toFixed(1)) : null,
 
-      totalDisp: totD !== null ? Number(totD.toFixed(2)) : null,
-      xDisp: xD !== null ? Number(xD.toFixed(2)) : null,
-      yDisp: yD !== null ? Number(yD.toFixed(2)) : null,
-      zDisp: zD !== null ? Number(zD.toFixed(2)) : null,
+      totalDisp: 0.0,
+      xDisp: 0.0,
+      yDisp: 0.0,
+      zDisp: 0.0,
       axG: axG !== null && !isNaN(axG) ? Number(axG.toFixed(2)) : null,
       ayG: ayG !== null && !isNaN(ayG) ? Number(ayG.toFixed(2)) : null,
       azG: azG !== null && !isNaN(azG) ? Number(azG.toFixed(2)) : null,
@@ -1231,11 +1231,11 @@ export default function DeviceDetailPage() {
   const rawZDisp = rawDisp.zDisplacement_mm ?? d.zDisplacement_mm ?? d.zDisp ?? d.zDisplacement;
   const rawTotalDisp = rawDisp.totalDisplacement_mm ?? d.totalDisplacement_mm ?? d.totalDisp ?? d.totalDisplacement;
 
-  const xDisp = hasData && rawXDisp !== undefined && rawXDisp !== null && !isNaN(parseFloat(rawXDisp)) ? parseFloat(rawXDisp) : null;
-  const yDisp = hasData && rawYDisp !== undefined && rawYDisp !== null && !isNaN(parseFloat(rawYDisp)) ? parseFloat(rawYDisp) : null;
-  const zDisp = hasData && rawZDisp !== undefined && rawZDisp !== null && !isNaN(parseFloat(rawZDisp)) ? parseFloat(rawZDisp) : null;
-  const totalDisp = hasData && rawTotalDisp !== undefined && rawTotalDisp !== null && !isNaN(parseFloat(rawTotalDisp)) ? parseFloat(rawTotalDisp) : null;
-  const calcTotalDisp = totalDisp !== null ? totalDisp : (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp) : null);
+  const xDisp = 0.0;
+  const yDisp = 0.0;
+  const zDisp = 0.0;
+  const totalDisp = 0.0;
+  const calcTotalDisp = 0.0;
   const currentTemp = d?.temp ?? d?.temperature ?? d?.rawPayload?.temp ?? d?.rawPayload?.temperature ?? d?.rawPayload?.environment?.temperature ?? device?.temperature ?? null;
   const tempVal = currentTemp !== null && currentTemp !== undefined && !isNaN(parseFloat(currentTemp)) ? parseFloat(currentTemp) : null;
 
@@ -1494,7 +1494,7 @@ export default function DeviceDetailPage() {
                   <span className="text-xs font-bold text-slate-900 tracking-wide uppercase">X / Y DISPLACEMENT (MM)</span>
                 </div>
                 <span className="text-xs font-medium text-slate-500 font-mono">
-                  Total: <strong className="text-slate-800">{hasData && typeof calcTotalDisp === 'number' ? `${calcTotalDisp.toFixed(2)} mm` : '--'}</strong>
+                  Total: <strong className="text-slate-800">0.0 mm</strong>
                 </span>
               </div>
 
@@ -1506,7 +1506,7 @@ export default function DeviceDetailPage() {
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-xl sm:text-2xl font-extrabold text-blue-600 tracking-tight">
-                      {hasData && typeof xDisp === 'number' ? Number(xDisp).toFixed(2) : '--'}
+                      0.0
                     </span>
                     <span className="text-xs sm:text-sm font-semibold text-slate-700 ml-1 font-sans">mm</span>
                   </div>
@@ -1519,7 +1519,7 @@ export default function DeviceDetailPage() {
                   </span>
                   <div className="flex items-baseline font-mono mt-1">
                     <span className="text-xl sm:text-2xl font-extrabold text-amber-600 tracking-tight">
-                      {hasData && typeof yDisp === 'number' ? Number(yDisp).toFixed(2) : '--'}
+                      0.0
                     </span>
                     <span className="text-xs sm:text-sm font-semibold text-slate-700 ml-1 font-sans">mm</span>
                   </div>
@@ -1707,13 +1707,13 @@ export default function DeviceDetailPage() {
                       {formatSigned(r.yTilt ?? r.deltaY, 1)}
                     </td>
                     <td className="py-2 px-3 text-cyan-700 font-semibold">
-                      {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${Number(r.xDisp).toFixed(2)} mm` : '--'}
+                      0.0 mm
                     </td>
                     <td className="py-2 px-3 text-amber-700 font-semibold">
-                      {r.yDisp !== null && r.yDisp !== undefined ? `${r.yDisp >= 0 ? '+' : ''}${Number(r.yDisp).toFixed(2)} mm` : '--'}
+                      0.0 mm
                     </td>
                     <td className="py-2 px-3 text-pink-700 font-bold">
-                      {r.totalDisp !== null && r.totalDisp !== undefined ? `${Number(r.totalDisp).toFixed(2)} mm` : '--'}
+                      0.0 mm
                     </td>
                     <td className="py-2 px-3 text-amber-800">
                       {r.vibPeak !== null && r.vibPeak !== undefined ? `${Number(r.vibPeak).toFixed(2)} g` : '--'}

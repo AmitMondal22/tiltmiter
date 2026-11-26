@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, X, CheckCircle2, ChevronRight, Cpu, Layers, Map as MapIcon, List, Shield, Box, MapPin, Activity, Zap, Radio, ExternalLink } from 'lucide-react';
 import { getStructures, getSites, getProjects, getOrganizations, createStructure, updateStructure, deleteStructure, createDevice, getDevices, updateDevice, updateStructureDeviceLocationsBulk } from '../api/apiClient';
-import AssetsMapView, { ASSET_TYPES, getAssetTypeConfig } from '../components/AssetsMapView';
-import Landslide3DMapView from '../components/Landslide3DMapView';
+import { ASSET_TYPES, getAssetTypeConfig } from '../components/AssetsMapView';
 import LocationMapView from '../components/LocationMapView';
 import MapPicker from '../components/MapPicker';
-import DeviceLocationPickerModal from '../components/DeviceLocationPickerModal';
 
 export default function StructuresPage() {
   const navigate = useNavigate();
@@ -23,7 +21,7 @@ export default function StructuresPage() {
   const [editingStruct, setEditingStruct] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [selectedDeviceInAsset, setSelectedDeviceInAsset] = useState(null);
-  const [locationModalDevice, setLocationModalDevice] = useState(null);
+  const [editingMapDevice, setEditingMapDevice] = useState(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [isCustomType, setIsCustomType] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -294,32 +292,6 @@ export default function StructuresPage() {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* Table vs 2D Map Switcher */}
-          <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <List className="w-3.5 h-3.5" />
-              <span>Table View</span>
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewMode === 'map'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <MapIcon className="w-3.5 h-3.5" />
-              <span>2D Geospatial Area Map</span>
-            </button>
-          </div>
-
           <button
             onClick={handleOpenAdd}
             className="flex items-center gap-1.5 px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
@@ -330,10 +302,8 @@ export default function StructuresPage() {
         </div>
       </div>
 
-      {/* Main View: Table View OR 2D Area Map View OR 3D Landslide Model */}
-      {viewMode === 'list' ? (
-        /* Assets Table */
-        <div className={cardCls}>
+      {/* Assets Table */}
+      <div className={cardCls}>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -405,16 +375,6 @@ export default function StructuresPage() {
                               <span>Open Asset</span>
                             </button>
 
-                            {/* 2D Map Pin Action */}
-                            <button
-                              onClick={() => handleOpenMapForAsset(st)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-[11px] border border-blue-200 transition-colors cursor-pointer"
-                              title="View asset coverage area on 2D map"
-                            >
-                              <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                              <span>2D Map</span>
-                            </button>
-
                             <button onClick={() => handleOpenEdit(st)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer" title="Edit Asset">
                               <Edit className="w-4 h-4" />
                             </button>
@@ -431,21 +391,6 @@ export default function StructuresPage() {
             </table>
           </div>
         </div>
-      ) : viewMode === 'map' ? (
-        <AssetsMapView
-          structures={structuresList}
-          sites={sitesList}
-          onSelectStructure={(st) => setSelectedAsset(st)}
-        />
-      ) : (
-        <Landslide3DMapView
-          structures={structuresList}
-          devices={devicesList}
-          sites={sitesList}
-          onSelectStructure={(st) => setSelectedAsset(st)}
-          onSelectDevice={() => {}}
-        />
-      )}
 
       {/* Attach Device Modal / Detailed Attached Devices Panel (Scoped to selected Structural Asset) */}
       {selectedAsset && (() => {
@@ -512,11 +457,11 @@ export default function StructuresPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setLocationModalDevice(selectedDeviceInAsset)}
+                  onClick={() => setEditingMapDevice(selectedDeviceInAsset)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer"
                 >
                   <MapPin className="w-3.5 h-3.5" />
-                  <span>Pick / Update Location on Map</span>
+                  <span>Move / Edit on Map</span>
                 </button>
               </div>
             )}
@@ -534,6 +479,8 @@ export default function StructuresPage() {
                   onSelectSite={() => {}}
                   enableDeviceDrag={true}
                   onSaveAllDeviceLocations={handleSaveAllMovedDevices}
+                  editingDevice={editingMapDevice}
+                  onClearEditingDevice={() => setEditingMapDevice(null)}
                 />
               </div>
 
@@ -585,7 +532,8 @@ export default function StructuresPage() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setLocationModalDevice(d);
+                              setSelectedDeviceInAsset(d);
+                              setEditingMapDevice(d);
                             }}
                             className="text-blue-600 hover:text-blue-800 font-sans font-bold underline cursor-pointer shrink-0 ml-1"
                           >
@@ -831,20 +779,6 @@ export default function StructuresPage() {
         </div>
       )}
 
-      {/* Interactive Device Location Picker Modal */}
-      <DeviceLocationPickerModal
-        isOpen={Boolean(locationModalDevice)}
-        onClose={() => setLocationModalDevice(null)}
-        device={locationModalDevice}
-        structure={selectedAsset}
-        site={selectedAsset ? sitesList.find(s => String(s.id || s.siteId) === String(selectedAsset.siteId)) : null}
-        assetDevices={
-          selectedAsset
-            ? devicesList.filter(d => String(d.structureId) === String(selectedAsset.id))
-            : []
-        }
-        onSaved={handleDeviceLocationSaved}
-      />
     </div>
   );
 }

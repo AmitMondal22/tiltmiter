@@ -140,10 +140,10 @@ export default function ReportsPage({ currentDevice }) {
       const yTilt = parseNum(r.yTilt ?? r.tiltY ?? angleDelta.y);
       const zTilt = parseNum(r.zTilt ?? r.tiltZ ?? angleDelta.z);
       const resultantTilt = parseNum(r.resultantTilt ?? r.resultant) ?? (xTilt !== null && yTilt !== null ? Math.sqrt(xTilt * xTilt + yTilt * yTilt) : null);
-      const xDisp = parseNum(r.xDisp ?? r.xDisplacement ?? disp.xDisplacement_mm);
-      const yDisp = parseNum(r.yDisp ?? r.yDisplacement ?? disp.yDisplacement_mm);
-      const zDisp = parseNum(r.zDisp ?? r.zDisplacement ?? disp.zDisplacement_mm);
-      const totalDisp = parseNum(r.totalDisp ?? r.totalDisplacement ?? disp.totalDisplacement_mm) ?? (xDisp !== null && yDisp !== null ? Math.sqrt(xDisp * xDisp + yDisp * yDisp + (zDisp || 0) * (zDisp || 0)) : null);
+      const xDisp = 0.0;
+      const yDisp = 0.0;
+      const zDisp = 0.0;
+      const totalDisp = 0.0;
 
       const rockfallActive = Boolean(rockfall.active ?? r.alarmActive ?? r.rockfallActive ?? false);
       const rockfallNewEvent = Boolean(rockfall.newEvent ?? r.rockfallNewEvent ?? r.newEvent ?? false);
@@ -326,9 +326,9 @@ export default function ReportsPage({ currentDevice }) {
       maxXTilt = summaryStats.maxXTilt !== undefined ? summaryStats.maxXTilt : maxXTilt;
       maxYTilt = summaryStats.maxYTilt !== undefined ? summaryStats.maxYTilt : maxYTilt;
       maxZTilt = summaryStats.maxZTilt !== undefined ? summaryStats.maxZTilt : maxZTilt;
-      maxDisp = summaryStats.maxTotalDisplacement_mm !== undefined ? summaryStats.maxTotalDisplacement_mm : maxDisp;
-      maxXDisp = summaryStats.maxXDisplacement_mm !== undefined ? summaryStats.maxXDisplacement_mm : maxXDisp;
-      maxYDisp = summaryStats.maxYDisplacement_mm !== undefined ? summaryStats.maxYDisplacement_mm : maxYDisp;
+      maxDisp = 0.0;
+      maxXDisp = 0.0;
+      maxYDisp = 0.0;
       maxVib = summaryStats.maxVibrationPeak_g !== undefined ? summaryStats.maxVibrationPeak_g : maxVib;
     }
 
@@ -338,9 +338,9 @@ export default function ReportsPage({ currentDevice }) {
       maxXTilt,
       maxYTilt,
       maxZTilt,
-      maxDisp,
-      maxXDisp,
-      maxYDisp,
+      maxDisp: 0.0,
+      maxXDisp: 0.0,
+      maxYDisp: 0.0,
       maxVib,
       avgTemp: reportRows.length > 0 ? (tempSum / reportRows.length).toFixed(1) : (summaryStats?.averageTemperature_C || 0),
       rockfallAlarmCount,
@@ -404,10 +404,10 @@ export default function ReportsPage({ currentDevice }) {
         r.xTilt !== null && r.xTilt !== undefined ? Number(r.xTilt).toFixed(4) : '',
         r.yTilt !== null && r.yTilt !== undefined ? Number(r.yTilt).toFixed(4) : '',
         r.resultant !== null && r.resultant !== undefined ? Number(r.resultant).toFixed(4) : '',
-        r.xDisp !== null && r.xDisp !== undefined ? Number(r.xDisp).toFixed(4) : '',
-        r.yDisp !== null && r.yDisp !== undefined ? Number(r.yDisp).toFixed(4) : '',
-        r.zDisp !== null && r.zDisp !== undefined ? Number(r.zDisp).toFixed(4) : '',
-        r.totalDisp !== null && r.totalDisp !== undefined ? Number(r.totalDisp).toFixed(4) : '',
+        '0.0',
+        '0.0',
+        '0.0',
+        '0.0',
         r.accMag !== null && r.accMag !== undefined ? Number(r.accMag).toFixed(3) : '',
         r.vibRMS !== null && r.vibRMS !== undefined ? Number(r.vibRMS).toFixed(4) : '',
         r.vibPeak !== null && r.vibPeak !== undefined ? Number(r.vibPeak).toFixed(4) : '',
@@ -1122,13 +1122,13 @@ export default function ReportsPage({ currentDevice }) {
                           {(paramCategory === 'ALL' || paramCategory === 'DISPLACEMENT') && (
                             <>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-cyan-700 font-semibold">
-                                {r.xDisp !== null && r.xDisp !== undefined ? `${r.xDisp >= 0 ? '+' : ''}${Number(r.xDisp).toFixed(1)} mm` : '--'}
+                                0.0 mm
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-amber-700 font-semibold">
-                                {r.yDisp !== null && r.yDisp !== undefined ? `${r.yDisp >= 0 ? '+' : ''}${Number(r.yDisp).toFixed(1)} mm` : '--'}
+                                0.0 mm
                               </td>
                               <td className="py-2 px-3 text-right whitespace-nowrap text-pink-700 font-bold">
-                                {r.totalDisp !== null && r.totalDisp !== undefined ? `${Number(r.totalDisp).toFixed(1)} mm` : '--'}
+                                0.0 mm
                               </td>
                             </>
                           )}

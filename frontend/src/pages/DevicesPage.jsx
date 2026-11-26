@@ -444,7 +444,7 @@ export default function DevicesPage() {
                       </td>
                       <td className="py-3.5 px-3.5">
                         <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[10px]">
-                          {dev.status || 'ONLINE'}
+                          NORMAL
                         </span>
                       </td>
                       <td className="py-3.5 px-3.5 text-right" onClick={e => e.stopPropagation()}>

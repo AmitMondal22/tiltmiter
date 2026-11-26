@@ -11,9 +11,7 @@ import {
   getProjects, getOrganizations, createDevice, updateDevice, updateStructureDeviceLocationsBulk
 } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
-import Landslide3DMapView from '../components/Landslide3DMapView';
 import MapPicker from '../components/MapPicker';
-import DeviceLocationPickerModal from '../components/DeviceLocationPickerModal';
 import { getAssetTypeConfig } from '../components/AssetsMapView';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 
@@ -34,7 +32,7 @@ export default function StructureDetailPage() {
   const [sidebarTab, setSidebarTab] = useState('devices'); // 'devices' or 'structures'
   const [deviceSearch, setDeviceSearch] = useState('');
   const [structureSearch, setStructureSearch] = useState('');
-  const [locationModalDevice, setLocationModalDevice] = useState(null);
+  const [editingMapDevice, setEditingMapDevice] = useState(null);
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false);
   const [savingDevice, setSavingDevice] = useState(false);
   const [toastMsg, setToastMsg] = useState({ type: '', text: '' });
@@ -371,30 +369,9 @@ export default function StructureDetailPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View mode: Satellite Map vs 3D Landslide Model */}
-          <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
-            <button
-              onClick={() => setViewType('satellite')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewType === 'satellite'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>Satellite Map</span>
-            </button>
-            <button
-              onClick={() => setViewType('3d')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
-                viewType === '3d'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Box className="w-3.5 h-3.5" />
-              <span>3D Landslide View</span>
-            </button>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-2xs">
+            <Globe className="w-3.5 h-3.5" />
+            <span>Satellite Map</span>
           </div>
 
           {/* Collapsible Analytics Toggle */}
@@ -578,11 +555,11 @@ export default function StructureDetailPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setLocationModalDevice(selectedDevice)}
+                  onClick={() => setEditingMapDevice(selectedDevice)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
                 >
                   <Edit className="w-3.5 h-3.5" />
-                  <span>Pick / Update Location on Map</span>
+                  <span>Move / Update Location on Map</span>
                 </button>
                 <button
                   type="button"
@@ -596,31 +573,19 @@ export default function StructureDetailPage() {
             </div>
           )}
 
-          {viewType === '3d' ? (
-            <Landslide3DMapView
-              structures={structure ? [structure] : []}
-              devices={attachedDevices}
-              sites={site ? [site] : []}
-              onSelectStructure={(st) => {
-                if (st?.id && st.id !== structure?.id) {
-                  navigate(`/structures/${st.id}`);
-                }
-              }}
-              onSelectDevice={(d) => setSelectedDevice(d)}
-            />
-          ) : (
-            <LocationMapView
-              sites={[]} // Focus strictly on this Structural Asset and its attached devices
-              devices={attachedDevices}
-              structures={structure ? [structure] : []}
-              projects={project ? [project] : []}
-              organizations={org ? [org] : []}
-              initialSelectedSiteId="ALL"
-              onSelectSite={() => {}}
-              enableDeviceDrag={true}
-              onSaveAllDeviceLocations={handleSaveAllMovedDevices}
-            />
-          )}
+          <LocationMapView
+            sites={[]} // Focus strictly on this Structural Asset and its attached devices
+            devices={attachedDevices}
+            structures={structure ? [structure] : []}
+            projects={project ? [project] : []}
+            organizations={org ? [org] : []}
+            initialSelectedSiteId="ALL"
+            onSelectSite={() => {}}
+            enableDeviceDrag={true}
+            onSaveAllDeviceLocations={handleSaveAllMovedDevices}
+            editingDevice={editingMapDevice}
+            onClearEditingDevice={() => setEditingMapDevice(null)}
+          />
         </div>
 
         {/* Right 3-4 Cols: Attached Hardware Inclinometers & Site Structures */}
@@ -756,7 +721,8 @@ export default function StructureDetailPage() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setLocationModalDevice(d);
+                                setSelectedDevice(d);
+                                setEditingMapDevice(d);
                               }}
                               className="text-blue-600 hover:text-blue-800 font-sans font-bold underline cursor-pointer shrink-0 ml-1"
                             >
@@ -781,7 +747,8 @@ export default function StructureDetailPage() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setLocationModalDevice(d);
+                                setSelectedDevice(d);
+                                setEditingMapDevice(d);
                               }}
                               className="flex items-center justify-center gap-1 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[10px] transition-colors cursor-pointer"
                             >
@@ -959,17 +926,6 @@ export default function StructureDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Interactive Device Location Picker Modal */}
-      <DeviceLocationPickerModal
-        isOpen={Boolean(locationModalDevice)}
-        onClose={() => setLocationModalDevice(null)}
-        device={locationModalDevice}
-        structure={structure}
-        site={site}
-        assetDevices={attachedDevices}
-        onSaved={handleDeviceLocationSaved}
-      />
 
       {/* Add Device Modal with Map Picker */}
       {addDeviceModalOpen && (

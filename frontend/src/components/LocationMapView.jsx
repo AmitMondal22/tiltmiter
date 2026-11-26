@@ -11,8 +11,10 @@ import {
   X, RotateCcw, Compass, Home, Plus, Minus
 } from 'lucide-react';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
-import { formatAssetUrl } from '../api/apiClient';
+import { formatAssetUrl, getDeviceTelemetry } from '../api/apiClient';
 import { getSiteStructures, getSiteDevices, isDeviceInSite } from '../utils/siteHelper';
+import { formatHHMM, formatFullDateTime } from '../utils/dateHelper';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 // Free, open map styles requiring NO API Key
 const MAP_STYLES = {
@@ -311,6 +313,54 @@ export default function LocationMapView({
   const deviceMarkerMapRef = useRef(new Map());
   const pendingFocusDeviceIdRef = useRef(null); // Inclinometer displacement heatmap
   const [selectedDevice, setSelectedDevice] = useState(null);
+  const [inspectorChartData, setInspectorChartData] = useState([]);
+  const [inspectorChartLoading, setInspectorChartLoading] = useState(false);
+
+  // Fetch last 24h Tilt X / Y telemetry whenever a device is selected in the Sensor Node Inspector
+  useEffect(() => {
+    const devId = selectedDevice?.id || selectedDevice?.deviceId;
+    if (!devId) {
+      setInspectorChartData([]);
+      return;
+    }
+    let cancelled = false;
+    setInspectorChartLoading(true);
+    getDeviceTelemetry(devId, null, null, '24h')
+      .then((res) => {
+        if (cancelled) return;
+        const rows = res?.telemetry || res?.data || res?.history || (Array.isArray(res) ? res : []);
+        const parseNum = (v) => {
+          if (v === null || v === undefined || v === '' || v === '--') return null;
+          const n = typeof v === 'number' ? v : parseFloat(v);
+          return !isNaN(n) ? Number(n.toFixed(2)) : null;
+        };
+        const formatted = rows
+          .map((pt) => {
+            const ts = pt.timestamp || pt.time || pt.createdAt;
+            const xVal = parseNum(pt.tilt?.roll ?? pt.roll ?? pt.presentX ?? pt.xTilt ?? pt.deltaX);
+            const yVal = parseNum(pt.tilt?.pitch ?? pt.pitch ?? pt.presentY ?? pt.yTilt ?? pt.deltaY);
+            if (xVal === null && yVal === null) return null;
+            return {
+              timeLabel: ts ? formatHHMM(ts) : '--',
+              fullTime: ts ? formatFullDateTime(ts) : '--',
+              xTilt: xVal,
+              yTilt: yVal,
+            };
+          })
+          .filter(Boolean);
+        setInspectorChartData(formatted);
+      })
+      .catch(() => {
+        if (!cancelled) setInspectorChartData([]);
+      })
+      .finally(() => {
+        if (!cancelled) setInspectorChartLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDevice?.id, selectedDevice?.deviceId]);
   const [selectedSite, setSelectedSite] = useState(null);
   const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
   const [internalDragMode, setInternalDragMode] = useState(false);
@@ -2091,65 +2141,109 @@ export default function LocationMapView({
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedDevice(null)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedDevice.imageUrl) {
+                        setPreviewImageModal({
+                          open: true,
+                          url: formatAssetUrl(selectedDevice.imageUrl),
+                          device: selectedDevice
+                        });
+                      }
+                    }}
+                    disabled={!selectedDevice.imageUrl}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      selectedDevice.imageUrl
+                        ? 'text-blue-600 bg-blue-50 hover:bg-blue-100 cursor-pointer'
+                        : 'text-slate-300 bg-slate-50 cursor-not-allowed'
+                    }`}
+                    title={selectedDevice.imageUrl ? 'View Device Image' : 'No Photo Uploaded'}
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setSelectedDevice(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
-              {/* Small Size Image Show with Click to Preview Image */}
+              {/* Last 24h Tilt X / Y Angle Chart */}
               <div className="mb-3">
-                <div className="text-[11px] font-bold text-slate-700 mb-1 flex items-center justify-between">
-                  <span>Installation Photo:</span>
-                  {selectedDevice.imageUrl && (
-                    <button
-                      onClick={() => setPreviewImageModal({
-                        open: true,
-                        url: formatAssetUrl(selectedDevice.imageUrl),
-                        device: selectedDevice
-                      })}
-                      className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer flex items-center gap-0.5"
-                    >
-                      <Maximize2 className="w-3 h-3" />
-                      <span>Preview Image</span>
-                    </button>
-                  )}
+                <div className="text-[11px] font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Tilt X / Y Angle (Last 24h)</span>
+                  <div className="flex items-center gap-2 text-[10px] font-mono">
+                    <span className="flex items-center gap-1 text-blue-600 font-bold">
+                      <span className="w-2 h-2 rounded-full bg-blue-600 inline-block" />X
+                    </span>
+                    <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block" />Y
+                    </span>
+                  </div>
                 </div>
 
-                {selectedDevice.imageUrl ? (
-                  <div
-                    onClick={() => setPreviewImageModal({
-                      open: true,
-                      url: formatAssetUrl(selectedDevice.imageUrl),
-                      device: selectedDevice
-                    })}
-                    className="relative w-full h-32 rounded-xl overflow-hidden border border-slate-200 bg-slate-900 cursor-pointer group shadow-xs"
-                    title="Click to view full preview"
-                  >
-                    <img
-                      src={formatAssetUrl(selectedDevice.imageUrl)}
-                      alt={selectedDevice.name || selectedDevice.id}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex items-end justify-between p-2.5 text-white">
-                      <div>
-                        <div className="text-xs font-bold leading-tight">{selectedDevice.name || selectedDevice.id}</div>
-                        <div className="text-[10px] text-slate-300 font-mono">Hardware Photo</div>
-                      </div>
-                      <span className="p-1.5 rounded-lg bg-black/60 text-white group-hover:bg-blue-600 transition-colors shadow-sm">
-                        <Maximize2 className="w-3.5 h-3.5" />
-                      </span>
+                <div className="w-full h-36 rounded-xl border border-slate-200 bg-slate-50/70 p-1.5">
+                  {inspectorChartLoading ? (
+                    <div className="w-full h-full flex items-center justify-center gap-2 text-[11px] font-semibold text-slate-500">
+                      <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      <span>Loading 24h chart...</span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="w-full h-24 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex flex-col items-center justify-center p-3 text-center">
-                    <Camera className="w-6 h-6 text-slate-300 mb-1" />
-                    <span className="text-[11px] font-bold text-slate-600">No Photo Uploaded</span>
-                    <span className="text-[10px] text-slate-400">Upload in Edit Device Node modal</span>
-                  </div>
-                )}
+                  ) : inspectorChartData.length === 0 ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-center text-[11px] text-slate-400">
+                      <TrendingUp className="w-5 h-5 text-slate-300 mb-1" />
+                      <span>No 24h tilt data available</span>
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={inspectorChartData} margin={{ top: 6, right: 8, left: -22, bottom: 2 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="timeLabel"
+                          tick={{ fontSize: 9, fill: '#64748b' }}
+                          tickLine={false}
+                          minTickGap={20}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 9, fill: '#64748b' }}
+                          tickLine={false}
+                          tickFormatter={(v) => `${v}°`}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            fontSize: '10px',
+                            borderRadius: '8px',
+                            border: '1px solid #e2e8f0',
+                            padding: '6px 8px',
+                          }}
+                          labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTime || ''}
+                          formatter={(val, name) => [`${Number(val).toFixed(2)}°`, name === 'xTilt' ? 'Tilt X' : 'Tilt Y']}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="xTilt"
+                          name="xTilt"
+                          stroke="#2563eb"
+                          strokeWidth={1.8}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="yTilt"
+                          name="yTilt"
+                          stroke="#10b981"
+                          strokeWidth={1.8}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
               </div>
 
               {/* Metadata Details */}

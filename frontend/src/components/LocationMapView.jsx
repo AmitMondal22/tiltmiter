@@ -1242,11 +1242,11 @@ export default function LocationMapView({
   };
 
   const renderSearchAndDropdowns = (insideMap = false) => (
-    <div className={`flex flex-wrap items-center gap-2 ${insideMap ? 'bg-white/95 backdrop-blur-md p-2 rounded-2xl border border-slate-200/90 shadow-lg' : 'flex-1 min-w-[280px]'}`}>
+    <div className={`flex flex-wrap items-center ${insideMap ? 'gap-1 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200/90 shadow-lg' : 'gap-2 flex-1 min-w-[280px]'}`}>
       {/* Search Input + Search Button */}
-      <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5">
-        <div className="relative min-w-[165px] max-w-[230px]">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+      <form onSubmit={handleSearchSubmit} className="flex items-center gap-1">
+        <div className={`relative ${insideMap ? 'w-[140px] sm:w-[165px]' : 'min-w-[165px] max-w-[230px]'}`}>
+          <Search className={`${insideMap ? 'w-3 h-3 left-2' : 'w-3.5 h-3.5 left-2.5'} text-slate-400 absolute top-1/2 -translate-y-1/2`} />
           <input
             type="text"
             value={searchInput}
@@ -1255,7 +1255,9 @@ export default function LocationMapView({
               if (!e.target.value.trim()) setSearchQuery('');
             }}
             placeholder="Search site or device..."
-            className="w-full pl-8 pr-6 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+            className={`w-full border border-slate-200 bg-white font-medium text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs ${
+              insideMap ? 'pl-6 pr-5 py-1 rounded-lg text-[11px]' : 'pl-8 pr-6 py-1.5 rounded-xl text-xs'
+            }`}
           />
           {searchInput && (
             <button
@@ -1264,7 +1266,7 @@ export default function LocationMapView({
                 setSearchInput('');
                 setSearchQuery('');
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
               title="Clear search"
             >
               <X className="w-3 h-3" />
@@ -1273,11 +1275,13 @@ export default function LocationMapView({
         </div>
         <button
           type="submit"
-          className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+          className={`bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-2xs transition-colors cursor-pointer flex items-center justify-center gap-1 ${
+            insideMap ? 'p-1.5 rounded-lg' : 'px-2.5 py-1.5 rounded-xl text-xs'
+          }`}
           title="Search on map"
         >
-          <Search className="w-3 h-3" />
-          <span>Search</span>
+          <Search className={insideMap ? 'w-3.5 h-3.5' : 'w-3 h-3'} />
+          {!insideMap && <span>Search</span>}
         </button>
       </form>
 
@@ -1286,7 +1290,9 @@ export default function LocationMapView({
         <select
           value={selectedSiteId}
           onChange={e => handleSiteSelect(e.target.value)}
-          className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-bold text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
+          className={`border border-slate-200 bg-white font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer ${
+            insideMap ? 'px-2 py-1 rounded-lg text-[11px] max-w-[125px]' : 'px-2.5 py-1.5 rounded-xl text-xs'
+          }`}
         >
           <option value="ALL">All Locations ({sites.length})</option>
           {sites.map(s => (
@@ -1302,7 +1308,9 @@ export default function LocationMapView({
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value)}
-          className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer ${
+          className={`border font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer ${
+            insideMap ? 'px-2 py-1 rounded-lg text-[11px]' : 'px-2.5 py-1.5 rounded-xl text-xs'
+          } ${
             statusFilter === 'ALERT'
               ? 'bg-rose-50 border-rose-300 text-rose-800'
               : statusFilter === 'NORMAL'
@@ -1312,8 +1320,8 @@ export default function LocationMapView({
           title="Filter map devices by Alert / Normal state"
         >
           <option value="ALL">All Devices ({assignedDevices.length})</option>
-          <option value="ALERT">Alert Devices ({alertDeviceCount})</option>
-          <option value="NORMAL">Normal Devices ({normalDeviceCount})</option>
+          <option value="ALERT">Alert ({alertDeviceCount})</option>
+          <option value="NORMAL">Normal ({normalDeviceCount})</option>
         </select>
       </div>
     </div>
@@ -1471,34 +1479,22 @@ export default function LocationMapView({
         {/* GIS Inside-Map Controls (Dashboard Map Mode) */}
         {controlsInsideMap && (
           <>
-            {/* Top-Left: Search, Dropdowns, 3D & Reset */}
-            <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2 max-w-[calc(100%-70px)] pointer-events-none">
+            {/* Top-Left: Search, Dropdowns + Left Zoom Stack */}
+            <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2 max-w-[calc(100%-24px)] pointer-events-none">
               <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto">
                 {renderSearchAndDropdowns(true)}
                 <button
                   type="button"
-                  onClick={() => setIs3D(!is3D)}
-                  className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border backdrop-blur-md shadow-md transition-colors cursor-pointer ${
-                    is3D
-                      ? 'bg-blue-600 text-white border-blue-500'
-                      : 'bg-slate-900/75 text-white border-white/20 hover:bg-slate-900/90'
-                  }`}
-                  title="Toggle 2D / 3D View"
-                >
-                  3D
-                </button>
-                <button
-                  type="button"
                   onClick={handleFitAllBounds}
-                  className="p-1.5 rounded-xl bg-slate-900/75 text-white border border-white/20 hover:bg-slate-900/90 backdrop-blur-md shadow-md transition-colors cursor-pointer"
+                  className="p-1.5 rounded-xl bg-slate-900/80 text-white border border-white/20 hover:bg-slate-900/95 backdrop-blur-md shadow-md transition-colors cursor-pointer"
                   title="Reset Map View"
                 >
                   <RotateCcw className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Left Vertical Zoom & Home Stack (below top-left bar) */}
-              <div className="flex flex-col bg-slate-900/75 backdrop-blur-md border border-white/15 rounded-xl overflow-hidden shadow-lg pointer-events-auto text-white">
+              {/* Left Vertical Zoom & Home Stack */}
+              <div className="flex flex-col bg-slate-900/80 backdrop-blur-md border border-white/15 rounded-xl overflow-hidden shadow-lg pointer-events-auto text-white">
                 <button
                   type="button"
                   onClick={handleFitAllBounds}
@@ -1526,77 +1522,77 @@ export default function LocationMapView({
               </div>
             </div>
 
-            {/* Right Vertical GIS Toolbar */}
-            <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2 pointer-events-auto">
+            {/* Top-Right Inside-Map: Compact Icon-Only Vertical GIS Toolbar */}
+            <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-1.5 pointer-events-auto">
               <div className="flex flex-col bg-slate-900/80 backdrop-blur-md border border-white/15 rounded-xl overflow-hidden shadow-xl text-white">
                 {/* Map Layer Style Switcher */}
                 <button
                   type="button"
                   onClick={() => setShowStyleMenu(prev => !prev)}
-                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showStyleMenu ? 'bg-blue-600/80' : ''}`}
-                  title={`Map Style: ${MAP_STYLES[mapType]?.name || 'Satellite'}`}
+                  className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showStyleMenu ? 'bg-blue-600/80' : ''}`}
+                  title={`Map Style: ${MAP_STYLES[mapType]?.name || 'Satellite 3D'}`}
                 >
-                  <Layers className="w-4 h-4" />
+                  <Layers className="w-3.5 h-3.5" />
                 </button>
                 {/* 3D Tilt Pitch */}
                 <button
                   type="button"
                   onClick={() => setIs3D(!is3D)}
-                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${is3D ? 'text-sky-400 bg-white/10' : ''}`}
-                  title={is3D ? '3D View (55°) ON' : 'Switch to 3D View'}
+                  className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${is3D ? 'text-sky-400 bg-white/10' : ''}`}
+                  title={is3D ? '3D View (55°)' : '2D (Top Down)'}
                 >
-                  <Compass className="w-4 h-4" />
+                  <Compass className="w-3.5 h-3.5" />
                 </button>
-                {/* 3D Globe */}
+                {/* 3D Globe / Mercator */}
                 <button
                   type="button"
                   onClick={() => setIsGlobe(!isGlobe)}
-                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${isGlobe ? 'text-purple-300 bg-white/10' : ''}`}
-                  title={isGlobe ? '3D Globe ON' : 'Switch to 3D Globe'}
+                  className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${isGlobe ? 'text-purple-300 bg-white/10' : ''}`}
+                  title={isGlobe ? '3D Globe' : 'Mercator'}
                 >
-                  <Globe className="w-4 h-4" />
+                  <Globe className="w-3.5 h-3.5" />
                 </button>
                 {/* 3D Terrain */}
                 <button
                   type="button"
                   onClick={() => setIsTerrain(!isTerrain)}
-                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${isTerrain ? 'text-emerald-400 bg-white/10' : ''}`}
-                  title={isTerrain ? '3D Terrain ON' : 'Enable 3D Terrain'}
+                  className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${isTerrain ? 'text-emerald-400 bg-white/10' : ''}`}
+                  title={`Terrain ${isTerrain ? 'ON' : 'OFF'}`}
                 >
-                  <Mountain className="w-4 h-4" />
+                  <Mountain className="w-3.5 h-3.5" />
                 </button>
                 {/* Heatmap */}
                 <button
                   type="button"
                   onClick={() => setShowHeatmap(!showHeatmap)}
-                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showHeatmap ? 'text-orange-400 bg-orange-500/25' : ''}`}
-                  title="Toggle Displacement Heatmap"
+                  className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showHeatmap ? 'text-orange-400 bg-orange-500/25' : ''}`}
+                  title="Heatmap"
                 >
-                  <Flame className="w-4 h-4" />
+                  <Flame className="w-3.5 h-3.5" />
                 </button>
                 {/* Analytics Panel */}
                 <button
                   type="button"
                   onClick={() => setShowAnalyticsPanel(!showAnalyticsPanel)}
-                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showAnalyticsPanel ? 'text-blue-400 bg-white/10' : ''}`}
-                  title={showAnalyticsPanel ? 'Hide Analytics Panel' : 'Show Analytics Panel'}
+                  className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showAnalyticsPanel ? 'text-blue-400 bg-white/10' : ''}`}
+                  title={showAnalyticsPanel ? 'Hide Analytics' : 'Analytics'}
                 >
-                  <BarChart3 className="w-4 h-4" />
+                  <BarChart3 className="w-3.5 h-3.5" />
                 </button>
                 {/* Fullscreen */}
                 <button
                   type="button"
                   onClick={handleToggleFullscreen}
-                  className="p-2.5 hover:bg-white/15 transition-colors cursor-pointer"
-                  title="Toggle Fullscreen"
+                  className="p-2 hover:bg-white/15 transition-colors cursor-pointer"
+                  title="Fullscreen"
                 >
-                  <Maximize2 className="w-4 h-4" />
+                  <Maximize2 className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {/* Popout Map Style Selector */}
               {showStyleMenu && (
-                <div className="bg-slate-900/90 backdrop-blur-md border border-white/15 rounded-xl p-1.5 shadow-2xl flex flex-col gap-1 min-w-[125px]">
+                <div className="bg-slate-900/90 backdrop-blur-md border border-white/15 rounded-xl p-1.5 shadow-2xl flex flex-col gap-1 min-w-[145px]">
                   {Object.entries(MAP_STYLES).map(([key, styleObj]) => (
                     <button
                       key={key}
@@ -1605,7 +1601,7 @@ export default function LocationMapView({
                         setMapType(key);
                         setShowStyleMenu(false);
                       }}
-                      className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${
                         mapType === key ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-white/10'
                       }`}
                     >

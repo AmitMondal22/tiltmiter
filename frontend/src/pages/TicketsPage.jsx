@@ -901,9 +901,10 @@ export default function TicketsPage() {
       {/* ── Tickets Main List Table ─────────────────────────────────── */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-slate-500 gap-3">
-            <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            <p className="text-xs font-semibold">Loading ticket database...</p>
+          <div className="p-4 space-y-2.5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-12 rounded-xl bg-slate-100 animate-pulse" />
+            ))}
           </div>
         ) : filteredTickets.length === 0 ? (
           <div className="py-20 text-center flex flex-col items-center justify-center p-6 text-slate-500 space-y-3">

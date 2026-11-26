@@ -963,10 +963,7 @@ export default function ReportsPage({ currentDevice }) {
               {/* Status and loading indicator */}
               <div className="flex items-center gap-2">
                 {loading ? (
-                  <span className="flex items-center gap-1.5 text-xs text-blue-600 font-bold">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Loading...</span>
-                  </span>
+                  <div className="h-4 w-32 rounded bg-slate-200 animate-pulse" />
                 ) : (
                   <span className="text-[11px] font-mono text-slate-500">
                     Showing {paginatedRows.length} of {reportRows.length} records

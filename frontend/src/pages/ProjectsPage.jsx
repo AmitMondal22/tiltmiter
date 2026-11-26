@@ -167,10 +167,18 @@ export default function ProjectsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 text-black font-medium">
-              {projectsList.length === 0 ? (
+              {loading && projectsList.length === 0 ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={`skel-${idx}`}>
+                    <td colSpan={canManageProjects ? 5 : 4} className="py-3 px-3.5">
+                      <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
+                    </td>
+                  </tr>
+                ))
+              ) : projectsList.length === 0 ? (
                 <tr>
                   <td colSpan={canManageProjects ? 5 : 4} className="py-8 text-center text-slate-500 text-xs">
-                    {loading ? 'Loading projects...' : 'No projects registered yet. Click "+ Add Project" to create one.'}
+                    No projects registered yet. Click "+ Add Project" to create one.
                   </td>
                 </tr>
               ) : (

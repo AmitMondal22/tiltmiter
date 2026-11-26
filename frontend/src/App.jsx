@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Sidebar from './components/Sidebar';
+import { PageSkeleton } from './components/SkeletonLoader';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { getDevices } from './api/apiClient';
 import { Menu } from 'lucide-react';
@@ -25,16 +26,9 @@ const AlarmsPage = lazy(() => import('./pages/AlarmsPage'));
 const TicketsPage = lazy(() => import('./pages/TicketsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
-// Sleek fallback component for lazy-loaded route transitions
+// Sleek skeleton fallback component for lazy-loaded route transitions
 function PageLoader() {
-  return (
-    <div className="flex items-center justify-center min-h-[300px] w-full text-slate-500">
-      <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white border border-slate-200 shadow-xs font-semibold text-xs text-slate-700">
-        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <span>Loading view...</span>
-      </div>
-    </div>
-  );
+  return <PageSkeleton />;
 }
 
 function MainLayout() {

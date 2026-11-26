@@ -317,7 +317,15 @@ export default function StructuresPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-black font-medium">
-                {structuresList.length === 0 ? (
+                {loading && structuresList.length === 0 ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={`skel-${idx}`}>
+                      <td colSpan={5} className="py-3 px-3.5">
+                        <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
+                      </td>
+                    </tr>
+                  ))
+                ) : structuresList.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-slate-500 text-xs">
                       No structural assets registered yet. Click "+ Add Asset" to create one.

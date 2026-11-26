@@ -415,10 +415,18 @@ export default function TrendsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {telemetryLogs.length === 0 ? (
+              {loading && telemetryLogs.length === 0 ? (
+                Array.from({ length: 6 }).map((_, idx) => (
+                  <tr key={`skel-${idx}`}>
+                    <td colSpan={9} className="py-2.5 px-3">
+                      <div className="h-7 rounded-lg bg-slate-100 animate-pulse" />
+                    </td>
+                  </tr>
+                ))
+              ) : telemetryLogs.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
-                    {loading ? 'Fetching telemetry logs...' : 'No telemetry records found for this period.'}
+                    No telemetry records found for this period.
                   </td>
                 </tr>
               ) : (

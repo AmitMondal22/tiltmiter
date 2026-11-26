@@ -421,7 +421,15 @@ export default function DevicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {devicesList.length === 0 ? (
+              {loading && devicesList.length === 0 ? (
+                Array.from({ length: 6 }).map((_, idx) => (
+                  <tr key={`skel-${idx}`}>
+                    <td colSpan={7} className="py-3 px-3.5">
+                      <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
+                    </td>
+                  </tr>
+                ))
+              ) : devicesList.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
                     No devices registered yet. Click "+ Add Device" to add an inclinometer sensor node.

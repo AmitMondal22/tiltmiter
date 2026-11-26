@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { getSites, getDevices, getStructures, getProjects, getOrganizations } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
+import { DetailPageSkeleton } from '../components/SkeletonLoader';
 import { getAssetTypeConfig } from '../components/AssetsMapView';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { getSiteStructures, getSiteDevices } from '../utils/siteHelper';
@@ -83,12 +84,7 @@ export default function SiteDetailPage() {
   }, [siteId]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px] text-slate-500 font-semibold text-xs gap-2">
-        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-        <span>Loading location data & sensors...</span>
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   

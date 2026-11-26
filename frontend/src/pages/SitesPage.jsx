@@ -204,7 +204,15 @@ export default function SitesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 text-black font-medium">
-                {sitesList.length === 0 ? (
+                {loading && sitesList.length === 0 ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={`skel-${idx}`}>
+                      <td colSpan={6} className="py-3 px-3.5">
+                        <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
+                      </td>
+                    </tr>
+                  ))
+                ) : sitesList.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
                       No site locations registered yet. Click "+ Add Location" to create one.

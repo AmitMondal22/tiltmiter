@@ -11,6 +11,7 @@ import {
   getProjects, getOrganizations, createDevice, updateDevice, updateStructureDeviceLocationsBulk
 } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
+import { DetailPageSkeleton } from '../components/SkeletonLoader';
 import MapPicker from '../components/MapPicker';
 import { getAssetTypeConfig } from '../components/AssetsMapView';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
@@ -156,11 +157,7 @@ export default function StructureDetailPage() {
   }, [structureId]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   const typeConfig = getAssetTypeConfig(structure?.type);

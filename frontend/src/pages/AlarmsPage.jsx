@@ -452,7 +452,13 @@ export default function AlarmsPage() {
       {/* ───────────────────────────────────────────────────────────── */}
       {activeTab === 'rules' && (
         <div className="space-y-4">
-          {rules.length === 0 ? (
+          {loading && rules.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-2.5">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-11 rounded-xl bg-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : rules.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-xs">
               <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
                 <ShieldAlert className="w-7 h-7" />

@@ -28,6 +28,7 @@ import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 import AlarmSummaryWidget from '../components/AlarmSummaryWidget';
 import RecentEventsWidget from '../components/RecentEventsWidget';
 import LocationMapView from '../components/LocationMapView';
+import { MapSkeleton } from '../components/SkeletonLoader';
 
 // Helper to format device uptime from milliseconds into a human-readable duration
 function formatUptime(ms) {
@@ -1224,19 +1225,23 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       )}
 
       {/* Full Interactive Map (All Sites, All Structures, All Devices, 2D/3D, All Map Types) */}
-      <LocationMapView
-        sites={sitesList}
-        devices={deviceList}
-        structures={structuresList}
-        projects={projectsList}
-        organizations={orgsList}
-        alarms={alarmsList}
-        initialSelectedSiteId="ALL"
-        onSelectSite={() => {}}
-        pointOnlyMarkers={true}
-        controlsInsideMap={true}
-        fullHeight={true}
-      />
+      {loading && sitesList.length === 0 && deviceList.length === 0 ? (
+        <MapSkeleton />
+      ) : (
+        <LocationMapView
+          sites={sitesList}
+          devices={deviceList}
+          structures={structuresList}
+          projects={projectsList}
+          organizations={orgsList}
+          alarms={alarmsList}
+          initialSelectedSiteId="ALL"
+          onSelectSite={() => {}}
+          pointOnlyMarkers={true}
+          controlsInsideMap={true}
+          fullHeight={true}
+        />
+      )}
 
       {/* MODAL 2: CONFIGURE DEVICE SETTINGS */}
       {configModalOpen && (

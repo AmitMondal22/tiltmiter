@@ -572,14 +572,14 @@ export default function ReportsPage({ currentDevice }) {
   return (
     <div className="space-y-4 font-sans text-slate-800 animate-fadeIn">
       {/* Top Header Bar & Report Type Switcher */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/80 text-blue-600 flex items-center justify-center shadow-2xs">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                 {reportCategory === 'TELEMETRY' ? 'Telemetry & Sensor Data Report' : 'Incident & Maintenance Tickets Report'}
               </h2>
               <p className="text-xs text-slate-500 font-medium">
@@ -592,15 +592,15 @@ export default function ReportsPage({ currentDevice }) {
         </div>
 
         {/* Action Controls & Report Category Switcher */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Report Category Switcher */}
-          <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
+          <div className="flex items-center p-1 bg-slate-50 rounded-xl border border-slate-200">
             <button
               type="button"
               onClick={() => setReportCategory('TELEMETRY')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 reportCategory === 'TELEMETRY'
-                  ? 'bg-white text-blue-600 shadow-xs'
+                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200/80'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -615,7 +615,7 @@ export default function ReportsPage({ currentDevice }) {
               }}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 reportCategory === 'TICKETS'
-                  ? 'bg-white text-blue-600 shadow-xs'
+                  ? 'bg-white text-blue-600 shadow-xs border border-slate-200/80'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -641,290 +641,175 @@ export default function ReportsPage({ currentDevice }) {
         </div>
       </div>
 
-      {/* Main Two-Column Layout (Left: Filters & Summary Table | Right: KPI Metrics & Full Telemetry Table) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* ================= LEFT SIDE: FILTERS & FIXED SUMMARY TABLE ================= */}
-        <div className="lg:col-span-4 space-y-4">
-          {/* 1. Query & Filter Card */}
-          <div className={cardCls}>
-            <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-100">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                <Filter className="w-3.5 h-3.5 text-blue-600" />
-                <span>Report Parameters</span>
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                {timePreset.toUpperCase()}
-              </span>
+      {/* Full-Width Stacked Layout: Top Filter Bar -> KPI Metrics -> Full-Width Telemetry Table */}
+      <div className="space-y-4">
+        {/* ================= TOP FULL-WIDTH FILTER BAR ================= */}
+        <div className={cardCls}>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-100">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-blue-600" />
+              <span>Report Parameters</span>
+            </span>
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              {timePreset.toUpperCase()}
+            </span>
+          </div>
+
+          <form onSubmit={handleApplyFilter} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end text-xs">
+            {/* Quick Time Presets Buttons */}
+            <div className="lg:col-span-4">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">
+                Preset Time Range:
+              </label>
+              <div className="grid grid-cols-5 gap-1">
+                {[
+                  { id: '24h', label: '24h' },
+                  { id: '7d', label: '7d' },
+                  { id: '30d', label: '30d' },
+                  { id: '90d', label: '90d' },
+                  { id: 'custom', label: 'Custom' },
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => handlePresetSelect(p.id)}
+                    className={`py-2 px-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer text-center ${
+                      timePreset === p.id
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <form onSubmit={handleApplyFilter} className="space-y-3 text-xs">
-              {/* Quick Time Presets Buttons */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1.5">
-                  Preset Time Range:
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { id: '24h', label: '24 Hours' },
-                    { id: '7d', label: '7 Days' },
-                    { id: '30d', label: '30 Days' },
-                    { id: '90d', label: '90 Days' },
-                    { id: 'custom', label: 'Custom' },
-                  ].map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => handlePresetSelect(p.id)}
-                      className={`py-1.5 px-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer text-center ${
-                        timePreset === p.id
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
+            {/* Monitored Location */}
+            <div className="lg:col-span-2">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Location Site:
+              </label>
+              <select
+                value={selectedSite}
+                onChange={e => setSelectedSite(e.target.value)}
+                className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+              >
+                <option value="ALL">All Sites ({sites.length})</option>
+                {sites.map(s => (
+                  <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Target Device */}
+            <div className="lg:col-span-2">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Sensor Device Node:
+              </label>
+              <select
+                value={selectedDevice}
+                onChange={e => setSelectedDevice(e.target.value)}
+                className="w-full px-2.5 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+              >
+                {devices
+                  .filter(d => selectedSite === 'ALL' || d.siteId === selectedSite)
+                  .map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
                   ))}
-                </div>
-              </div>
+                {devices.length === 0 && <option value="">No Devices Found</option>}
+              </select>
+            </div>
 
-              {/* Monitored Location */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Location Site:
-                </label>
-                <select
-                  value={selectedSite}
-                  onChange={e => setSelectedSite(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-                >
-                  <option value="ALL">All Sites ({sites.length})</option>
-                  {sites.map(s => (
-                    <option key={s.id || s.siteId} value={s.id || s.siteId}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
+            {/* Date From */}
+            <div className="lg:col-span-1 sm:col-span-1">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-slate-400" />
+                <span>From</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={fromDate}
+                onChange={e => {
+                  setTimePreset('custom');
+                  setFromDate(e.target.value);
+                }}
+                className="w-full px-2 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+              />
+            </div>
 
-              {/* Target Device */}
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Sensor Device Node:
-                </label>
-                <select
-                  value={selectedDevice}
-                  onChange={e => setSelectedDevice(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-                >
-                  {devices
-                    .filter(d => selectedSite === 'ALL' || d.siteId === selectedSite)
-                    .map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
-                    ))}
-                  {devices.length === 0 && <option value="">No Devices Found</option>}
-                </select>
-              </div>
+            {/* Date To */}
+            <div className="lg:col-span-1 sm:col-span-1">
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-slate-400" />
+                <span>To</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={toDate}
+                onChange={e => {
+                  setTimePreset('custom');
+                  setToDate(e.target.value);
+                }}
+                className="w-full px-2 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+              />
+            </div>
 
-              {/* Date From & To */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-slate-400" />
-                    <span>From Date</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={fromDate}
-                    onChange={e => {
-                      setTimePreset('custom');
-                      setFromDate(e.target.value);
-                    }}
-                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1 flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-slate-400" />
-                    <span>To Date</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={toDate}
-                    onChange={e => {
-                      setTimePreset('custom');
-                      setToDate(e.target.value);
-                    }}
-                    className="w-full px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-                  />
-                </div>
-              </div>
-
-              {/* Submit Query Button */}
+            {/* Submit Query Button */}
+            <div className="lg:col-span-2">
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Filter className="w-3.5 h-3.5" />}
-                <span>Run Analytics Query</span>
+                <span>Run Query</span>
               </button>
-            </form>
-          </div>
-
-          {/* 2. Fixed Left-Side Summary Table Format */}
-          <div className={cardCls}>
-            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-slate-100">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
-                <BarChart2 className="w-3.5 h-3.5 text-blue-600" />
-                <span>Executive Summary</span>
-              </span>
-              <span className="text-[10px] text-slate-500 font-mono">
-                {selectedDevice || 'N/A'}
-              </span>
             </div>
-
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wider">
-                    <th className="py-2 px-3 text-left">Report Metric</th>
-                    <th className="py-2 px-3 text-right">Statistical Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-800 text-[11px]">
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Target Node</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-blue-600">{selectedDevice || '--'}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Site Location</td>
-                    <td className="py-2 px-3 text-right font-semibold text-slate-900">{activeDeviceObj?.site?.name || selectedSite}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Total Data Points</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">{stats.count}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Max Resultant Tilt (θ)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-purple-700">{Number(stats.maxTilt).toFixed(1)}°</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Max X Tilt (θX)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-blue-700">{Number(stats.maxXTilt).toFixed(1)}°</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Max Y Tilt (θY)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{Number(stats.maxYTilt).toFixed(1)}°</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Max Total Disp (Total D)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-pink-700">{Number(stats.maxDisp).toFixed(1)} mm</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Max X Disp (DX)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-cyan-700">{Number(stats.maxXDisp).toFixed(1)} mm</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Max Y Disp (DY)</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxYDisp).toFixed(1)} mm</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Peak Vibration Shock</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">{Number(stats.maxVib).toFixed(1)} g</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Avg Temperature</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">{stats.avgTemp} °C</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Rockfall Alarms Latched</td>
-                    <td className="py-2 px-3 text-right">
-                      <span className={`px-2 py-0.5 rounded font-mono font-bold text-[10px] ${
-                        stats.rockfallAlarmCount > 0 ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-600'
-                      }`}>
-                        {stats.rockfallAlarmCount} Events
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">New Rockfall Triggers</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-amber-700">
-                      {stats.newEventCount}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Active Motion State</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-indigo-700">
-                      {stats.latestMotionClassification} ({stats.latestEventType})
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Queue Pending Packets</td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-700">
-                      {stats.pendingCount}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Structural Stability</td>
-                    <td className="py-2 px-3 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                        stats.maxDisp >= 15
-                          ? 'bg-rose-100 text-rose-800'
-                          : (stats.maxDisp >= 5 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
-                      }`}>
-                        {stats.maxDisp >= 15 ? 'CRITICAL RISK' : (stats.maxDisp >= 5 ? 'WARNING CREEP' : 'NORMAL / STABLE')}
-                      </span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-semibold text-slate-600">Report Date Range</td>
-                    <td className="py-2 px-3 text-right text-[10px] font-medium text-slate-500">{fromDate} &rarr; {toDate}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+          </form>
         </div>
 
-        {/* ================= RIGHT SIDE: KPI METRICS & FULL TELEMETRY DATA TABLE ================= */}
-        <div className="lg:col-span-8 space-y-4">
+        {/* ================= FULL-WIDTH KPI METRICS & TELEMETRY DATA TABLE ================= */}
+        <div className="w-full space-y-4">
           {/* Summary KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Total Readings</div>
-              <div className="text-base font-bold text-slate-900 font-mono mt-0.5">{stats.count}</div>
-              <div className="text-[10px] text-blue-600 font-medium mt-0.5">Time Query Buffer</div>
+            <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Readings</div>
+              <div className="text-lg font-extrabold text-slate-900 font-mono tabular-nums mt-0.5">{stats.count}</div>
+              <div className="text-[10px] text-blue-600 font-semibold mt-0.5">Time Query Buffer</div>
             </div>
 
-            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Peak Incline θ</div>
-              <div className="text-base font-bold text-purple-700 font-mono mt-0.5">{Number(stats.maxTilt).toFixed(1)}°</div>
+            <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Peak Incline θ</div>
+              <div className="text-lg font-extrabold text-purple-700 font-mono tabular-nums mt-0.5">{Number(stats.maxTilt).toFixed(1)}°</div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Max Tilt Angle</div>
             </div>
 
-            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Max Displacement</div>
-              <div className="text-base font-bold text-pink-700 font-mono mt-0.5">{Number(stats.maxDisp).toFixed(1)} mm</div>
+            <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Max Displacement</div>
+              <div className="text-lg font-extrabold text-pink-700 font-mono tabular-nums mt-0.5">{Number(stats.maxDisp).toFixed(1)} mm</div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Vector Total</div>
             </div>
 
-            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Peak Vibration</div>
-              <div className="text-base font-bold text-amber-700 font-mono mt-0.5">{Number(stats.maxVib).toFixed(1)} g</div>
+            <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Peak Vibration</div>
+              <div className="text-lg font-extrabold text-amber-700 font-mono tabular-nums mt-0.5">{Number(stats.maxVib).toFixed(1)} g</div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Dynamic Shock</div>
             </div>
 
-            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rockfall Alarms</div>
-              <div className={`text-base font-bold font-mono mt-0.5 ${stats.rockfallAlarmCount > 0 ? 'text-red-600' : 'text-slate-800'}`}>
+            <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Rockfall Alarms</div>
+              <div className={`text-lg font-extrabold font-mono tabular-nums mt-0.5 ${stats.rockfallAlarmCount > 0 ? 'text-red-600' : 'text-slate-800'}`}>
                 {stats.rockfallAlarmCount}
               </div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5">Latched States</div>
             </div>
 
-            <div className="p-3 rounded-2xl border border-slate-200 bg-white shadow-2xs">
-              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Motion State</div>
-              <div className="text-sm font-bold font-mono mt-0.5 text-indigo-700 truncate">
+            <div className="p-3.5 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Motion State</div>
+              <div className="text-sm font-extrabold font-mono mt-1 text-indigo-700 truncate">
                 {stats.latestMotionClassification}
               </div>
               <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">{stats.latestEventType}</div>

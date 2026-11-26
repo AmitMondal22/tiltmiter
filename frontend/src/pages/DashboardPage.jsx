@@ -1235,6 +1235,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         onSelectSite={() => {}}
         pointOnlyMarkers={true}
         controlsInsideMap={true}
+        fullHeight={true}
       />
 
       {/* MODAL 2: CONFIGURE DEVICE SETTINGS */}

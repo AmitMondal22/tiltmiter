@@ -285,7 +285,8 @@ export default function LocationMapView({
   editingDevice = null,
   onClearEditingDevice = null,
   pointOnlyMarkers = true,
-  controlsInsideMap = false,
+  controlsInsideMap = true,
+  fullHeight = false,
 }) {
   const navigate = useNavigate();
   const mapContainerRef = useRef(null);
@@ -1419,7 +1420,7 @@ export default function LocationMapView({
   return (
     <div
       ref={mapWrapperRef}
-      className={`flex flex-col ${controlsInsideMap ? 'h-[calc(100vh-88px)]' : 'h-[calc(100vh-210px)]'} min-h-[640px] rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs relative`}
+      className={`flex flex-col ${fullHeight ? 'h-[calc(100vh-88px)] min-h-[640px]' : 'h-[calc(100vh-200px)] min-h-[580px]'} rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs relative`}
     >
       {/* Top Controls Bar (shown only when controlsInsideMap is false) */}
       {!controlsInsideMap && (
@@ -1651,6 +1652,17 @@ export default function LocationMapView({
                 >
                   <Flame className="w-3.5 h-3.5" />
                 </button>
+                {/* Device Pin Drag Toggle (when enabled by parent, e.g. Structural Assets) */}
+                {enableDeviceDrag && (
+                  <button
+                    type="button"
+                    onClick={() => setDragMode(!dragMode)}
+                    className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${dragMode ? 'bg-blue-600 text-white' : ''}`}
+                    title={dragMode ? 'Location Drag: ON (Click to disable)' : 'Location Drag: OFF (Click to enable)'}
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 {/* Analytics Panel */}
                 <button
                   type="button"

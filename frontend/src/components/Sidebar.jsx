@@ -16,7 +16,8 @@ import {
   CheckCircle,
   ChevronsUpDown,
   LogOut,
-  PanelLeftClose
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import appLogo from '../assets/logo/logo250x150.png';
 import { formatAssetUrl } from '../api/apiClient';
@@ -80,6 +81,8 @@ export default function Sidebar({
     return true;
   });
 
+  const isCompact = !desktopOpen && !mobileOpen;
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -94,52 +97,56 @@ export default function Sidebar({
         className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col justify-between border-r border-slate-200/80 bg-white text-slate-800 transition-all duration-200 select-none ${
           mobileOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full md:translate-x-0'
         } ${
-          desktopOpen
-            ? 'md:w-64'
-            : 'md:w-0 md:overflow-hidden md:border-r-0 md:opacity-0 md:pointer-events-none'
+          desktopOpen ? 'md:w-64' : 'md:w-[72px]'
         }`}
       >
-        {/* Top Logo & Platform Title + Desktop Hide Sidebar Button */}
-        <div className="p-4 pb-3 border-b border-slate-100 flex flex-col items-center justify-center w-full relative">
+        {/* Top Logo & Platform Title + Desktop Show/Hide Icon Button */}
+        <div className={`${isCompact ? 'p-3' : 'p-4 pb-3'} border-b border-slate-100 flex flex-col items-center justify-center w-full relative`}>
           {onToggleDesktop && (
             <button
               type="button"
               onClick={onToggleDesktop}
-              className="hidden md:flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer absolute top-2.5 right-2.5"
-              title="Hide Sidebar"
+              className={`hidden md:flex items-center justify-center p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer ${
+                isCompact ? '' : 'absolute top-2.5 right-2.5'
+              }`}
+              title={desktopOpen ? 'Show Icons Only' : 'Show Full Sidebar'}
             >
-              <PanelLeftClose className="w-4 h-4" />
+              {desktopOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
             </button>
           )}
-          <div className="w-full flex items-center justify-center">
-            <img
-              src={
-                isSuperAdmin
-                  ? appLogo
-                  : (formatAssetUrl(user?.Organization?.logoUrl) ||
-                     formatAssetUrl(user?.organizationLogo) ||
-                     formatAssetUrl(localStorage.getItem('tiltmeter_org_logo')) ||
-                     appLogo)
-              }
-              alt={isSuperAdmin ? 'Platform Logo' : (user?.Organization?.name || 'Organization Logo')}
-              onError={(e) => {
-                if (e.currentTarget.src !== appLogo) {
-                  e.currentTarget.src = appLogo;
-                }
-              }}
-              className="w-full max-h-16 object-contain transition-all"
-            />
-          </div>
-          {!isSuperAdmin && (user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')) && (
-            <div className="mt-2 text-[10px] font-black tracking-wide text-slate-600 uppercase text-center truncate max-w-full px-2">
-              {user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')}
-            </div>
+          {!isCompact && (
+            <>
+              <div className="w-full flex items-center justify-center">
+                <img
+                  src={
+                    isSuperAdmin
+                      ? appLogo
+                      : (formatAssetUrl(user?.Organization?.logoUrl) ||
+                         formatAssetUrl(user?.organizationLogo) ||
+                         formatAssetUrl(localStorage.getItem('tiltmeter_org_logo')) ||
+                         appLogo)
+                  }
+                  alt={isSuperAdmin ? 'Platform Logo' : (user?.Organization?.name || 'Organization Logo')}
+                  onError={(e) => {
+                    if (e.currentTarget.src !== appLogo) {
+                      e.currentTarget.src = appLogo;
+                    }
+                  }}
+                  className="w-full max-h-16 object-contain transition-all"
+                />
+              </div>
+              {!isSuperAdmin && (user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')) && (
+                <div className="mt-2 text-[10px] font-black tracking-wide text-slate-600 uppercase text-center truncate max-w-full px-2">
+                  {user?.Organization?.name || localStorage.getItem('tiltmeter_org_name')}
+                </div>
+              )}
+            </>
           )}
         </div>
 
 
         {/* Navigation Menu */}
-        <nav className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
+        <nav className={`flex-1 ${isCompact ? 'px-2' : 'px-3'} py-2 space-y-1 overflow-y-auto`}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active =
@@ -162,20 +169,24 @@ export default function Sidebar({
                   navigate(item.path);
                   onCloseMobile?.();
                 }}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                title={item.label}
+                className={`w-full flex items-center ${isCompact ? 'justify-center px-2 py-2.5 relative' : 'justify-between px-3.5 py-2.5'} rounded-xl text-xs font-medium transition-all cursor-pointer ${
                   active
                     ? 'bg-blue-50 text-blue-600 font-semibold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <Icon className={`w-4 h-4 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
-                  <span>{item.label}</span>
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-600' : 'text-slate-500'}`} />
+                  {!isCompact && <span>{item.label}</span>}
                 </div>
-                {item.badge && (
+                {!isCompact && item.badge && (
                   <span className="px-1.5 py-0.2 rounded-full bg-red-50 text-red-600 border border-red-200 text-[10px] font-semibold">
                     {item.badge}
                   </span>
+                )}
+                {isCompact && item.badge && (
+                  <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-red-500" />
                 )}
               </button>
             );
@@ -183,38 +194,49 @@ export default function Sidebar({
         </nav>
 
         {/* Bottom Section: System Operational Card & User Card */}
-        <div className="p-3 border-t border-slate-100 space-y-2">
+        <div className={`${isCompact ? 'p-2' : 'p-3'} border-t border-slate-100 space-y-2`}>
           {/* System Status Operational Card */}
-          <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+          <div
+            title="System Status: All Systems Operational"
+            className={`flex items-center ${isCompact ? 'justify-center p-2' : 'gap-2.5 p-2.5'} rounded-xl bg-slate-50 border border-slate-100`}
+          >
             <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
               <CheckCircle className="w-3.5 h-3.5" />
             </div>
-            <div>
-              <div className="text-[11px] font-semibold text-slate-900 leading-tight">System Status</div>
-              <div className="text-[9px] text-slate-500 font-normal leading-tight">All Systems Operational</div>
-            </div>
+            {!isCompact && (
+              <div>
+                <div className="text-[11px] font-semibold text-slate-900 leading-tight">System Status</div>
+                <div className="text-[9px] text-slate-500 font-normal leading-tight">All Systems Operational</div>
+              </div>
+            )}
           </div>
 
           {/* User Profile Card with Sign Out */}
           <div
             onClick={logout}
             title="Click to Sign Out"
-            className="flex items-center justify-between p-2 rounded-xl border border-slate-100 hover:bg-red-50/50 hover:border-red-100 cursor-pointer transition-colors group"
+            className={`flex items-center ${isCompact ? 'justify-center p-2' : 'justify-between p-2'} rounded-xl border border-slate-100 hover:bg-red-50/50 hover:border-red-100 cursor-pointer transition-colors group`}
           >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs flex items-center justify-center flex-shrink-0">
-                {getInitials(user?.fullName, user?.username)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-semibold text-slate-900 truncate">
-                  {user?.fullName || user?.username || 'Operator User'}
+            {isCompact ? (
+              <LogOut className="w-4 h-4 text-slate-500 group-hover:text-red-600 transition-colors" />
+            ) : (
+              <>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs flex items-center justify-center flex-shrink-0">
+                    {getInitials(user?.fullName, user?.username)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-semibold text-slate-900 truncate">
+                      {user?.fullName || user?.username || 'Operator User'}
+                    </div>
+                    <div className="text-[9px] text-blue-600 font-medium truncate">
+                      {getRoleLabel(user?.role)}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-[9px] text-blue-600 font-medium truncate">
-                  {getRoleLabel(user?.role)}
-                </div>
-              </div>
-            </div>
-            <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600 flex-shrink-0 transition-colors" />
+                <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-red-600 flex-shrink-0 transition-colors" />
+              </>
+            )}
           </div>
         </div>
       </aside>

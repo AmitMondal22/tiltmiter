@@ -8,7 +8,7 @@ import {
   Navigation, ExternalLink, ChevronRight, Activity, ShieldCheck,
   BarChart3, Zap, TrendingUp, AlertTriangle, CheckCircle2, Box,
   Map as MapIcon, Globe, Mountain, Flame, Eye, Maximize2, Camera,
-  X, RotateCcw, Compass
+  X, RotateCcw, Compass, Home, Plus, Minus
 } from 'lucide-react';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatAssetUrl } from '../api/apiClient';
@@ -302,7 +302,10 @@ export default function LocationMapView({
   const [is3D, setIs3D] = useState(true); // 3D Pitch tilt (55deg vs 0deg)
   const [isGlobe, setIsGlobe] = useState(false); // 3D Globe vs Mercator projection
   const [isTerrain, setIsTerrain] = useState(true); // 3D Terrain elevation mesh
-  const [showHeatmap, setShowHeatmap] = useState(false); // Inclinometer displacement heatmap
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [hoverCoords, setHoverCoords] = useState(null);
+  const [showStyleMenu, setShowStyleMenu] = useState(false);
+  const mapWrapperRef = useRef(null); // Inclinometer displacement heatmap
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [selectedSite, setSelectedSite] = useState(null);
   const [showAnalyticsPanel, setShowAnalyticsPanel] = useState(false);
@@ -464,17 +467,27 @@ export default function LocationMapView({
     });
 
     mapInstanceRef.current = map;
+    setHoverCoords({ lat: centerLat, lng: centerLng });
 
-    // Add navigation controls (Zoom + 3D Compass)
-    const navControl = new maplibregl.NavigationControl({
-      visualizePitch: true,
-      showCompass: true,
-      showZoom: true
-    });
-    map.addControl(navControl, 'top-right');
+    const handleMouseMove = (e) => {
+      if (e?.lngLat) {
+        setHoverCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+      }
+    };
+    map.on('mousemove', handleMouseMove);
 
-    const fullscreenControl = new maplibregl.FullscreenControl();
-    map.addControl(fullscreenControl, 'top-right');
+    // Add default MapLibre navigation controls only when external top bar mode is active
+    if (!controlsInsideMap) {
+      const navControl = new maplibregl.NavigationControl({
+        visualizePitch: true,
+        showCompass: true,
+        showZoom: true
+      });
+      map.addControl(navControl, 'top-right');
+
+      const fullscreenControl = new maplibregl.FullscreenControl();
+      map.addControl(fullscreenControl, 'top-right');
+    }
 
     map.on('load', () => {
       // Set projection if globe
@@ -1306,12 +1319,44 @@ export default function LocationMapView({
     </div>
   );
 
+  const handleFitAllBounds = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+    const b = new maplibregl.LngLatBounds();
+    let any = false;
+    filteredSites.forEach(s => {
+      const [lng, lat] = getSiteCoordinates(s);
+      if (!isNaN(lat) && !isNaN(lng)) { b.extend([lng, lat]); any = true; }
+    });
+    filteredDevices.forEach(d => {
+      const [lng, lat] = getDeviceCoordinates(d);
+      if (!isNaN(lat) && !isNaN(lng)) { b.extend([lng, lat]); any = true; }
+    });
+    if (any) {
+      map.fitBounds(b, { padding: { top: 60, bottom: 60, left: 100, right: 100 }, maxZoom: 15.5, duration: 800 });
+    }
+  };
+
+  const handleToggleFullscreen = () => {
+    const el = mapWrapperRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
   return (
-    <div className={`flex flex-col ${controlsInsideMap ? 'h-[calc(100vh-120px)]' : 'h-[calc(100vh-210px)]'} min-h-[640px] rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs relative`}>
-      {/* Top Controls Bar */}
-      <div className={`p-3 border-b border-slate-200 bg-slate-50/90 backdrop-blur-md flex flex-wrap items-center ${controlsInsideMap ? 'justify-end' : 'justify-between'} gap-2.5 text-xs z-10`}>
-        {/* Left: Search & Dropdowns (when not placed inside map) */}
-        {!controlsInsideMap && renderSearchAndDropdowns(false)}
+    <div
+      ref={mapWrapperRef}
+      className={`flex flex-col ${controlsInsideMap ? 'h-[calc(100vh-88px)]' : 'h-[calc(100vh-210px)]'} min-h-[640px] rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs relative`}
+    >
+      {/* Top Controls Bar (shown only when controlsInsideMap is false) */}
+      {!controlsInsideMap && (
+      <div className="p-3 border-b border-slate-200 bg-slate-50/90 backdrop-blur-md flex flex-wrap items-center justify-between gap-2.5 text-xs z-10">
+        {/* Left: Search & Dropdowns */}
+        {renderSearchAndDropdowns(false)}
 
         {/* Right: MapLibre 3D & Layer Controls (Satellite, Street, Topo, 3D Globe, Terrain, Heatmap) */}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1417,16 +1462,172 @@ export default function LocationMapView({
           </button>
         </div>
       </div>
+      )}
 
       {/* Main MapLibre 3D Canvas */}
       <div className="flex-1 relative flex overflow-hidden w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full relative z-0" />
 
-        {/* Floating Search Button + Location & Alert/Normal Dropdowns INSIDE Map */}
+        {/* GIS Inside-Map Controls (Dashboard Map Mode) */}
         {controlsInsideMap && (
-          <div className="absolute top-3 left-3 z-10 max-w-[calc(100%-24px)] pointer-events-auto">
-            {renderSearchAndDropdowns(true)}
-          </div>
+          <>
+            {/* Top-Left: Search, Dropdowns, 3D & Reset */}
+            <div className="absolute top-3 left-3 z-10 flex flex-col items-start gap-2 max-w-[calc(100%-70px)] pointer-events-none">
+              <div className="flex flex-wrap items-center gap-1.5 pointer-events-auto">
+                {renderSearchAndDropdowns(true)}
+                <button
+                  type="button"
+                  onClick={() => setIs3D(!is3D)}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border backdrop-blur-md shadow-md transition-colors cursor-pointer ${
+                    is3D
+                      ? 'bg-blue-600 text-white border-blue-500'
+                      : 'bg-slate-900/75 text-white border-white/20 hover:bg-slate-900/90'
+                  }`}
+                  title="Toggle 2D / 3D View"
+                >
+                  3D
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFitAllBounds}
+                  className="p-1.5 rounded-xl bg-slate-900/75 text-white border border-white/20 hover:bg-slate-900/90 backdrop-blur-md shadow-md transition-colors cursor-pointer"
+                  title="Reset Map View"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Left Vertical Zoom & Home Stack (below top-left bar) */}
+              <div className="flex flex-col bg-slate-900/75 backdrop-blur-md border border-white/15 rounded-xl overflow-hidden shadow-lg pointer-events-auto text-white">
+                <button
+                  type="button"
+                  onClick={handleFitAllBounds}
+                  className="p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10"
+                  title="Home / Fit All Locations & Devices"
+                >
+                  <Home className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => mapInstanceRef.current?.zoomIn({ duration: 250 })}
+                  className="p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10"
+                  title="Zoom In"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => mapInstanceRef.current?.zoomOut({ duration: 250 })}
+                  className="p-2 hover:bg-white/15 transition-colors cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Right Vertical GIS Toolbar */}
+            <div className="absolute top-3 right-3 z-10 flex flex-col items-end gap-2 pointer-events-auto">
+              <div className="flex flex-col bg-slate-900/80 backdrop-blur-md border border-white/15 rounded-xl overflow-hidden shadow-xl text-white">
+                {/* Map Layer Style Switcher */}
+                <button
+                  type="button"
+                  onClick={() => setShowStyleMenu(prev => !prev)}
+                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showStyleMenu ? 'bg-blue-600/80' : ''}`}
+                  title={`Map Style: ${MAP_STYLES[mapType]?.name || 'Satellite'}`}
+                >
+                  <Layers className="w-4 h-4" />
+                </button>
+                {/* 3D Tilt Pitch */}
+                <button
+                  type="button"
+                  onClick={() => setIs3D(!is3D)}
+                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${is3D ? 'text-sky-400 bg-white/10' : ''}`}
+                  title={is3D ? '3D View (55°) ON' : 'Switch to 3D View'}
+                >
+                  <Compass className="w-4 h-4" />
+                </button>
+                {/* 3D Globe */}
+                <button
+                  type="button"
+                  onClick={() => setIsGlobe(!isGlobe)}
+                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${isGlobe ? 'text-purple-300 bg-white/10' : ''}`}
+                  title={isGlobe ? '3D Globe ON' : 'Switch to 3D Globe'}
+                >
+                  <Globe className="w-4 h-4" />
+                </button>
+                {/* 3D Terrain */}
+                <button
+                  type="button"
+                  onClick={() => setIsTerrain(!isTerrain)}
+                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${isTerrain ? 'text-emerald-400 bg-white/10' : ''}`}
+                  title={isTerrain ? '3D Terrain ON' : 'Enable 3D Terrain'}
+                >
+                  <Mountain className="w-4 h-4" />
+                </button>
+                {/* Heatmap */}
+                <button
+                  type="button"
+                  onClick={() => setShowHeatmap(!showHeatmap)}
+                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showHeatmap ? 'text-orange-400 bg-orange-500/25' : ''}`}
+                  title="Toggle Displacement Heatmap"
+                >
+                  <Flame className="w-4 h-4" />
+                </button>
+                {/* Analytics Panel */}
+                <button
+                  type="button"
+                  onClick={() => setShowAnalyticsPanel(!showAnalyticsPanel)}
+                  className={`p-2.5 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${showAnalyticsPanel ? 'text-blue-400 bg-white/10' : ''}`}
+                  title={showAnalyticsPanel ? 'Hide Analytics Panel' : 'Show Analytics Panel'}
+                >
+                  <BarChart3 className="w-4 h-4" />
+                </button>
+                {/* Fullscreen */}
+                <button
+                  type="button"
+                  onClick={handleToggleFullscreen}
+                  className="p-2.5 hover:bg-white/15 transition-colors cursor-pointer"
+                  title="Toggle Fullscreen"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Popout Map Style Selector */}
+              {showStyleMenu && (
+                <div className="bg-slate-900/90 backdrop-blur-md border border-white/15 rounded-xl p-1.5 shadow-2xl flex flex-col gap-1 min-w-[125px]">
+                  {Object.entries(MAP_STYLES).map(([key, styleObj]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        setMapType(key);
+                        setShowStyleMenu(false);
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${
+                        mapType === key ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-white/10'
+                      }`}
+                    >
+                      {styleObj.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom-Left: Live Cursor Lat/Lon & Time Readout */}
+            <div className="absolute bottom-3 left-3 z-10 pointer-events-none flex flex-col gap-1">
+              <div className="px-2.5 py-1 rounded-md bg-slate-900/75 backdrop-blur-md border border-white/15 text-white font-mono text-[11px] font-semibold shadow-md">
+                {hoverCoords
+                  ? `Lat/Lon ${hoverCoords.lat.toFixed(6)} ${hoverCoords.lng.toFixed(6)}`
+                  : 'Lat/Lon -- --'}
+              </div>
+              <div className="px-2 py-0.5 rounded bg-slate-900/65 backdrop-blur-md text-slate-200 text-[10px] font-medium w-fit">
+                {`Local Time (${Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'})`}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Floating All-Device Pin Move & Batch Save Bar */}

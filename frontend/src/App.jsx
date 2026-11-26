@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import Sidebar from './components/Sidebar';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { getDevices } from './api/apiClient';
-import { Menu, PanelLeftOpen } from 'lucide-react';
+import { Menu } from 'lucide-react';
 
 // Eagerly loaded critical pages
 import LoginPage from './pages/LoginPage';
@@ -98,19 +98,6 @@ function MainLayout() {
             <Menu className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Desktop Show Sidebar Button when Sidebar is Hidden */}
-        {!sidebarOpen && (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="hidden md:flex fixed top-4 left-4 z-40 items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white/95 backdrop-blur-md text-slate-700 hover:text-blue-600 hover:bg-blue-50 shadow-md text-xs font-bold transition-all cursor-pointer"
-            title="Show Sidebar"
-          >
-            <PanelLeftOpen className="w-4 h-4" />
-            <span>Show Sidebar</span>
-          </button>
-        )}
 
         {/* Scrollable Page Content */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">

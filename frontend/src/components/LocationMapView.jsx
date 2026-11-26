@@ -1096,80 +1096,6 @@ export default function LocationMapView({
         `;
       }
 
-      // Interactive Popup with Small Size Image Thumbnail
-      const popupHtml = `
-        <div style="font-family: system-ui, sans-serif; padding: 2px; min-width: 230px; max-width: 270px; color: #0f172a;">
-          <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 8px;">
-            <div>
-              <div style="font-weight: 800; font-size: 13px; color: #0f172a;">${dev.name || dev.id}</div>
-              <div style="font-family: monospace; font-size: 10px; color: #2563eb; font-weight: 700;">ID: ${dev.id}</div>
-            </div>
-            <span style="display: inline-block; padding: 2px 6px; border-radius: 9999px; font-size: 9px; font-weight: 800; background: ${isOnline ? '#ecfdf5' : '#fef3c7'}; color: ${isOnline ? '#047857' : '#b45309'}; border: 1px solid ${isOnline ? '#a7f3d0' : '#fde68a'};">
-              ${dev.status || 'ONLINE'}
-            </span>
-          </div>
-
-          <!-- Small Size Device Photo with Click-to-Preview -->
-          <div style="margin-bottom: 8px;">
-            ${devImage ? `
-              <div 
-                onclick="window.__openDeviceImagePreview('${dev.id}')"
-                style="position: relative; width: 100%; height: 110px; border-radius: 10px; overflow: hidden; border: 1.5px solid #e2e8f0; cursor: pointer; background: #0f172a;"
-                title="Click to preview full-size image"
-              >
-                <img 
-                  src="${devImage}" 
-                  alt="${dev.name || dev.id}" 
-                  style="width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s;"
-                  onmouseover="this.style.transform='scale(1.06)'"
-                  onmouseout="this.style.transform='scale(1)'"
-                />
-                <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding: 4px 8px; display: flex; align-items: center; justify-content: space-between; color: white;">
-                  <span style="font-size: 9px; font-weight: 700;">Installed Hardware</span>
-                  <span style="font-size: 8px; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; font-family: monospace; display: inline-flex; align-items: center; gap: 4px;">
-                    ${maximizeIconSvg}
-                    <span>Click to enlarge</span>
-                  </span>
-                </div>
-              </div>
-            ` : `
-              <div style="width: 100%; height: 75px; border-radius: 10px; border: 1px dashed #cbd5e1; background: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #94a3b8; padding: 6px;">
-                <div style="margin-bottom: 2px; display: flex; align-items: center; justify-content: center;">${noPhotoIconSvg}</div>
-                <span style="font-size: 10px; font-weight: 600; color: #64748b;">No photo uploaded</span>
-              </div>
-            `}
-          </div>
-
-          <!-- Telemetry Quick Badges -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; text-align: center;">
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 4px 6px; border-radius: 8px;">
-              <div style="font-size: 9px; font-weight: 700; color: #166534;">DISPLACEMENT</div>
-              <div style="font-family: monospace; font-size: 11px; font-weight: 800; color: #15803d;">Δ ${Number(devDisplacement).toFixed(2)} mm</div>
-            </div>
-            <div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 4px 6px; border-radius: 8px;">
-              <div style="font-size: 9px; font-weight: 700; color: #7e22ce;">RESULTANT TILT</div>
-              <div style="font-family: monospace; font-size: 11px; font-weight: 800; color: #6b21a8;">${Number(devTilt).toFixed(1)}°</div>
-            </div>
-          </div>
-
-          <!-- Button to navigate to Device Dashboard -->
-          <a 
-            href="#/devices/${dev.id}" 
-            style="display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; text-align: center; background: #2563eb; color: #ffffff; padding: 5px 0; border-radius: 8px; font-weight: 700; font-size: 10.5px; text-decoration: none; box-shadow: 0 2px 4px rgba(37,99,235,0.25);"
-          >
-            <span>Open Device Console</span>
-            ${chevronRightSvg}
-          </a>
-        </div>
-      `;
-
-      const popup = new maplibregl.Popup({
-        offset: [0, -36],
-        closeButton: true,
-        closeOnClick: false,
-        maxWidth: '280px'
-      }).setHTML(popupHtml);
-
       el.addEventListener('click', () => {
         setSelectedDevice(dev);
         if (!dragMode) {
@@ -1184,12 +1110,8 @@ export default function LocationMapView({
         rotationAlignment: 'viewport',
         draggable: dragMode
       })
-        .setLngLat([lng, lat]);
-
-      if (!dragMode) {
-        marker.setPopup(popup);
-      }
-      marker.addTo(map);
+        .setLngLat([lng, lat])
+        .addTo(map);
 
       if (dragMode) {
         marker.on('dragstart', () => {
@@ -1214,22 +1136,18 @@ export default function LocationMapView({
       markersRef.current.push(marker);
       deviceMarkerMapRef.current.set(String(dev.id || dev.deviceId), {
         marker,
-        popup,
         device: dev,
         lng,
         lat,
       });
     });
 
-    // If an alert click requested focusing a device after filter reset, open its popup now
+    // If an alert click requested focusing a device after filter reset, fly to it now
     if (pendingFocusDeviceIdRef.current) {
       const targetEntry = deviceMarkerMapRef.current.get(pendingFocusDeviceIdRef.current);
       pendingFocusDeviceIdRef.current = null;
       if (targetEntry) {
         map.flyTo({ center: [targetEntry.lng, targetEntry.lat], zoom: 17, pitch: is3D ? 55 : 0, duration: 900 });
-        if (!targetEntry.popup.isOpen()) {
-          targetEntry.marker.togglePopup();
-        }
       }
     }
 
@@ -1484,24 +1402,15 @@ export default function LocationMapView({
     if (!dev) return;
 
     setSelectedDevice(dev);
-
-    // Close any currently open device popups
-    deviceMarkerMapRef.current.forEach(entry => {
-      if (entry?.popup?.isOpen()) {
-        entry.marker.togglePopup();
-      }
-    });
+    setShowAlertLayerPanel(false);
 
     const existingEntry = deviceMarkerMapRef.current.get(targetDevId);
     if (existingEntry) {
       map.flyTo({ center: [existingEntry.lng, existingEntry.lat], zoom: 17, pitch: is3D ? 55 : 0, duration: 900 });
-      if (!existingEntry.popup.isOpen()) {
-        existingEntry.marker.togglePopup();
-      }
       return;
     }
 
-    // If the device is currently filtered out (e.g. NORMAL filter or another site), make it visible and open popup after re-render
+    // If the device is currently filtered out (e.g. NORMAL filter or another site), make it visible and fly to it after re-render
     pendingFocusDeviceIdRef.current = targetDevId;
     if (statusFilter === 'NORMAL') setStatusFilter('ALL');
     if (selectedSiteId !== 'ALL') setSelectedSiteId('ALL');

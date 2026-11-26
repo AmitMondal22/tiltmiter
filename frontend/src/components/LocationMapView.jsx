@@ -286,6 +286,7 @@ export default function LocationMapView({
   const markersRef = useRef([]);
   const popupRef = useRef(null);
   const initialBoundsFittedRef = useRef(false);
+  const lastFittedKeyRef = useRef('');
 
   // States
   const [selectedSiteId, setSelectedSiteId] = useState(initialSelectedSiteId || 'ALL');
@@ -548,7 +549,7 @@ export default function LocationMapView({
     });
   }, [is3D]);
 
-  // Helper to reliably compute device coordinates with parent site / structure anchoring fallback
+  // Helper to reliably compute device coordinates with parent site / structure / standalone anchoring fallback
   const getDeviceCoordinates = (dev) => {
     const moved = pendingMoves[dev.id];
     if (moved) {
@@ -557,13 +558,15 @@ export default function LocationMapView({
 
     let lat = parseFloat(dev.latitude);
     let lng = parseFloat(dev.longitude);
+    const hasValidCoords = !isNaN(lat) && !isNaN(lng) && !(Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001);
 
-    if (isNaN(lat) || isNaN(lng)) {
+    if (!hasValidCoords) {
       const parentSite = sites.find(s => s.id === dev.siteId || s.siteId === dev.siteId);
       const parentStruct = structures.find(st => String(st.id) === String(dev.structureId));
       const hash = (dev.id || dev.name || 'dev').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       const angle = ((hash % 12) / 12) * 2 * Math.PI;
       const dist = 0.0008 + ((hash % 5) * 0.00025);
+
       if (parentStruct && parentStruct.latitude && parentStruct.longitude) {
         lat = parseFloat(parentStruct.latitude) + Math.cos(angle) * dist;
         lng = parseFloat(parentStruct.longitude) + Math.sin(angle) * dist;
@@ -571,14 +574,23 @@ export default function LocationMapView({
         lat = parseFloat(parentSite.latitude) + Math.cos(angle) * dist;
         lng = parseFloat(parentSite.longitude) + Math.sin(angle) * dist;
       } else {
-        lat = 22.5726 + Math.cos(angle) * 0.003;
-        lng = 88.3639 + Math.sin(angle) * 0.003;
+        // Standalone device without GPS: anchor near first site or first GPS-enabled device or default
+        const firstSite = sites.find(s => s.latitude && s.longitude);
+        const firstDev = devices.find(d => {
+          const dLat = parseFloat(d.latitude);
+          const dLng = parseFloat(d.longitude);
+          return !isNaN(dLat) && !isNaN(dLng) && !(Math.abs(dLat) < 0.0001 && Math.abs(dLng) < 0.0001);
+        });
+        const baseLat = firstSite ? parseFloat(firstSite.latitude) : (firstDev ? parseFloat(firstDev.latitude) : 26.7271);
+        const baseLng = firstSite ? parseFloat(firstSite.longitude) : (firstDev ? parseFloat(firstDev.longitude) : 88.4315);
+        lat = baseLat + Math.cos(angle) * 0.002;
+        lng = baseLng + Math.sin(angle) * 0.002;
       }
     }
     return [lng, lat];
   };
 
-  // 6. Filter Sites and Devices
+  // 6. Filter Sites and Devices (Ignore standalone/unassigned devices on all maps)
   const filteredSites = useMemo(() => {
     return sites.filter(s => {
       if (selectedSiteId !== 'ALL' && s.id !== selectedSiteId && s.siteId !== selectedSiteId) return false;
@@ -592,6 +604,9 @@ export default function LocationMapView({
 
   const filteredDevices = useMemo(() => {
     return devices.filter(dev => {
+      // Do not show standalone / unassigned devices (must belong to a site or structural asset)
+      if (!dev.siteId && !dev.structureId) return false;
+
       if (selectedSiteId !== 'ALL') {
         const targetSite = sites.find(s => String(s.id || s.siteId) === String(selectedSiteId)) || { id: selectedSiteId };
         if (!isDeviceInSite(dev, targetSite, structures)) return false;
@@ -607,7 +622,7 @@ export default function LocationMapView({
       }
       return true;
     });
-  }, [devices, selectedSiteId, statusFilter, searchQuery]);
+  }, [devices, sites, structures, selectedSiteId, statusFilter, searchQuery]);
 
   // 7. Update Heatmap Layer
   const updateHeatmapLayer = () => {
@@ -987,14 +1002,16 @@ export default function LocationMapView({
       markersRef.current.push(marker);
     });
 
-    // Fit map bounds only once on initial mount
-    if (hasCoords && bounds && !initialBoundsFittedRef.current) {
+    // Fit map bounds when sites/devices load or site filter changes
+    const fitKey = `${sites.length}-${devices.length}-${structures.length}-${selectedSiteId}`;
+    if (hasCoords && bounds && (!initialBoundsFittedRef.current || lastFittedKeyRef.current !== fitKey)) {
       try {
         map.fitBounds(bounds, {
-          padding: { top: 60, bottom: 60, left: 340, right: 340 },
+          padding: { top: 60, bottom: 60, left: 100, right: 100 },
           maxZoom: 15.5
         });
         initialBoundsFittedRef.current = true;
+        lastFittedKeyRef.current = fitKey;
       } catch (e) {}
     }
   }, [filteredSites, filteredDevices, structures, dragMode, pendingMoves, editingDevice]);
@@ -1013,7 +1030,7 @@ export default function LocationMapView({
           const [sLng, sLat] = getSiteCoordinates(s);
           if (!isNaN(sLng) && !isNaN(sLat)) bounds.extend([sLng, sLat]);
         });
-        devices.forEach(d => {
+        devices.filter(d => Boolean(d.siteId || d.structureId)).forEach(d => {
           const [dLng, dLat] = getDeviceCoordinates(d);
           if (!isNaN(dLng) && !isNaN(dLat)) bounds.extend([dLng, dLat]);
         });
@@ -1032,10 +1049,11 @@ export default function LocationMapView({
     }
   };
 
-  // Location Analytics Calculations
+  // Location Analytics Calculations (exclude standalone unassigned devices)
   const activeLocationDevices = selectedSiteId === 'ALL'
-    ? devices
+    ? devices.filter(d => Boolean(d.siteId || d.structureId))
     : devices.filter(d => {
+        if (!d.siteId && !d.structureId) return false;
         const targetSite = sites.find(s => String(s.id || s.siteId) === String(selectedSiteId)) || { id: selectedSiteId };
         return isDeviceInSite(d, targetSite, structures);
       });

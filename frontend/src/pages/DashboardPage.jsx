@@ -9,7 +9,7 @@ import {
   Compass, Zap, Thermometer, Search, ExternalLink, Sun, Target,
   Bed, Crosshair, Database, Settings, Move, Copy, Check, Eye, Code,
   Flame, Wind, Hand, Mountain, HardHat, Gauge, HelpCircle, Plus, X,
-  Camera, Upload, Trash2, Maximize2
+  Camera, Upload, Trash2, Maximize2, Globe
 } from 'lucide-react';
 import {
   getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry,
@@ -27,6 +27,7 @@ import {
 import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
 import AlarmSummaryWidget from '../components/AlarmSummaryWidget';
 import RecentEventsWidget from '../components/RecentEventsWidget';
+import LocationMapView from '../components/LocationMapView';
 
 // Helper to format device uptime from milliseconds into a human-readable duration
 function formatUptime(ms) {
@@ -540,6 +541,41 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         });
     }
   }, [devices]);
+
+  // Refresh all devices, sites, structures, organizations, and projects for Dashboard Map
+  const loadDashboardMapData = async () => {
+    setLoading(true);
+    try {
+      const [devRes, sitesRes, structRes, orgsRes, projRes] = await Promise.allSettled([
+        getDevices(),
+        getSites(),
+        getStructures(),
+        getOrganizations(),
+        getProjects(),
+      ]);
+      if (devRes.status === 'fulfilled' && Array.isArray(devRes.value?.devices)) {
+        setDeviceList(devRes.value.devices);
+      }
+      if (sitesRes.status === 'fulfilled') {
+        const sData = sitesRes.value?.sites || sitesRes.value || [];
+        setSitesList(Array.isArray(sData) ? sData : []);
+      }
+      if (structRes.status === 'fulfilled') {
+        const stData = structRes.value?.structures || structRes.value || [];
+        setStructuresList(Array.isArray(stData) ? stData : []);
+      }
+      if (orgsRes.status === 'fulfilled') {
+        const oData = orgsRes.value?.organizations || orgsRes.value || [];
+        setOrgsList(Array.isArray(oData) ? oData : []);
+      }
+      if (projRes.status === 'fulfilled') {
+        const pData = projRes.value?.projects || projRes.value || [];
+        setProjectsList(Array.isArray(pData) ? pData : []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Load sites, structures, organizations, and projects for Add Device modal
   useEffect(() => {
@@ -1177,368 +1213,87 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         </div>
       )}
 
-      {/* Top Header & Telemetry Status Navigation Bar */}
+      {/* Top Header: Geospatial Map Dashboard */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-blue-600 shadow-2xs">
-            <Radio className={`w-5 h-5 ${hasData ? 'animate-pulse' : 'text-slate-400'}`} />
+          <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 shadow-2xs">
+            <Globe className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
-                {activeDevice?.name || (selectedId ? `Device ${selectedId}` : 'No Device Registered')}
-              </h1>
-
-              {/* Device Selector */}
-              <select
-                id="dashboard-device-select"
-                value={selectedId}
-                onChange={(e) => handleDeviceSelect(e.target.value)}
-                disabled={deviceList.length === 0}
-                className="px-3 py-1 rounded-xl border border-slate-200 bg-white text-slate-900 font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs font-mono disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {deviceList.length === 0 ? (
-                  <option value="" disabled>No devices registered</option>
-                ) : (
-                  deviceList.map(dev => (
-                    <option key={dev.id} value={dev.id}>
-                      {dev.name || dev.id} ({dev.id})
-                    </option>
-                  ))
-                )}
-              </select>
-
-              {/* Device Uptime */}
-              <span className="flex items-center gap-1 text-[11px] font-mono text-slate-600 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200" title="Internal Sensor Uptime">
-                <Activity className="w-3.5 h-3.5 text-blue-500" />
-                <span>Uptime: {d.sampleUptimeMs !== null && d.sampleUptimeMs !== undefined ? formatUptime(d.sampleUptimeMs) : '--'}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Diagnostic Badges & Actions */}
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          {/* Battery Voltage */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium font-mono" title="Power Supply Voltage">
-            <Battery className="w-4 h-4 text-emerald-600" />
-            <span>{typeof d.batteryVoltage === 'number' ? `${d.batteryVoltage.toFixed(2)} V` : '-- V'}</span>
-          </div>
-
-          {/* Modem CSQ */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium font-mono" title="Modem Signal Quality (CSQ)">
-            <Signal className="w-4 h-4 text-blue-600" />
-            <span>{typeof d.csq === 'number' ? `${d.csq} CSQ` : '-- CSQ'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Empty State Banner if no devices exist in database */}
-      {deviceList.length === 0 && (
-        <div className="p-6 rounded-2xl border border-slate-200/90 bg-white text-center shadow-xs space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-            <Radio className="w-6 h-6 animate-pulse" />
-          </div>
-          <div>
-            <h3 className="text-base font-bold text-slate-900">No Inclinometer Devices Registered</h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-              No devices currently exist in the database. When any device posts telemetry to <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">/api/telemetry/ingest/:deviceId</code>, it will be automatically registered and appear here live.
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
+              Geospatial Monitoring Dashboard
+            </h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              All Sites, Structural Assets &amp; Monitored Devices &bull; 2D / 3D Multi-Layer Map
             </p>
           </div>
-          <div className="flex items-center justify-center gap-2 pt-1">
-            <button
-              onClick={() => setAddDeviceModalOpen(true)}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1.5"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Register New Device</span>
-            </button>
-            <button
-              onClick={() => navigate('/devices')}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold border border-slate-200 cursor-pointer"
-            >
-              Go to Devices Page
-            </button>
-          </div>
         </div>
-      )}
 
-      {/* Waiting Banner if device is selected but has no telemetry records yet */}
-      {deviceList.length > 0 && !hasData && (
-        <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50/70 text-amber-900 text-xs font-semibold flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-amber-600 animate-pulse flex-shrink-0" />
-            <span>Device <strong>{selectedId}</strong> is registered. Waiting for live telemetry packet stream...</span>
-          </div>
-          <span className="text-[11px] font-mono text-amber-700">Listening on port 5001</span>
-        </div>
-      )}
-
-
-      {/* Date-Time Range Quick Filters (1h, 6h, 24h, 7d, 30d, all, custom) */}
-      <div className={cardCls}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] font-semibold text-slate-500 mr-1">Time Range:</span>
-            {[
-              { id: '1h', label: '1h' },
-              { id: '6h', label: '6h' },
-              { id: '24h', label: '24h' },
-              { id: '7d', label: '7d' },
-              { id: '30d', label: '30d' },
-              { id: 'all', label: 'All' },
-            ].map(b => (
-              <button
-                key={b.id}
-                onClick={() => handleRangeSelect(b.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                  activeFilter === b.id
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {b.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Custom Date Form */}
-          <form onSubmit={handleCustomDateSubmit} className="flex flex-wrap items-center gap-2 text-xs">
-            <div className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="datetime-local"
-                required
-                value={fromDateTime}
-                onChange={e => setFromDateTime(e.target.value)}
-                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-              />
-              <span className="text-slate-400">to</span>
-              <input
-                type="datetime-local"
-                required
-                value={toDateTime}
-                onChange={e => setToDateTime(e.target.value)}
-                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-medium rounded-lg border border-slate-200 transition-colors cursor-pointer"
-            >
-              {loading ? '...' : 'Apply'}
-            </button>
-          </form>
+        <div className="flex items-center gap-2 text-xs flex-wrap">
+          <button
+            type="button"
+            onClick={() => setAddDeviceModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Register Device</span>
+          </button>
+          <button
+            type="button"
+            onClick={loadDashboardMapData}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-2xs transition-all cursor-pointer"
+            title="Refresh sites & devices"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
-      {/* 2-Column Responsive Layout matching DeviceDetailPage:
-          LEFT SIDE: LIVE INCLINOMETER & DISPLACEMENT
-          RIGHT SIDE: [In ONE Card: Device Location (small size), Device Image (small size), and under: Device Sampling & Configuration] */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        {/* LEFT SIDE: LIVE INCLINOMETER & DISPLACEMENT */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs space-y-4">
-          {/* Top Header */}
-          <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="text-blue-600 flex-shrink-0">
-                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 20h18" />
-                  <path d="M4 20L17 5" />
-                  <path d="M15 8.5v5" />
-                  <circle cx="15" cy="15.5" r="1.8" fill="currentColor" />
-                </svg>
-              </div>
-              <div className="h-5 w-px bg-slate-200" />
-              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 tracking-tight">
-                LIVE INCLINOMETER &amp; DISPLACEMENT
-              </h3>
-            </div>
-            {hasData ? (
-              <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-600 text-white font-semibold text-xs shadow-xs">
-                <Radio className="w-3.5 h-3.5 animate-pulse" />
-                <span>LIVE STREAM</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-100 text-slate-500 font-semibold text-xs border border-slate-200">
-                <Radio className="w-3.5 h-3.5" />
-                <span>NO DATA</span>
-              </div>
-            )}
+      {/* Quick Overview Metrics Strip for All Sites, Assets & Devices */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">All Sites</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{sitesList.length}</div>
           </div>
-
-          <div className="space-y-4">
-            {/* TILT ANGLE */}
-            <div>
-              <div className="flex items-center gap-2 mb-2.5">
-                <Layers className="w-4 h-4 text-slate-800" />
-                <span className="text-xs font-bold text-slate-900 tracking-wide uppercase">TILT ANGLE</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-center">
-                {/* Tilt X */}
-                <div className="relative overflow-hidden p-3.5 sm:p-4 rounded-2xl bg-blue-50/40 border border-blue-100 flex flex-col items-center justify-center min-h-[95px]">
-                  <span className="px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
-                    Tilt X
-                  </span>
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-blue-600 mt-2 font-mono tracking-tight">
-                    {hasData ? formatSigned(deltaX, 1) : '--'}
-                  </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#93c5fd" />
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Tilt Y */}
-                <div className="relative overflow-hidden p-3.5 sm:p-4 rounded-2xl bg-purple-50/40 border border-purple-100 flex flex-col items-center justify-center min-h-[95px]">
-                  <span className="px-3 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs tracking-tight">
-                    Tilt Y
-                  </span>
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-purple-700 mt-2 font-mono tracking-tight">
-                    {hasData ? formatSigned(deltaY, 1) : '--'}
-                  </div>
-                  <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
-                    <svg className="w-20 h-10" viewBox="0 0 100 50" preserveAspectRatio="none">
-                      <path d="M0,50 Q40,15 100,20 L100,50 Z" fill="#d8b4fe" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* X / Y DISPLACEMENT (MM) */}
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-2">
-                  <Move className="w-4 h-4 text-slate-800" />
-                  <span className="text-xs font-bold text-slate-900 tracking-wide uppercase">X / Y DISPLACEMENT (MM)</span>
-                </div>
-                <span className="text-xs font-medium text-slate-500 font-mono">
-                  Total: <strong className="text-slate-800">0.0 mm</strong>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 text-center">
-                {/* DX */}
-                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-blue-50/40 border border-blue-100 flex flex-col items-center justify-center min-h-[85px]">
-                  <span className="px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
-                    DX
-                  </span>
-                  <div className="flex items-baseline font-mono mt-1">
-                    <span className="text-xl sm:text-2xl font-extrabold text-blue-600 tracking-tight">
-                      0.0
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-700 ml-1 font-sans">mm</span>
-                  </div>
-                </div>
-
-                {/* DY */}
-                <div className="relative overflow-hidden p-3.5 rounded-2xl bg-amber-50/40 border border-amber-100 flex flex-col items-center justify-center min-h-[85px]">
-                  <span className="px-3 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
-                    DY
-                  </span>
-                  <div className="flex items-baseline font-mono mt-1">
-                    <span className="text-xl sm:text-2xl font-extrabold text-amber-600 tracking-tight">
-                      0.0
-                    </span>
-                    <span className="text-xs sm:text-sm font-semibold text-slate-700 ml-1 font-sans">mm</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Ambient Temperature Row */}
-            <div className="flex items-center justify-between pt-1">
-              <div className="flex items-center gap-2 text-sm sm:text-base font-bold text-slate-900 font-sans">
-                <Thermometer className="w-5 h-5 text-amber-500 flex-shrink-0" />
-                <span>Ambient Temperature:</span>
-              </div>
-              <div className="px-5 py-2 rounded-2xl bg-[#fef9c3] border border-amber-200/90 font-mono text-sm sm:text-base font-bold text-amber-950 shadow-2xs">
-                {hasData && temp !== null && temp !== undefined
-                  ? `${Number(temp).toFixed(1)} °C`
-                  : '-- °C'}
-              </div>
-            </div>
-
-            {/* Event Type & Event Sequence */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2.5 border-t border-slate-100">
-              {/* Event Type */}
-              <div className="rounded-xl border border-indigo-100/90 bg-indigo-50/40 p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-indigo-100 text-indigo-600 flex-shrink-0">
-                    <Activity className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
-                      Event Type
-                    </span>
-                    <span className="text-sm sm:text-base font-extrabold text-indigo-700 font-mono">
-                      {eventType || motionClass || 'NORMAL'}
-                    </span>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200/60 font-mono">
-                  {hasData ? 'Active Flag' : '--'}
-                </span>
-              </div>
-
-              {/* Event Sequence */}
-              <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-lg bg-white text-blue-600 border border-slate-200 flex-shrink-0 shadow-2xs">
-                    <Radio className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
-                      Event Sequence
-                    </span>
-                    <span className="text-sm sm:text-base font-extrabold text-slate-900 font-mono">
-                      {hasData ? `#${eventSequence}` : '--'}
-                    </span>
-                  </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-700 border border-slate-200 font-mono shadow-2xs">
-                  Sequence Count
-                </span>
-              </div>
-            </div>
-          </div>
+          <MapPin className="w-5 h-5 text-blue-600" />
         </div>
-
-        {/* RIGHT SIDE: IN ONE CARD (Location Map + Device Image + Sampling Config) */}
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs space-y-4">
-          {/* Top row inside card: Location Map (small size) & Device Image (small size) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <DeviceLocationMap device={activeDevice} deviceId={selectedId} d={d} />
-            <DeviceImageSection
-              device={activeDevice}
-              deviceId={selectedId}
-              onUpload={handleDashboardImageUpload}
-              onRemove={handleDashboardImageRemove}
-              uploading={uploadingImage}
-              removing={removingImage}
-            />
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Structural Assets</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{structuresList.length}</div>
           </div>
-
-          {/* Underneath in the same card: Device Sampling & Configuration */}
-          <DeviceSamplingConfigSection device={activeDevice} d={d} embedded={true} />
+          <Mountain className="w-5 h-5 text-indigo-600" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">All Devices</div>
+            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{deviceList.length}</div>
+          </div>
+          <Radio className="w-5 h-5 text-emerald-600" />
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
+          <div>
+            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Online Nodes</div>
+            <div className="text-lg font-black text-emerald-700 font-mono mt-0.5">
+              {deviceList.filter(dev => (dev.status || 'ONLINE') === 'ONLINE').length}
+            </div>
+          </div>
+          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
         </div>
       </div>
 
-      {/* 6. MULTI-AXIS HISTORICAL CHARTS */}
-      <TiltmeterChartsRow telemetryHistory={telemetryHistory} loading={loading} currentDevice={activeDevice} />
-
-
-
-      {/* Operational Widgets (Alarm Summary & Events) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <AlarmSummaryWidget deviceId={selectedId} />
-        <RecentEventsWidget currentDevice={activeDevice} />
-      </div>
-
+      {/* Full Interactive Map (All Sites, All Structures, All Devices, 2D/3D, All Map Types) */}
+      <LocationMapView
+        sites={sitesList}
+        devices={deviceList}
+        structures={structuresList}
+        projects={projectsList}
+        organizations={orgsList}
+        initialSelectedSiteId="ALL"
+        onSelectSite={() => {}}
+      />
 
       {/* MODAL 2: CONFIGURE DEVICE SETTINGS */}
       {configModalOpen && (

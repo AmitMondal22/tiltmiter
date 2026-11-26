@@ -14,7 +14,7 @@ import {
 import {
   getDevice, getDevices, getDeviceTelemetry, configureDeviceTelemetry,
   setDeviceReference, resetDeviceReference, getWsUrl, createDevice, getSites, getStructures,
-  getOrganizations, getProjects, uploadDeviceImage, deleteDeviceImage, formatAssetUrl
+  getOrganizations, getProjects, getAlarms, uploadDeviceImage, deleteDeviceImage, formatAssetUrl
 } from '../api/apiClient';
 import {
   parseTelemetry, hasTelemetryData, formatSigned, formatPresent,
@@ -474,6 +474,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const [sitesList, setSitesList] = useState([]);
   const [orgsList, setOrgsList] = useState([]);
   const [projectsList, setProjectsList] = useState([]);
+  const [alarmsList, setAlarmsList] = useState([]);
   const [addDeviceForm, setAddDeviceForm] = useState({
     id: '',
     name: '',
@@ -546,12 +547,13 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   const loadDashboardMapData = async () => {
     setLoading(true);
     try {
-      const [devRes, sitesRes, structRes, orgsRes, projRes] = await Promise.allSettled([
+      const [devRes, sitesRes, structRes, orgsRes, projRes, alarmsRes] = await Promise.allSettled([
         getDevices(),
         getSites(),
         getStructures(),
         getOrganizations(),
         getProjects(),
+        getAlarms(),
       ]);
       if (devRes.status === 'fulfilled' && Array.isArray(devRes.value?.devices)) {
         setDeviceList(devRes.value.devices);
@@ -572,6 +574,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         const pData = projRes.value?.projects || projRes.value || [];
         setProjectsList(Array.isArray(pData) ? pData : []);
       }
+      if (alarmsRes.status === 'fulfilled') {
+        const aData = alarmsRes.value?.alarms || [];
+        setAlarmsList(Array.isArray(aData) ? aData : []);
+      }
     } finally {
       setLoading(false);
     }
@@ -580,7 +586,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
   // Load sites, structures, organizations, and projects for Add Device modal
   useEffect(() => {
     let mounted = true;
-    Promise.allSettled([getSites(), getStructures(), getOrganizations(), getProjects()]).then(([sitesRes, structRes, orgsRes, projRes]) => {
+    Promise.allSettled([getSites(), getStructures(), getOrganizations(), getProjects(), getAlarms()]).then(([sitesRes, structRes, orgsRes, projRes, alarmsRes]) => {
       if (!mounted) return;
       if (sitesRes.status === 'fulfilled') {
         const sData = sitesRes.value?.sites || sitesRes.value || [];
@@ -597,6 +603,10 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
       if (projRes.status === 'fulfilled') {
         const pData = projRes.value?.projects || projRes.value || [];
         setProjectsList(Array.isArray(pData) ? pData : []);
+      }
+      if (alarmsRes.status === 'fulfilled') {
+        const aData = alarmsRes.value?.alarms || [];
+        setAlarmsList(Array.isArray(aData) ? aData : []);
       }
     });
   
@@ -1213,77 +1223,6 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         </div>
       )}
 
-      {/* Top Header: Geospatial Map Dashboard */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200/90 bg-white shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 shadow-2xs">
-            <Globe className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
-              Geospatial Monitoring Dashboard
-            </h1>
-            <p className="text-xs text-slate-500 font-medium mt-0.5">
-              All Sites, Structural Assets &amp; Monitored Devices &bull; 2D / 3D Multi-Layer Map
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          <button
-            type="button"
-            onClick={() => setAddDeviceModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Register Device</span>
-          </button>
-          <button
-            type="button"
-            onClick={loadDashboardMapData}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-2xs transition-all cursor-pointer"
-            title="Refresh sites & devices"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Quick Overview Metrics Strip for All Sites, Assets & Devices */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">All Sites</div>
-            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{sitesList.length}</div>
-          </div>
-          <MapPin className="w-5 h-5 text-blue-600" />
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Structural Assets</div>
-            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{structuresList.length}</div>
-          </div>
-          <Mountain className="w-5 h-5 text-indigo-600" />
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">All Devices</div>
-            <div className="text-lg font-black text-slate-900 font-mono mt-0.5">{deviceList.length}</div>
-          </div>
-          <Radio className="w-5 h-5 text-emerald-600" />
-        </div>
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-2xs flex items-center justify-between">
-          <div>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Online Nodes</div>
-            <div className="text-lg font-black text-emerald-700 font-mono mt-0.5">
-              {deviceList.filter(dev => (dev.status || 'ONLINE') === 'ONLINE').length}
-            </div>
-          </div>
-          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-        </div>
-      </div>
-
       {/* Full Interactive Map (All Sites, All Structures, All Devices, 2D/3D, All Map Types) */}
       <LocationMapView
         sites={sitesList}
@@ -1291,8 +1230,11 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
         structures={structuresList}
         projects={projectsList}
         organizations={orgsList}
+        alarms={alarmsList}
         initialSelectedSiteId="ALL"
         onSelectSite={() => {}}
+        pointOnlyMarkers={true}
+        controlsInsideMap={true}
       />
 
       {/* MODAL 2: CONFIGURE DEVICE SETTINGS */}

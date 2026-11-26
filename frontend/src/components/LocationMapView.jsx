@@ -273,6 +273,7 @@ export default function LocationMapView({
   structures = [],
   projects = [],
   organizations = [],
+  alarms = [],
   initialSelectedSiteId = 'ALL',
   onSelectSite,
   enableDeviceDrag = false,
@@ -281,6 +282,8 @@ export default function LocationMapView({
   onSaveAllDeviceLocations = null,
   editingDevice = null,
   onClearEditingDevice = null,
+  pointOnlyMarkers = false,
+  controlsInsideMap = false,
 }) {
   const navigate = useNavigate();
   const mapContainerRef = useRef(null);
@@ -292,7 +295,8 @@ export default function LocationMapView({
 
   // States
   const [selectedSiteId, setSelectedSiteId] = useState(initialSelectedSiteId || 'ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ONLINE, OFFLINE
+  const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ALERT, NORMAL
+  const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [mapType, setMapType] = useState('satellite'); // 'satellite', 'google', 'street', 'topo', 'hillshade', 'analytics'
   const [is3D, setIs3D] = useState(true); // 3D Pitch tilt (55deg vs 0deg)
@@ -614,6 +618,24 @@ export default function LocationMapView({
     });
   }, [sites, selectedSiteId, searchQuery]);
 
+  const isDeviceInAlert = (dev) => {
+    const st = String(dev.status || '').toUpperCase();
+    if (['ALARM', 'ALERT', 'CRITICAL', 'WARNING', 'MAJOR'].includes(st)) return true;
+    if (
+      Array.isArray(alarms) &&
+      alarms.some(
+        (a) =>
+          String(a.deviceId) === String(dev.id) &&
+          String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE'
+      )
+    ) {
+      return true;
+    }
+    const tiltVal = Math.abs(Number(dev.resultantTilt ?? dev.tilt?.tilt ?? 0));
+    if (!isNaN(tiltVal) && tiltVal >= 2.0) return true;
+    return false;
+  };
+
   const filteredDevices = useMemo(() => {
     return devices.filter(dev => {
       // Do not show standalone / unassigned devices (must belong to a site or structural asset)
@@ -623,7 +645,9 @@ export default function LocationMapView({
         const targetSite = sites.find(s => String(s.id || s.siteId) === String(selectedSiteId)) || { id: selectedSiteId };
         if (!isDeviceInSite(dev, targetSite, structures)) return false;
       }
-      if (statusFilter !== 'ALL' && dev.status !== statusFilter) return false;
+      if (statusFilter === 'ALERT' && !isDeviceInAlert(dev)) return false;
+      if (statusFilter === 'NORMAL' && isDeviceInAlert(dev)) return false;
+      if (statusFilter !== 'ALL' && statusFilter !== 'ALERT' && statusFilter !== 'NORMAL' && dev.status !== statusFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -634,7 +658,7 @@ export default function LocationMapView({
       }
       return true;
     });
-  }, [devices, sites, structures, selectedSiteId, statusFilter, searchQuery]);
+  }, [devices, sites, structures, alarms, selectedSiteId, statusFilter, searchQuery]);
 
   // 7. Update Heatmap Layer
   const updateHeatmapLayer = () => {
@@ -875,6 +899,7 @@ export default function LocationMapView({
 
       const isMoved = Boolean(pendingMoves[dev.id]);
       const isEditingTarget = editingDevice && String(editingDevice.id) === String(dev.id);
+      const isAlertDev = isDeviceInAlert(dev);
 
       // Custom Fixed Pin Marker
       const el = document.createElement('div');
@@ -882,19 +907,30 @@ export default function LocationMapView({
       el.style.width = 'fit-content';
       el.style.height = 'fit-content';
       el.style.cursor = dragMode ? 'grab' : 'pointer';
-      el.innerHTML = `
-        <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
-          <div style="background: ${isMoved ? '#1d4ed8' : (isEditingTarget ? '#4f46e5' : (isOnline ? '#0f172a' : '#78350f'))}; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-family: monospace; font-weight: 800; font-size: 10px; box-shadow: ${isEditingTarget ? '0 0 0 3px rgba(99,102,241,0.45), 0 4px 12px rgba(0,0,0,0.4)' : '0 4px 10px rgba(0,0,0,0.3)'}; border: ${isMoved || isEditingTarget ? '2px solid #93c5fd' : `1.5px solid ${isOnline ? '#34d399' : '#f59e0b'}`}; display: flex; align-items: center; gap: 5px; white-space: nowrap;">
-            <span style="width: 6px; height: 6px; border-radius: 50%; background: ${isMoved || isEditingTarget ? '#93c5fd' : (isOnline ? '#34d399' : '#f59e0b')};"></span>
-            <span>${dev.name || dev.id}</span>
-            <span style="color: #67e8f9; font-weight: bold;">Δ ${Number(devDisplacement).toFixed(2)}mm</span>
-            ${dragMode ? `<span style="background: rgba(255,255,255,0.22); padding: 1px 4px; border-radius: 4px; font-size: 9px; color: #e0f2fe;" title="Drag pin to move">${isMoved ? 'MOVED' : (isEditingTarget ? 'EDITING' : '⇄')}</span>` : ''}
-            ${devImage ? `<span style="background: #9333ea; padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;">${cameraIconSvg}</span>` : ''}
+      if (pointOnlyMarkers) {
+        const dotColor = isMoved ? '#2563eb' : (isEditingTarget ? '#4f46e5' : (isAlertDev ? '#ef4444' : '#10b981'));
+        const ringColor = isAlertDev ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.30)';
+        el.title = `${dev.name || dev.id} (${isAlertDev ? 'ALERT' : 'NORMAL'}) - Click for details`;
+        el.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: ${ringColor}; pointer-events: auto;">
+            <div style="width: 13px; height: 13px; border-radius: 50%; background: ${dotColor}; border: 2.5px solid #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.45);"></div>
           </div>
-          <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${isMoved ? '#1d4ed8' : (isEditingTarget ? '#4f46e5' : (isOnline ? '#0f172a' : '#78350f'))};"></div>
-          <div style="width: 9px; height: 9px; border-radius: 50%; background: ${isMoved || isEditingTarget ? '#3b82f6' : (isOnline ? '#10b981' : '#f59e0b')}; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-top: -2px;"></div>
-        </div>
-      `;
+        `;
+      } else {
+        el.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+            <div style="background: ${isMoved ? '#1d4ed8' : (isEditingTarget ? '#4f46e5' : (isAlertDev ? '#991b1b' : (isOnline ? '#0f172a' : '#78350f')))}; color: #ffffff; padding: 3px 8px; border-radius: 10px; font-family: monospace; font-weight: 800; font-size: 10px; box-shadow: ${isEditingTarget ? '0 0 0 3px rgba(99,102,241,0.45), 0 4px 12px rgba(0,0,0,0.4)' : '0 4px 10px rgba(0,0,0,0.3)'}; border: ${isMoved || isEditingTarget ? '2px solid #93c5fd' : `1.5px solid ${isAlertDev ? '#f87171' : (isOnline ? '#34d399' : '#f59e0b')}`}; display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: ${isMoved || isEditingTarget ? '#93c5fd' : (isAlertDev ? '#f87171' : (isOnline ? '#34d399' : '#f59e0b'))};"></span>
+              <span>${dev.name || dev.id}</span>
+              <span style="color: #67e8f9; font-weight: bold;">Δ ${Number(devDisplacement).toFixed(2)}mm</span>
+              ${dragMode ? `<span style="background: rgba(255,255,255,0.22); padding: 1px 4px; border-radius: 4px; font-size: 9px; color: #e0f2fe;" title="Drag pin to move">${isMoved ? 'MOVED' : (isEditingTarget ? 'EDITING' : '⇄')}</span>` : ''}
+              ${devImage ? `<span style="background: #9333ea; padding: 2px 4px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;">${cameraIconSvg}</span>` : ''}
+            </div>
+            <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid ${isMoved ? '#1d4ed8' : (isEditingTarget ? '#4f46e5' : (isAlertDev ? '#991b1b' : (isOnline ? '#0f172a' : '#78350f')))};"></div>
+            <div style="width: 9px; height: 9px; border-radius: 50%; background: ${isMoved || isEditingTarget ? '#3b82f6' : (isAlertDev ? '#ef4444' : (isOnline ? '#10b981' : '#f59e0b'))}; border: 2px solid #ffffff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); margin-top: -2px;"></div>
+          </div>
+        `;
+      }
 
       // Interactive Popup with Small Size Image Thumbnail
       const popupHtml = `
@@ -979,7 +1015,7 @@ export default function LocationMapView({
 
       const marker = new maplibregl.Marker({
         element: el,
-        anchor: 'bottom',
+        anchor: pointOnlyMarkers ? 'center' : 'bottom',
         pitchAlignment: 'viewport',
         rotationAlignment: 'viewport',
         draggable: dragMode
@@ -1026,7 +1062,7 @@ export default function LocationMapView({
         lastFittedKeyRef.current = fitKey;
       } catch (e) {}
     }
-  }, [filteredSites, filteredDevices, structures, dragMode, pendingMoves, editingDevice]);
+  }, [filteredSites, filteredDevices, structures, dragMode, pendingMoves, editingDevice, pointOnlyMarkers]);
 
   // Handle Site Selection
   const handleSiteSelect = (siteId) => {
@@ -1080,39 +1116,122 @@ export default function LocationMapView({
   const tilts = activeLocationDevices.map(d => Number(d.resultantTilt || d.tilt?.tilt || 0.22));
   const avgTilt = tilts.length > 0 ? (tilts.reduce((a, b) => a + b, 0) / tilts.length) : 0;
 
-  return (
-    <div className="flex flex-col h-[calc(100vh-210px)] min-h-[640px] rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs relative">
-      {/* Top Controls Bar */}
-      <div className="p-3 border-b border-slate-200 bg-slate-50/90 backdrop-blur-md flex flex-wrap items-center justify-between gap-2.5 text-xs z-10">
-        {/* Left: Search & Site dropdown */}
-        <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
-          <div className="relative flex-1 min-w-[170px] max-w-[260px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search site or device node..."
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
-            />
-          </div>
+  const assignedDevices = devices.filter(d => Boolean(d.siteId || d.structureId));
+  const alertDeviceCount = assignedDevices.filter(d => isDeviceInAlert(d)).length;
+  const normalDeviceCount = assignedDevices.length - alertDeviceCount;
 
-          <div className="flex items-center gap-1.5">
-            <Filter className="w-3.5 h-3.5 text-slate-500" />
-            <select
-              value={selectedSiteId}
-              onChange={e => handleSiteSelect(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
+  const handleSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    const q = searchInput.trim();
+    setSearchQuery(q);
+    const map = mapInstanceRef.current;
+    if (!map || !q) return;
+    const ql = q.toLowerCase();
+    const matchedDev = assignedDevices.find(
+      d => d.name?.toLowerCase().includes(ql) || d.id?.toLowerCase().includes(ql)
+    );
+    if (matchedDev) {
+      const [lng, lat] = getDeviceCoordinates(matchedDev);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        map.flyTo({ center: [lng, lat], zoom: 16.5, pitch: is3D ? 55 : 0, duration: 900 });
+        return;
+      }
+    }
+    const matchedSite = sites.find(
+      s => s.name?.toLowerCase().includes(ql) || (s.siteId || s.id)?.toLowerCase().includes(ql)
+    );
+    if (matchedSite) {
+      const [lng, lat] = getSiteCoordinates(matchedSite);
+      if (!isNaN(lat) && !isNaN(lng)) {
+        map.flyTo({ center: [lng, lat], zoom: 15.5, pitch: is3D ? 55 : 0, duration: 900 });
+      }
+    }
+  };
+
+  const renderSearchAndDropdowns = (insideMap = false) => (
+    <div className={`flex flex-wrap items-center gap-2 ${insideMap ? 'bg-white/95 backdrop-blur-md p-2 rounded-2xl border border-slate-200/90 shadow-lg' : 'flex-1 min-w-[280px]'}`}>
+      {/* Search Input + Search Button */}
+      <form onSubmit={handleSearchSubmit} className="flex items-center gap-1.5">
+        <div className="relative min-w-[165px] max-w-[230px]">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={e => {
+              setSearchInput(e.target.value);
+              if (!e.target.value.trim()) setSearchQuery('');
+            }}
+            placeholder="Search site or device..."
+            className="w-full pl-8 pr-6 py-1.5 rounded-xl border border-slate-200 bg-white font-medium text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput('');
+                setSearchQuery('');
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+              title="Clear search"
             >
-              <option value="ALL">All Monitored Locations ({sites.length})</option>
-              {sites.map(s => (
-                <option key={s.id || s.siteId} value={s.id || s.siteId}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
+        <button
+          type="submit"
+          className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+          title="Search on map"
+        >
+          <Search className="w-3 h-3" />
+          <span>Search</span>
+        </button>
+      </form>
+
+      {/* Location / Site Dropdown */}
+      <div className="flex items-center gap-1">
+        <select
+          value={selectedSiteId}
+          onChange={e => handleSiteSelect(e.target.value)}
+          className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white font-bold text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
+        >
+          <option value="ALL">All Locations ({sites.length})</option>
+          {sites.map(s => (
+            <option key={s.id || s.siteId} value={s.id || s.siteId}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Alert / Normal / All Device Layer Dropdown */}
+      <div className="flex items-center gap-1">
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className={`px-2.5 py-1.5 rounded-xl border font-bold text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer ${
+            statusFilter === 'ALERT'
+              ? 'bg-rose-50 border-rose-300 text-rose-800'
+              : statusFilter === 'NORMAL'
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+              : 'bg-white border-slate-200 text-slate-900'
+          }`}
+          title="Filter map devices by Alert / Normal state"
+        >
+          <option value="ALL">All Devices ({assignedDevices.length})</option>
+          <option value="ALERT">Alert Devices ({alertDeviceCount})</option>
+          <option value="NORMAL">Normal Devices ({normalDeviceCount})</option>
+        </select>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className={`flex flex-col ${controlsInsideMap ? 'h-[calc(100vh-120px)]' : 'h-[calc(100vh-210px)]'} min-h-[640px] rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs relative`}>
+      {/* Top Controls Bar */}
+      <div className={`p-3 border-b border-slate-200 bg-slate-50/90 backdrop-blur-md flex flex-wrap items-center ${controlsInsideMap ? 'justify-end' : 'justify-between'} gap-2.5 text-xs z-10`}>
+        {/* Left: Search & Dropdowns (when not placed inside map) */}
+        {!controlsInsideMap && renderSearchAndDropdowns(false)}
 
         {/* Right: MapLibre 3D & Layer Controls (Satellite, Street, Topo, 3D Globe, Terrain, Heatmap) */}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1222,6 +1341,13 @@ export default function LocationMapView({
       {/* Main MapLibre 3D Canvas */}
       <div className="flex-1 relative flex overflow-hidden w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full relative z-0" />
+
+        {/* Floating Search Button + Location & Alert/Normal Dropdowns INSIDE Map */}
+        {controlsInsideMap && (
+          <div className="absolute top-3 left-3 z-10 max-w-[calc(100%-24px)] pointer-events-auto">
+            {renderSearchAndDropdowns(true)}
+          </div>
+        )}
 
         {/* Floating All-Device Pin Move & Batch Save Bar */}
         {enableDeviceDrag && dragMode && (

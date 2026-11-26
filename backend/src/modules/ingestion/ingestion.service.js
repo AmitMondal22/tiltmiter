@@ -211,13 +211,11 @@ export async function processAndSaveTelemetry(rawPayload, params = {}) {
   // 2. Broadcast to WebSocket subscribers
   broadcastTelemetry(telemetryData);
 
-  // 3. Evaluate alert rules (skipped when AUTO_ALERTS_ENABLED !== 'true')
-  if (process.env.AUTO_ALERTS_ENABLED === 'true') {
-    try {
-      const defaultDevice = { id: deviceId, deviceId, name: `Inclinometer ${deviceId}` };
-      evaluateTelemetryAlerts(defaultDevice, telemetryData).catch(() => {});
-    } catch (e) {}
-  }
+  // 3. Evaluate alert rules via Intelligent Tilt Alert Engine (non-blocking)
+  try {
+    const defaultDevice = { id: deviceId, deviceId, name: `Inclinometer ${deviceId}` };
+    evaluateTelemetryAlerts(defaultDevice, telemetryData).catch(() => {});
+  } catch (e) {}
 
   return { deviceId, timestamp: utcTimestamp, data: telemetryData };
 }

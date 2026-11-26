@@ -1,8 +1,9 @@
-import { AlertRule, Alarm, Incident, Device, Site, Structure, Project } from '../models/index.js';
+import { AlertRule, Alarm, Incident, Device, Site, Structure, Project, TelemetryRecord } from '../models/index.js';
 import { sendAlertEmail, getActiveRecipientEmails } from './emailService.js';
 import { broadcastAlarm } from '../websocket/websocket.service.js';
 import { getMemoryAlertRules } from '../modules/alarms/alarms.routes.js';
 import { createAutoAlertTicket, autoResolveTicketsForDevice } from './incidentService.js';
+import { evaluateDeviceTiltHistory } from './tiltAlertEngine.js';
 
 // Rate-limiting cache to prevent email flood while still dispatching on breaches
 const lastEmailSentAt = new Map();
@@ -34,14 +35,31 @@ function checkThresholdBreach(val, threshold, operator = '>') {
  * Automatically evaluates rules assigned to this particular device.
  */
 export async function evaluateTelemetryAlerts(device, telemetry) {
-  // Auto alert generation is currently disabled unless explicitly enabled via AUTO_ALERTS_ENABLED=true
-  if (process.env.AUTO_ALERTS_ENABLED !== 'true') return [];
+  if (process.env.AUTO_ALERTS_ENABLED === 'false') return [];
   if (!device || !telemetry) return [];
 
   const triggeredAlerts = [];
   const devId = String(device.id || device.deviceId || '').trim();
-  const siteId = device.siteId || (device.Site ? device.Site.id : null);
-  const devName = device.name || devId;
+
+  // Enrich stub device with full DB record (baselines, Site, Structure, Project)
+  let fullDevice = device;
+  try {
+    const dbDev = await Device.findByPk(devId, {
+      include: [
+        { model: Site, include: [Project] },
+        Structure,
+        Project,
+      ],
+    });
+    if (dbDev) {
+      fullDevice = dbDev.toJSON ? dbDev.toJSON() : dbDev;
+    }
+  } catch (devErr) {
+    // Fallback to passed device object
+  }
+
+  const siteId = fullDevice.siteId || (fullDevice.Site ? fullDevice.Site.id : null);
+  const devName = fullDevice.name || devId;
 
   // 1. Calculate live measurements
   const rawTilt = telemetry.tilt?.tilt ?? telemetry.resultantTilt ?? device.resultantTilt ?? 0;
@@ -60,15 +78,15 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
   const dispVal = rawTotalDisp !== null ? Math.abs(parseFloat(rawTotalDisp) || 0) : Math.sqrt(xDisp * xDisp + yDisp * yDisp);
 
   // Metadata context for alert payload
-  const projectName = device.Project?.name || device.Site?.Project?.name || null;
-  const structureName = device.Structure?.name || null;
-  const structureType = device.Structure?.type || null;
-  const siteLatitude = device.Site?.latitude ?? null;
-  const siteLongitude = device.Site?.longitude ?? null;
-  const structureLatitude = device.Structure?.latitude ?? null;
-  const structureLongitude = device.Structure?.longitude ?? null;
-  const deviceLatitude = device.latitude ?? null;
-  const deviceLongitude = device.longitude ?? null;
+  const projectName = fullDevice.Project?.name || fullDevice.Site?.Project?.name || null;
+  const structureName = fullDevice.Structure?.name || null;
+  const structureType = fullDevice.Structure?.type || null;
+  const siteLatitude = fullDevice.Site?.latitude ?? null;
+  const siteLongitude = fullDevice.Site?.longitude ?? null;
+  const structureLatitude = fullDevice.Structure?.latitude ?? null;
+  const structureLongitude = fullDevice.Structure?.longitude ?? null;
+  const deviceLatitude = fullDevice.latitude ?? null;
+  const deviceLongitude = fullDevice.longitude ?? null;
 
   // 2. Fetch all enabled AlertRules matching THIS particular device
   let allRules = [];
@@ -99,22 +117,115 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
 
   console.log(`[Alert Engine] Evaluating telemetry for device "${devId}". Found ${deviceSpecificRules.length} matching rule(s). (Tilt: ${tiltVal.toFixed(3)}°, Disp: ${dispVal.toFixed(2)}mm)`);
 
-  if (deviceSpecificRules.length > 0) {
-    // Evaluate configured rules for this device
-    for (const rule of deviceSpecificRules) {
-      const param = (rule.parameter || 'tilt').toLowerCase();
-      const measuredVal = param === 'tilt' ? tiltVal : dispVal;
-      const unit = param === 'tilt' ? '°' : 'mm';
+  // A. Intelligent Landslide Tilt Alert Engine (Median + EMA + Adaptive MAD + Dual Fast/Trend Paths)
+  // Uses dynamic thresholds from the device's tilt AlertRule if configured, or provisional defaults otherwise.
+  const tiltRule = deviceSpecificRules.find(r => (r.parameter || 'tilt').toLowerCase() === 'tilt') || null;
+  let historyRows = [];
+  let existingTiltAlarm = null;
+  try {
+    const dbHistory = await TelemetryRecord.findAll({
+      where: { deviceId: devId },
+      order: [['timestamp', 'DESC']],
+      limit: 20,
+    });
+    historyRows = dbHistory.map(r => (r.toJSON ? r.toJSON() : r));
+  } catch (histErr) {}
+  try {
+    existingTiltAlarm = await Alarm.findOne({
+      where: { deviceId: devId, parameter: 'tilt', status: 'ACTIVE' },
+    });
+  } catch (almErr) {}
+
+  const curTiltX = rawXTilt !== null ? Number(rawXTilt) : (Number(fullDevice.xTilt) || 0);
+  const curTiltY = rawYTilt !== null ? Number(rawYTilt) : (Number(fullDevice.yTilt) || 0);
+  const { result: tiltResult, thresholdMeta } = evaluateDeviceTiltHistory({
+    historyRows,
+    currentReading: {
+      x: curTiltX,
+      y: curTiltY,
+      timestamp: telemetry.timestamp || new Date().toISOString(),
+    },
+    device: fullDevice,
+    rule: tiltRule,
+    activeAlarmSeverity: existingTiltAlarm?.severity || null,
+  });
+
+  if (tiltResult && tiltResult.status !== 'NORMAL') {
+    const mappedSeverity =
+      tiltResult.status === 'CRITICAL' || tiltResult.status === 'URGENT_VERIFY'
+        ? 'CRITICAL'
+        : tiltResult.status === 'HIGH' || tiltResult.status === 'SENSOR_FAULT'
+        ? 'WARNING'
+        : 'INFO';
+
+    const measuredMag = Number(tiltResult.rawMagnitude ?? tiltVal);
+    const activeThresh =
+      tiltResult.status === 'CRITICAL'
+        ? thresholdMeta.thresholds.critical
+        : tiltResult.status === 'HIGH'
+        ? thresholdMeta.thresholds.high
+        : thresholdMeta.thresholds.warning;
+
+    const rateNote =
+      tiltResult.rateDegPerHour != null
+        ? ` | Rate: ${tiltResult.rateDegPerHour.toFixed(3)}°/hr`
+        : '';
+    const spikeNote = tiltResult.suspectedSpike ? ' [Transient Spike Flagged]' : '';
+    const verifyNote = tiltResult.requiresVerification ? ' (Provisional - Verification Required)' : '';
+
+    const defaultMsg =
+      tiltResult.status === 'SENSOR_FAULT'
+        ? tiltResult.reason || `Sensor fault detected on device ${devId} (${devName}).`
+        : `Tilt ${tiltResult.event} on ${devId} (${devName}): ΔMag ${measuredMag.toFixed(3)}° (ΔX: ${Number(tiltResult.dx ?? 0).toFixed(3)}°, ΔY: ${Number(tiltResult.dy ?? 0).toFixed(3)}°) vs ${thresholdMeta.source} ${tiltResult.status} limit ${Number(activeThresh).toFixed(2)}°${rateNote}${spikeNote}${verifyNote}`;
+
+    console.warn(`🚨 [TILT ENGINE ${tiltResult.status}] Device ${devId} (${thresholdMeta.source}: ${thresholdMeta.ruleName}) | ${defaultMsg}`);
+
+    triggeredAlerts.push({
+      deviceId: devId,
+      siteId,
+      siteName: fullDevice.Site?.name || 'Main Geotechnical Site',
+      deviceName: devName,
+      parameter: tiltResult.status === 'SENSOR_FAULT' ? 'sensor_fault' : 'tilt',
+      severity: mappedSeverity,
+      value: `${measuredMag.toFixed(3)}°`,
+      threshold: `${Number(activeThresh).toFixed(2)}° (${thresholdMeta.source} ${tiltResult.status})`,
+      title: `${mappedSeverity} TILT (${tiltResult.status}): ${tiltRule?.ruleName || thresholdMeta.ruleName}`,
+      message: tiltRule?.message || defaultMsg,
+      recipients: Array.isArray(tiltRule?.emails) && tiltRule.emails.length > 0 ? tiltRule.emails : null,
+      tiltX: curTiltX,
+      tiltY: curTiltY,
+      resultantTilt: measuredMag,
+      dispX: rawXDisp,
+      dispY: rawYDisp,
+      totalDisp: dispVal,
+      projectName,
+      structureName,
+      structureType,
+      siteLatitude,
+      siteLongitude,
+      structureLatitude,
+      structureLongitude,
+      latitude: deviceLatitude,
+      longitude: deviceLongitude,
+    });
+  }
+
+  // B. Non-tilt rules (e.g. Displacement) — dynamic from AlertRule or default fallback
+  const nonTiltRules = deviceSpecificRules.filter(r => (r.parameter || 'tilt').toLowerCase() !== 'tilt');
+  if (nonTiltRules.length > 0) {
+    for (const rule of nonTiltRules) {
+      const param = (rule.parameter || 'displacement').toLowerCase();
+      const measuredVal = dispVal;
+      const unit = 'mm';
       const op = rule.operator || '>';
 
-      const cThresh = rule.criticalThreshold ?? rule.thresholdValue ?? (param === 'tilt' ? 2.0 : 10.0);
-      const wThresh = rule.warningThreshold ?? (param === 'tilt' ? 1.0 : 5.0);
-      const iThresh = rule.infoThreshold ?? (param === 'tilt' ? 0.5 : 2.0);
+      const cThresh = rule.criticalThreshold ?? rule.thresholdValue ?? 10.0;
+      const wThresh = rule.warningThreshold ?? 5.0;
+      const iThresh = rule.infoThreshold ?? 2.0;
 
       let breachedSeverity = null;
       let limitValue = null;
 
-      // Evaluate 3 severity tiers in order of precedence: Critical > Warning > Info
       if (checkThresholdBreach(measuredVal, cThresh, op)) {
         breachedSeverity = 'CRITICAL';
         limitValue = `${op} ${Number(cThresh).toFixed(2)} ${unit}`;
@@ -131,7 +242,7 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
         triggeredAlerts.push({
           deviceId: devId,
           siteId,
-          siteName: device.Site?.name || 'Main Geotechnical Site',
+          siteName: fullDevice.Site?.name || 'Main Geotechnical Site',
           deviceName: devName,
           parameter: param,
           severity: breachedSeverity,
@@ -159,71 +270,18 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
       }
     }
   } else {
-    // Fallback: Default geotechnical safety limits if no custom rule assigned yet
-    if (tiltVal > 2.0) {
-      triggeredAlerts.push({
-        deviceId: devId,
-        siteId,
-        siteName: device.Site?.name || 'Main Geotechnical Site',
-        deviceName: devName,
-        parameter: 'tilt',
-        severity: 'CRITICAL',
-        value: `${tiltVal.toFixed(3)}°`,
-        threshold: '2.000° (Critical Limit)',
-        title: `Critical Tilt Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
-        message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, breaching the critical safety limit of 2.000°. Immediate inspection required.`,
-        tiltX: rawXTilt,
-        tiltY: rawYTilt,
-        resultantTilt: tiltVal,
-        projectName,
-        structureName,
-        structureType,
-        siteLatitude,
-        siteLongitude,
-        structureLatitude,
-        structureLongitude,
-        latitude: deviceLatitude,
-        longitude: deviceLongitude,
-      });
-    } else if (tiltVal > 1.0) {
-      triggeredAlerts.push({
-        deviceId: devId,
-        siteId,
-        siteName: device.Site?.name || 'Main Geotechnical Site',
-        deviceName: devName,
-        parameter: 'tilt',
-        severity: 'WARNING',
-        value: `${tiltVal.toFixed(3)}°`,
-        threshold: '1.000° (Warning Limit)',
-        title: `Tilt Warning Threshold Exceeded: ${tiltVal.toFixed(3)}°`,
-        message: `Resultant tilt on device ${devId} (${devName}) reached ${tiltVal.toFixed(3)}°, exceeding the warning threshold of 1.000°.`,
-        tiltX: rawXTilt,
-        tiltY: rawYTilt,
-        resultantTilt: tiltVal,
-        projectName,
-        structureName,
-        structureType,
-        siteLatitude,
-        siteLongitude,
-        structureLatitude,
-        structureLongitude,
-        latitude: deviceLatitude,
-        longitude: deviceLongitude,
-      });
-    }
-
     if (dispVal > 10.0) {
       triggeredAlerts.push({
         deviceId: devId,
         siteId,
-        siteName: device.Site?.name || 'Main Geotechnical Site',
+        siteName: fullDevice.Site?.name || 'Main Geotechnical Site',
         deviceName: devName,
         parameter: 'displacement',
         severity: 'CRITICAL',
         value: `${dispVal.toFixed(2)} mm`,
-        threshold: '10.00 mm (Critical Limit)',
+        threshold: '10.00 mm (Default Critical Limit)',
         title: `Critical Displacement Exceeded: ${dispVal.toFixed(2)} mm`,
-        message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the critical limit of 10.00 mm.`,
+        message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the default critical limit of 10.00 mm.`,
         dispX: rawXDisp,
         dispY: rawYDisp,
         totalDisp: dispVal,
@@ -244,14 +302,14 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
       triggeredAlerts.push({
         deviceId: devId,
         siteId,
-        siteName: device.Site?.name || 'Main Geotechnical Site',
+        siteName: fullDevice.Site?.name || 'Main Geotechnical Site',
         deviceName: devName,
         parameter: 'displacement',
         severity: 'WARNING',
         value: `${dispVal.toFixed(2)} mm`,
-        threshold: '5.00 mm (Warning Limit)',
+        threshold: '5.00 mm (Default Warning Limit)',
         title: `Displacement Warning Exceeded: ${dispVal.toFixed(2)} mm`,
-        message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the warning threshold of 5.00 mm.`,
+        message: `Subsurface lateral displacement on device ${devId} (${devName}) reached ${dispVal.toFixed(2)} mm, exceeding the default warning threshold of 5.00 mm.`,
         dispX: rawXDisp,
         dispY: rawYDisp,
         totalDisp: dispVal,

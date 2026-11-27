@@ -20,6 +20,7 @@ export default function SitesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSite, setEditingSite] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [siteSearch, setSiteSearch] = useState('');
   const [msg, setMsg] = useState({ type: '', text: '' });
 
   const [formData, setFormData] = useState({
@@ -127,7 +128,7 @@ export default function SitesPage() {
   };
 
   return (
-    <div className="space-y-4 font-sans text-black animate-fadeIn">
+    <div className="space-y-4 text-slate-900 animate-fadeIn">
       {/* Toast */}
       {msg.text && (
         <div className="p-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold bg-emerald-50 border-emerald-300 text-emerald-950 shadow-sm animate-fadeIn">
@@ -139,12 +140,11 @@ export default function SitesPage() {
       {/* Top Header Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-black flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-blue-600" />
-            <span>Site Locations & Monitored Devices</span>
+          <h2 className="text-xl font-bold text-slate-900">
+            Site Locations &amp; Monitored Devices
           </h2>
-          <p className="text-xs text-slate-700 font-medium mt-0.5">
-            {sitesList.length} monitored geolocations &bull; {devicesList.filter(d => sitesList.some(s => isDeviceInSite(d, s, structuresList))).length} assigned nodes ({devicesList.length} total deployed)
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            {sitesList.length} locations &bull; {devicesList.filter(d => sitesList.some(s => isDeviceInSite(d, s, structuresList))).length} assigned nodes &bull; {devicesList.length} total deployed
           </p>
         </div>
 
@@ -156,33 +156,32 @@ export default function SitesPage() {
                 setViewMode('list');
                 setFocusedSiteId('ALL');
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                 viewMode === 'list'
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-white text-blue-600 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <List className="w-3.5 h-3.5" />
-              <span>Table View</span>
+              <span>Table</span>
             </button>
             <button
               onClick={() => setViewMode('map')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                 viewMode === 'map'
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-white text-blue-600 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <MapIcon className="w-3.5 h-3.5" />
-              <span>Location Map & Analytics</span>
+              <span>Map</span>
             </button>
           </div>
 
           <button
             onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
             <span>Add Location</span>
           </button>
         </div>
@@ -190,161 +189,131 @@ export default function SitesPage() {
 
       {/* Main Content Area: Table View OR Location Map View */}
       {viewMode === 'list' ? (
-        <div className={cardCls}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-xs space-y-3">
+          {/* Top-Right Search Input */}
+          <div className="flex justify-end">
+            <input
+              type="text"
+              value={siteSearch}
+              onChange={(e) => setSiteSearch(e.target.value)}
+              placeholder="Search by site name, project or coordinates..."
+              className="w-full sm:w-80 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+            <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b-2 border-slate-200 text-black font-extrabold uppercase text-[11px] tracking-wider">
+                <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-700 text-[11px]">
+                  <th className="py-3 px-3.5 w-10">#</th>
                   <th className="py-3 px-3.5">Site Name</th>
-                  <th className="py-3 px-3.5">Project / Org</th>
+                  <th className="py-3 px-3.5">Project / Organization</th>
                   <th className="py-3 px-3.5">GPS Coordinates</th>
-                  <th className="py-3 px-3.5">Assets & Tiltmeters</th>
-                  <th className="py-3 px-3.5">Status</th>
-                  <th className="py-3 px-3.5 text-right">Actions</th>
+                  <th className="py-3 px-3.5 text-center">Assets</th>
+                  <th className="py-3 px-3.5 text-center">Devices</th>
+                  <th className="py-3 px-3.5 text-left pl-6">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 text-black font-medium">
+              <tbody className="divide-y divide-slate-100 text-slate-800">
                 {loading && sitesList.length === 0 ? (
                   Array.from({ length: 5 }).map((_, idx) => (
                     <tr key={`skel-${idx}`}>
-                      <td colSpan={6} className="py-3 px-3.5">
+                      <td colSpan={7} className="py-3 px-3.5">
                         <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
                       </td>
                     </tr>
                   ))
-                ) : sitesList.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
-                      No site locations registered yet. Click "+ Add Location" to create one.
-                    </td>
-                  </tr>
-                ) : (
-                  sitesList.map(site => {
+                ) : (() => {
+                  const q = siteSearch.trim().toLowerCase();
+                  const filtered = sitesList.filter((site) => {
+                    if (!q) return true;
+                    const proj = projectsList.find(p => String(p.id) === String(site.projectId));
+                    const org = orgsList.find(o => String(o.id) === String(site.organizationId) || String(o.id) === String(proj?.organizationId));
+                    const projOrgStr = `${proj?.name || site.Project?.name || ''} ${org?.name || ''}`.toLowerCase();
+                    const coordStr = `${site.latitude || ''} ${site.longitude || ''}`.toLowerCase();
+                    return (
+                      String(site.name || '').toLowerCase().includes(q) ||
+                      projOrgStr.includes(q) ||
+                      coordStr.includes(q)
+                    );
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-500 text-xs">
+                          No site locations found.
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return filtered.map((site, idx) => {
                     const sId = site.siteId || site.id;
                     const proj = projectsList.find(p => String(p.id) === String(site.projectId));
                     const org = orgsList.find(o => String(o.id) === String(site.organizationId) || String(o.id) === String(proj?.organizationId));
 
-                    // Strictly match structures belonging to this site
                     const siteStructures = getSiteStructures(site, structuresList);
                     const structCount = (site.Structures && site.Structures.length > 0) ? site.Structures.length : siteStructures.length;
 
-                    // Strictly match ONLY devices added/assigned to this specific site
                     const siteDevices = getSiteDevices(site, devicesList, siteStructures);
                     const siteDevCount = siteDevices.length;
 
-                    // Coordinate resolution: site coordinates, or fallback to its monitored devices
                     const firstDevWithCoords = siteDevices.find(d => d.latitude && d.longitude && !isNaN(parseFloat(d.latitude)) && !isNaN(parseFloat(d.longitude)));
                     const hasExplicitSiteCoords = site.latitude && site.longitude && !isNaN(parseFloat(site.latitude)) && !isNaN(parseFloat(site.longitude)) && (Math.abs(parseFloat(site.latitude) - 22.5726) >= 0.001 || Math.abs(parseFloat(site.longitude) - 88.3639) >= 0.001);
                     const displayLat = hasExplicitSiteCoords ? parseFloat(site.latitude) : (firstDevWithCoords ? parseFloat(firstDevWithCoords.latitude) : null);
                     const displayLng = hasExplicitSiteCoords ? parseFloat(site.longitude) : (firstDevWithCoords ? parseFloat(firstDevWithCoords.longitude) : null);
-                    const isFromDevice = !hasExplicitSiteCoords && Boolean(firstDevWithCoords);
 
                     return (
                       <tr
                         key={sId}
                         onClick={() => navigate(`/sites/${sId}`)}
-                        className="hover:bg-blue-50/60 transition-colors cursor-pointer group"
+                        className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                       >
-                        <td className="py-4 px-3.5">
-                          <div className="font-bold text-black text-sm group-hover:text-blue-700 flex items-center gap-1.5">
-                            <span>{site.name}</span>
-                            <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
-                          </div>
-                          {(site.location || site.address) && (
-                            <div className="text-[11px] text-blue-700 font-semibold flex items-center gap-1 mt-0.5">
-                              <MapPin className="w-3 h-3 text-blue-600 flex-shrink-0" />
-                              <span>{site.location || site.address}</span>
-                            </div>
-                          )}
-                          <div className="text-[11px] text-slate-600 font-mono mt-0.5">{site.description || (site.code ? `Code: ${site.code}` : 'Geotechnical Monitored Site')}</div>
+                        <td className="py-3 px-3.5 text-slate-500">{idx + 1}</td>
+                        <td className="py-3 px-3.5 text-slate-900 whitespace-nowrap">
+                          {site.name}
                         </td>
-                        <td className="py-4 px-3.5">
-                          <div className="font-bold text-black">{proj?.name || site.Project?.name || '--'}</div>
-                          <div className="text-[11px] text-slate-700 font-medium">{org?.name || '--'}</div>
+                        <td className="py-3 px-3.5 text-slate-700">
+                          {proj?.name || site.Project?.name || org?.name || '--'}
                         </td>
-                        <td className="py-4 px-3.5 font-mono text-black">
-                          {displayLat && displayLng ? (
-                            <div>
-                              <div className="font-bold text-xs">
-                                {displayLat.toFixed(4)}°N, {displayLng.toFixed(4)}°E
-                              </div>
-                              {isFromDevice && (
-                                <div className="text-[10px] text-blue-600 font-sans font-semibold flex items-center gap-1 mt-0.5">
-                                  <Cpu className="w-3 h-3" />
-                                  <span>Device ({firstDevWithCoords.id || firstDevWithCoords.name})</span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 font-sans text-xs">--</span>
-                          )}
+                        <td className="py-3 px-3.5 text-slate-800 whitespace-nowrap">
+                          {displayLat !== null && displayLng !== null
+                            ? `${displayLat.toFixed(4)}° N, ${displayLng.toFixed(4)}° E`
+                            : '--'}
                         </td>
-                        <td className="py-4 px-3.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="px-2.5 py-1 rounded-md bg-black text-white font-bold text-[10px]">
-                              {structCount} Assets
-                            </span>
-                            <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[10px] flex items-center gap-1">
-                              <Cpu className="w-3 h-3" />
-                              <span>{siteDevCount} Devices</span>
-                            </span>
-                          </div>
-                          {siteDevices.length > 0 ? (
-                            <div className="flex items-center gap-1 flex-wrap mt-1.5">
-                              {siteDevices.slice(0, 3).map(dev => (
-                                <span
-                                  key={dev.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate(`/devices/${dev.id}`);
-                                  }}
-                                  className="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-100 text-slate-800 hover:text-blue-800 font-mono text-[10px] font-semibold border border-slate-200 transition-colors cursor-pointer"
-                                  title={`Click to view ${dev.name || dev.id} (${dev.latitude ? `${Number(dev.latitude).toFixed(4)}°N, ${Number(dev.longitude).toFixed(4)}°E` : 'No GPS'})`}
-                                >
-                                  {dev.id}
-                                </span>
-                              ))}
-                              {siteDevices.length > 3 && (
-                                <span className="text-[10px] text-slate-500 font-mono font-semibold">
-                                  +{siteDevices.length - 3} more
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-[10px] text-slate-500 font-medium italic mt-1">
-                              0 devices assigned
-                            </div>
-                          )}
+                        <td className="py-3 px-3.5 text-center text-slate-900">
+                          {structCount}
                         </td>
-                        <td className="py-4 px-3.5">
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300 font-extrabold text-[10px]">
-                            {site.status || 'ACTIVE'}
-                          </span>
+                        <td className="py-3 px-3.5 text-center text-slate-900">
+                          {siteDevCount}
                         </td>
-                        <td className="py-4 px-3.5 text-right" onClick={e => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Open Dedicated Location View */}
+                        <td className="py-3 px-3.5 pl-6 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
                             <button
                               onClick={() => navigate(`/sites/${sId}`)}
-                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
-                              title="Open dedicated location view with 2D/3D map & analytics"
+                              className="px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50/70 hover:bg-blue-100 text-blue-600 text-[11px] transition-colors cursor-pointer"
                             >
-                              <span>Open Location</span>
-                              <ExternalLink className="w-3.5 h-3.5" />
+                              Open Location
                             </button>
-
-                            <button onClick={(e) => handleOpenEdit(e, site)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer">
-                              <Edit className="w-4 h-4" />
+                            <button
+                              onClick={(e) => handleOpenEdit(e, site)}
+                              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] transition-colors cursor-pointer"
+                            >
+                              Edit
                             </button>
-                            <button onClick={(e) => handleDelete(e, sId)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
-                              <Trash2 className="w-4 h-4" />
+                            <button
+                              onClick={(e) => handleDelete(e, sId)}
+                              className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50/40 hover:bg-red-100 text-red-600 text-[11px] transition-colors cursor-pointer"
+                            >
+                              Delete
                             </button>
                           </div>
                         </td>
                       </tr>
                     );
-                  })
-                )}
+                  });
+                })()}
               </tbody>
             </table>
           </div>

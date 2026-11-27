@@ -112,6 +112,30 @@ export default function ProjectsPage() {
     reader.readAsDataURL(file);
   };
 
+  const handleQuickImageUpload = (proj, e) => {
+    const file = e.target.files?.[0];
+    if (!file || !canManageProjects) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg({ type: 'error', text: 'Image must be smaller than 5 MB.' });
+      setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await updateProject(proj.id, { imageUrl: reader.result });
+        const updated = res?.project || { ...proj, imageUrl: reader.result };
+        setProjectsList(prev => prev.map(p => p.id === proj.id ? updated : p));
+        setMsg({ type: 'success', text: `Image updated for ${proj.name}.` });
+      } catch (err) {
+        setMsg({ type: 'error', text: err.message || 'Error updating project image' });
+      } finally {
+        setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     try {
@@ -294,14 +318,46 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Project Image Banner */}
-                {proj.imageUrl && (
-                  <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-200/80 bg-slate-100">
+                {/* Project Image Under Title */}
+                {proj.imageUrl ? (
+                  <div className="relative w-full h-36 rounded-xl overflow-hidden border border-slate-200/80 bg-slate-100 group">
                     <img
                       src={formatAssetUrl(proj.imageUrl)}
                       alt={proj.name}
                       className="w-full h-full object-cover"
                     />
+                    {canManageProjects && (
+                      <label className="absolute bottom-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black text-white text-[11px] font-semibold backdrop-blur-xs opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs">
+                        <Upload className="w-3 h-3" />
+                        <span>Update Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleQuickImageUpload(proj, e)}
+                        />
+                      </label>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full h-24 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 flex items-center justify-center">
+                    {canManageProjects ? (
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs">
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>Upload Project Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleQuickImageUpload(proj, e)}
+                        />
+                      </label>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+                        <Camera className="w-4 h-4" />
+                        <span>No Project Image</span>
+                      </div>
+                    )}
                   </div>
                 )}
 

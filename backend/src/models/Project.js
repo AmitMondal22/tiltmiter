@@ -23,6 +23,20 @@ export const Project = sequelize.define('Project', {
   location: {
     type: DataTypes.STRING,
   },
+  description: {
+    type: DataTypes.TEXT,
+  },
+  budget: {
+    type: DataTypes.STRING,
+  },
+  status: {
+    type: DataTypes.STRING,
+    defaultValue: 'ACTIVE',
+  },
+  imageUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
 }, {
   tableName: 'projects',
   timestamps: true,

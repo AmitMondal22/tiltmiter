@@ -40,7 +40,7 @@ const __dirname = path.dirname(__filename);
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 
 // Ensure permanent upload storage directories exist
-[uploadsDir, path.join(uploadsDir, 'logos'), path.join(uploadsDir, 'device_image'), path.join(uploadsDir, 'tickets')].forEach((dir) => {
+[uploadsDir, path.join(uploadsDir, 'logos'), path.join(uploadsDir, 'device_image'), path.join(uploadsDir, 'project_image'), path.join(uploadsDir, 'tickets')].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }

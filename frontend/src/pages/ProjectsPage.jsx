@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, X, CheckCircle2, FolderTree, AlertTriangle, Cpu, Radio, MapPin, Building2 } from 'lucide-react';
-import { getProjects, getOrganizations, getDevices, getSites, getAlarms, createProject, updateProject, deleteProject } from '../api/apiClient';
+import { Plus, Edit, Trash2, X, CheckCircle2, FolderTree, AlertTriangle, MapPin, Building2, Camera, Upload } from 'lucide-react';
+import { getProjects, getOrganizations, getDevices, getSites, getAlarms, createProject, updateProject, deleteProject, formatAssetUrl } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProjectsPage() {
@@ -26,6 +26,7 @@ export default function ProjectsPage() {
     description: '',
     budget: '',
     status: 'ACTIVE',
+    imageUrl: '',
   });
 
   const loadData = async () => {
@@ -77,6 +78,7 @@ export default function ProjectsPage() {
       description: '',
       budget: '',
       status: 'ACTIVE',
+      imageUrl: '',
     });
     setModalOpen(true);
   };
@@ -90,8 +92,24 @@ export default function ProjectsPage() {
       description: proj.description || '',
       budget: proj.budget || '',
       status: proj.status || 'ACTIVE',
+      imageUrl: proj.imageUrl || '',
     });
     setModalOpen(true);
+  };
+
+  const handleImageFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg({ type: 'error', text: 'Image must be smaller than 5 MB.' });
+      setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormData(prev => ({ ...prev, imageUrl: reader.result }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = async (e) => {
@@ -218,16 +236,16 @@ export default function ProjectsPage() {
 
             const projDeviceIds = new Set(projDevices.map(d => String(d.id || d.deviceId || '')));
             const projAlarms = alarmsList.filter(a => {
-              const isActive = String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
-              if (!isActive) return false;
               return (
+                (a.projectId && String(a.projectId) === String(proj.id)) ||
                 (a.deviceId && projDeviceIds.has(String(a.deviceId))) ||
                 (a.siteId && projSiteIds.has(String(a.siteId)))
               );
             });
             const criticalAlerts = projAlarms.filter(a => ['CRITICAL', 'EMERGENCY'].includes(String(a.severity || '').toUpperCase())).length;
-            const warningAlerts = projAlarms.filter(a => ['WARNING', 'MAJOR'].includes(String(a.severity || '').toUpperCase())).length;
-            const infoAlerts = projAlarms.filter(a => !['CRITICAL', 'EMERGENCY', 'WARNING', 'MAJOR'].includes(String(a.severity || '').toUpperCase())).length;
+            const majorAlerts = projAlarms.filter(a => String(a.severity || '').toUpperCase() === 'MAJOR').length;
+            const minorAlerts = projAlarms.filter(a => String(a.severity || '').toUpperCase() === 'MINOR').length;
+            const warningAlerts = projAlarms.filter(a => !['CRITICAL', 'EMERGENCY', 'MAJOR', 'MINOR'].includes(String(a.severity || '').toUpperCase())).length;
             const totalAlerts = projAlarms.length;
 
             return (
@@ -275,6 +293,17 @@ export default function ProjectsPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Project Image Banner */}
+                {proj.imageUrl && (
+                  <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-200/80 bg-slate-100">
+                    <img
+                      src={formatAssetUrl(proj.imageUrl)}
+                      alt={proj.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
 
                 {/* Nodes Donut Chart & Summary */}
                 {(() => {
@@ -394,11 +423,11 @@ export default function ProjectsPage() {
                 })()}
 
                 {/* Total Alerts & Color-Coded Alert Types */}
-                <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
+                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
                   <div className="flex items-center justify-between text-[11px]">
                     <span className="font-bold text-slate-700 flex items-center gap-1.5">
                       <AlertTriangle className={`w-3.5 h-3.5 ${totalAlerts > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-                      <span>Total Alerts</span>
+                      <span>All Alerts</span>
                     </span>
                     <span className={`font-black font-mono tabular-nums px-2 py-0.5 rounded-md border text-[11px] ${
                       totalAlerts > 0
@@ -409,15 +438,34 @@ export default function ProjectsPage() {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold text-center">
-                    <div className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-mono">
-                      Crit: {criticalAlerts}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-bold">
+                    <div className="px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200/80 flex items-center justify-between gap-1">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                        <span>Crit</span>
+                      </span>
+                      <span className="font-mono">{criticalAlerts}</span>
                     </div>
-                    <div className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-mono">
-                      Warn: {warningAlerts}
+                    <div className="px-2 py-1 rounded-lg bg-orange-50 text-orange-600 border border-orange-200/80 flex items-center justify-between gap-1">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                        <span>Major</span>
+                      </span>
+                      <span className="font-mono">{majorAlerts}</span>
                     </div>
-                    <div className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 font-mono">
-                      Info: {infoAlerts}
+                    <div className="px-2 py-1 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200/80 flex items-center justify-between gap-1">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" />
+                        <span>Minor</span>
+                      </span>
+                      <span className="font-mono">{minorAlerts}</span>
+                    </div>
+                    <div className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200/80 flex items-center justify-between gap-1">
+                      <span className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                        <span>Warn</span>
+                      </span>
+                      <span className="font-mono">{warningAlerts}</span>
                     </div>
                   </div>
                 </div>
@@ -498,6 +546,47 @@ export default function ProjectsPage() {
                   placeholder="e.g. Real-time landslide monitoring"
                   className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white text-black font-semibold"
                 />
+              </div>
+
+              <div>
+                <label className="block text-black font-extrabold mb-1">Project Image</label>
+                <div className="flex items-center gap-3 p-3 rounded-xl border-2 border-slate-200 bg-slate-50/80">
+                  {formData.imageUrl ? (
+                    <div className="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-white shadow-2xs shrink-0">
+                      <img
+                        src={formatAssetUrl(formData.imageUrl)}
+                        alt="Project preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl border border-dashed border-slate-300 bg-white flex items-center justify-center text-slate-400 shrink-0">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{formData.imageUrl ? 'Update Image' : 'Upload Image'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageFileSelect}
+                      />
+                    </label>
+                    {formData.imageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, imageUrl: '' }))}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-semibold text-xs transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Remove</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">

@@ -42,6 +42,7 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
   const triggeredAlerts = [];
   const devId = String(device.id || device.deviceId || '').trim();
 
+  
   // Enrich stub device with full DB record (baselines, Site, Structure, Project)
   let fullDevice = device;
   try {

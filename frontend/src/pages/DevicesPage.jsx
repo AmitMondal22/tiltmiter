@@ -485,7 +485,7 @@ export default function DevicesPage() {
                     type="button"
                     onClick={() => navigate('/map')}
                     title="View Devices on Map"
-                    className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 hover:bg-blue-50 text-[#155b94] flex items-center justify-center transition-colors cursor-pointer"
+                    className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-[#0e4470] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
@@ -493,7 +493,7 @@ export default function DevicesPage() {
                     type="button"
                     onClick={loadData}
                     title="Refresh Device List"
-                    className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 hover:bg-blue-50 text-[#155b94] flex items-center justify-center transition-colors cursor-pointer"
+                    className="w-7 h-7 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
                   </button>
@@ -501,7 +501,7 @@ export default function DevicesPage() {
                     type="button"
                     onClick={() => setTableSearch('')}
                     title="Clear Search"
-                    className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                    className="w-7 h-7 rounded-full bg-slate-600 hover:bg-slate-700 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -605,35 +605,29 @@ export default function DevicesPage() {
                           onClick={() => navigate(`/devices/${dev.id}`)}
                           className="hover:bg-blue-50/40 transition-colors cursor-pointer"
                         >
-                          {/* Status: 3 circular outline icons */}
+                          {/* Status: 3 solid circular icons */}
                           <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                             <div className="inline-flex items-center justify-center gap-2">
                               <span
                                 title={isOnline ? 'Node Healthy (Online)' : 'Node Offline'}
-                                className={`w-6 h-6 rounded-full border flex items-center justify-center ${
-                                  isOnline
-                                    ? 'border-emerald-200 bg-emerald-50/40 text-emerald-500'
-                                    : 'border-amber-200 bg-amber-50/40 text-amber-500'
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-white shadow-2xs ${
+                                  isOnline ? 'bg-emerald-500' : 'bg-amber-500'
                                 }`}
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                               </span>
                               <span
                                 title={`Signal: ${sigStr}`}
-                                className={`w-6 h-6 rounded-full border flex items-center justify-center ${
-                                  isSignalGood
-                                    ? 'border-emerald-200 bg-emerald-50/40 text-emerald-500'
-                                    : 'border-amber-200 bg-amber-50/40 text-amber-500'
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-white shadow-2xs ${
+                                  isSignalGood ? 'bg-emerald-500' : 'bg-amber-500'
                                 }`}
                               >
                                 <Wifi className="w-3.5 h-3.5" />
                               </span>
                               <span
                                 title={`Battery: ${batStr}`}
-                                className={`w-6 h-6 rounded-full border flex items-center justify-center ${
-                                  isBatGood
-                                    ? 'border-emerald-200 bg-emerald-50/40 text-emerald-500'
-                                    : 'border-amber-200 bg-amber-50/40 text-amber-500'
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-white shadow-2xs ${
+                                  isBatGood ? 'bg-emerald-500' : 'bg-amber-500'
                                 }`}
                               >
                                 <Battery className="w-3.5 h-3.5" />
@@ -664,7 +658,7 @@ export default function DevicesPage() {
                                 type="button"
                                 onClick={(e) => handleOpenConfig(dev, e)}
                                 title="Configure Sampling & Calibration"
-                                className="w-5 h-5 rounded-full bg-slate-100 hover:bg-blue-100 text-[#155b94] inline-flex items-center justify-center transition-colors cursor-pointer"
+                                className="w-5 h-5 rounded-full bg-[#155b94] hover:bg-[#0e4470] text-white inline-flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                               >
                                 <Edit className="w-3 h-3" />
                               </button>
@@ -676,7 +670,7 @@ export default function DevicesPage() {
                             {updatedTs ? formatFullDateTime(updatedTs) : '--'}
                           </td>
 
-                          {/* Actions: 4 blue circular icon buttons */}
+                          {/* Actions: 4 solid color circular icon buttons */}
                           <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                             <div className="inline-flex items-center justify-center gap-1.5">
                               <button
@@ -691,7 +685,7 @@ export default function DevicesPage() {
                                 type="button"
                                 onClick={(e) => handleOpenEdit(dev, e)}
                                 title="Edit Device Node"
-                                className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-[#0e4470] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                                className="w-7 h-7 rounded-full bg-sky-600 hover:bg-sky-700 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                               >
                                 <Edit className="w-3.5 h-3.5" />
                               </button>
@@ -700,7 +694,7 @@ export default function DevicesPage() {
                                 onClick={(e) => handleDelete(dev.id, e)}
                                 disabled={deletingId === dev.id}
                                 title="Delete Device Node"
-                                className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-red-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                                className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
                               >
                                 {deletingId === dev.id ? (
                                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -712,7 +706,7 @@ export default function DevicesPage() {
                                 type="button"
                                 onClick={() => navigate('/trends')}
                                 title="View Sensor Trends"
-                                className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-[#0e4470] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                                className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
                               >
                                 <TrendingUp className="w-3.5 h-3.5" />
                               </button>

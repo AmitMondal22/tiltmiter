@@ -994,40 +994,54 @@ export default function LocationMapView({
         });
       }
 
-      // Live drawing preview GeoJSON
-      const drawFeatures = [];
+      // Live drawing preview GeoJSON (separate fill & line sources without legacy $type filter)
+      const drawFillFeatures = [];
+      const drawLineFeatures = [];
       if (curDrawMode && curDrawPts.length >= 2) {
         const lineCoords = curDrawPts.map(p => [p.lng, p.lat]);
         if (curDrawPts.length >= 3) {
-          drawFeatures.push({
+          const closedCoords = [...lineCoords, lineCoords[0]];
+          drawFillFeatures.push({
             type: 'Feature',
-            geometry: { type: 'Polygon', coordinates: [[...lineCoords, lineCoords[0]]] },
-            properties: { color: curDrawColor },
+            geometry: { type: 'Polygon', coordinates: [closedCoords] },
+            properties: {},
+          });
+          drawLineFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: closedCoords },
+            properties: {},
           });
         } else {
-          drawFeatures.push({
+          drawLineFeatures.push({
             type: 'Feature',
             geometry: { type: 'LineString', coordinates: lineCoords },
-            properties: { color: curDrawColor },
+            properties: {},
           });
         }
       }
-      const drawCollection = { type: 'FeatureCollection', features: drawFeatures };
-      if (!map.getSource('drawing-polygon-source')) {
-        map.addSource('drawing-polygon-source', { type: 'geojson', data: drawCollection });
+
+      const drawFillCollection = { type: 'FeatureCollection', features: drawFillFeatures };
+      if (!map.getSource('drawing-polygon-fill-source')) {
+        map.addSource('drawing-polygon-fill-source', { type: 'geojson', data: drawFillCollection });
       } else {
-        map.getSource('drawing-polygon-source').setData(drawCollection);
+        map.getSource('drawing-polygon-fill-source').setData(drawFillCollection);
+      }
+
+      const drawLineCollection = { type: 'FeatureCollection', features: drawLineFeatures };
+      if (!map.getSource('drawing-polygon-line-source')) {
+        map.addSource('drawing-polygon-line-source', { type: 'geojson', data: drawLineCollection });
+      } else {
+        map.getSource('drawing-polygon-line-source').setData(drawLineCollection);
       }
 
       if (!map.getLayer('drawing-polygon-fill')) {
         map.addLayer({
           id: 'drawing-polygon-fill',
           type: 'fill',
-          source: 'drawing-polygon-source',
-          filter: ['==', '$type', 'Polygon'],
+          source: 'drawing-polygon-fill-source',
           paint: {
             'fill-color': curDrawColor,
-            'fill-opacity': 0.28,
+            'fill-opacity': 0.30,
           },
         });
       } else {
@@ -1038,11 +1052,10 @@ export default function LocationMapView({
         map.addLayer({
           id: 'drawing-polygon-line',
           type: 'line',
-          source: 'drawing-polygon-source',
+          source: 'drawing-polygon-line-source',
           paint: {
             'line-color': curDrawColor,
             'line-width': 3,
-            'line-dasharray': [2, 2],
           },
         });
       } else {

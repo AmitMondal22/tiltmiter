@@ -409,20 +409,22 @@ export async function evaluateTelemetryAlerts(device, telemetry) {
         broadcastAlarm(alarm);
       }
 
-      // Debounce email dispatches to prevent inbox flooding on rapid telemetry cycles
-      const cacheKey = `${alt.deviceId}_${alt.parameter}`;
-      const lastSent = lastEmailSentAt.get(cacheKey) || 0;
-      const now = Date.now();
+      // Auto-generated alert emails are disabled unless AUTO_ALERT_EMAILS_ENABLED=true
+      if (process.env.AUTO_ALERT_EMAILS_ENABLED === 'true') {
+        const cacheKey = `${alt.deviceId}_${alt.parameter}`;
+        const lastSent = lastEmailSentAt.get(cacheKey) || 0;
+        const now = Date.now();
 
-      if (now - lastSent > EMAIL_COOLDOWN_MS || alt.severity === 'CRITICAL') {
-        lastEmailSentAt.set(cacheKey, now);
-        sendAlertEmail({
-          alert: alt,
-          device,
-          recipients: alt.recipients || null,
-        }).catch(err => {
-          console.warn(`[Alert Engine] Error auto-sending alert email for ${alt.deviceId}:`, err.message);
-        });
+        if (now - lastSent > EMAIL_COOLDOWN_MS || alt.severity === 'CRITICAL') {
+          lastEmailSentAt.set(cacheKey, now);
+          sendAlertEmail({
+            alert: alt,
+            device,
+            recipients: alt.recipients || null,
+          }).catch(err => {
+            console.warn(`[Alert Engine] Error auto-sending alert email for ${alt.deviceId}:`, err.message);
+          });
+        }
       }
     } catch (e) {
       console.warn(`[Alert Engine] Error recording alert for ${alt.deviceId}:`, e.message);

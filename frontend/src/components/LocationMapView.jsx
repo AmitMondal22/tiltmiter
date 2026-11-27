@@ -863,35 +863,76 @@ export default function LocationMapView({
     });
   }, [devices, sites, structures, alarms, selectedSiteId, statusFilter, alertSeverityFilter, searchQuery]);
 
+  const parsePolygonPoints = (raw) => {
+    let arr = raw;
+    if (typeof raw === 'string') {
+      try {
+        arr = JSON.parse(raw);
+      } catch {
+        arr = [];
+      }
+    }
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map(p => {
+        if (Array.isArray(p) && p.length >= 2) {
+          return { lng: parseFloat(p[0]), lat: parseFloat(p[1]) };
+        }
+        return { lat: parseFloat(p?.lat), lng: parseFloat(p?.lng) };
+      })
+      .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  };
+
+  const latestPolygonStateRef = useRef({
+    structures,
+    selectedSiteId,
+    drawPolygonMode,
+    drawingPoints,
+    drawingColor,
+  });
+  latestPolygonStateRef.current = {
+    structures,
+    selectedSiteId,
+    drawPolygonMode,
+    drawingPoints,
+    drawingColor,
+  };
+
   // 7b. Render Saved Structural Asset Polygons + Live Drawing Preview on ALL Maps
   const updateStructurePolygonsLayer = () => {
     const map = mapInstanceRef.current;
     if (!map) return;
 
-    if (!map.isStyleLoaded()) {
+    if (!map.getStyle()) {
       map.once('styledata', () => updateStructurePolygonsLayer());
       return;
     }
 
-    const visibleStructures = selectedSiteId === 'ALL'
-      ? structures
-      : structures.filter(st =>
-          String(st.siteId || '') === String(selectedSiteId) ||
-          String(st.site?.id || '') === String(selectedSiteId) ||
-          String(st.site?.siteId || '') === String(selectedSiteId)
+    const {
+      structures: curStructures,
+      selectedSiteId: curSiteId,
+      drawPolygonMode: curDrawMode,
+      drawingPoints: curDrawPts,
+      drawingColor: curDrawColor,
+    } = latestPolygonStateRef.current;
+
+    const visibleStructures = curSiteId === 'ALL'
+      ? curStructures
+      : curStructures.filter(st =>
+          String(st.siteId || '') === String(curSiteId) ||
+          String(st.site?.id || '') === String(curSiteId) ||
+          String(st.site?.siteId || '') === String(curSiteId)
         );
 
     const savedFeatures = visibleStructures
       .map(st => {
-        if (!Array.isArray(st.polygon) || st.polygon.length < 3) return null;
+        const parsedPts = parsePolygonPoints(st.polygon);
+        if (parsedPts.length < 3) return null;
         // Hide the currently-edited single structure's old polygon while actively drawing
-        if (drawPolygonMode && structures.length === 1 && String(st.id) === String(structures[0]?.id)) {
+        if (curDrawMode && curStructures.length === 1 && String(st.id) === String(curStructures[0]?.id)) {
           return null;
         }
-        const coords = st.polygon
-          .map(p => [parseFloat(p?.lng), parseFloat(p?.lat)])
-          .filter(c => Number.isFinite(c[0]) && Number.isFinite(c[1]));
-        if (coords.length < 3) return null;
+        const coords = parsedPts.map(p => [p.lng, p.lat]);
         const first = coords[0];
         const last = coords[coords.length - 1];
         if (first[0] !== last[0] || first[1] !== last[1]) {
@@ -909,89 +950,93 @@ export default function LocationMapView({
       })
       .filter(Boolean);
 
-    const savedCollection = { type: 'FeatureCollection', features: savedFeatures };
-    if (!map.getSource('structure-polygons-source')) {
-      map.addSource('structure-polygons-source', { type: 'geojson', data: savedCollection });
-    } else {
-      map.getSource('structure-polygons-source').setData(savedCollection);
-    }
-
-    if (!map.getLayer('structure-polygons-fill')) {
-      map.addLayer({
-        id: 'structure-polygons-fill',
-        type: 'fill',
-        source: 'structure-polygons-source',
-        paint: {
-          'fill-color': ['get', 'color'],
-          'fill-opacity': 0.22,
-        },
-      });
-    }
-    if (!map.getLayer('structure-polygons-outline')) {
-      map.addLayer({
-        id: 'structure-polygons-outline',
-        type: 'line',
-        source: 'structure-polygons-source',
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 2.5,
-        },
-      });
-    }
-
-    // Live drawing preview GeoJSON
-    const drawFeatures = [];
-    if (drawPolygonMode && drawingPoints.length >= 2) {
-      const lineCoords = drawingPoints.map(p => [p.lng, p.lat]);
-      if (drawingPoints.length >= 3) {
-        drawFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'Polygon', coordinates: [[...lineCoords, lineCoords[0]]] },
-          properties: { color: drawingColor },
-        });
+    try {
+      const savedCollection = { type: 'FeatureCollection', features: savedFeatures };
+      if (!map.getSource('structure-polygons-source')) {
+        map.addSource('structure-polygons-source', { type: 'geojson', data: savedCollection });
       } else {
-        drawFeatures.push({
-          type: 'Feature',
-          geometry: { type: 'LineString', coordinates: lineCoords },
-          properties: { color: drawingColor },
+        map.getSource('structure-polygons-source').setData(savedCollection);
+      }
+
+      if (!map.getLayer('structure-polygons-fill')) {
+        map.addLayer({
+          id: 'structure-polygons-fill',
+          type: 'fill',
+          source: 'structure-polygons-source',
+          paint: {
+            'fill-color': ['get', 'color'],
+            'fill-opacity': 0.28,
+          },
         });
       }
-    }
-    const drawCollection = { type: 'FeatureCollection', features: drawFeatures };
-    if (!map.getSource('drawing-polygon-source')) {
-      map.addSource('drawing-polygon-source', { type: 'geojson', data: drawCollection });
-    } else {
-      map.getSource('drawing-polygon-source').setData(drawCollection);
-    }
+      if (!map.getLayer('structure-polygons-outline')) {
+        map.addLayer({
+          id: 'structure-polygons-outline',
+          type: 'line',
+          source: 'structure-polygons-source',
+          paint: {
+            'line-color': ['get', 'color'],
+            'line-width': 3,
+          },
+        });
+      }
 
-    if (!map.getLayer('drawing-polygon-fill')) {
-      map.addLayer({
-        id: 'drawing-polygon-fill',
-        type: 'fill',
-        source: 'drawing-polygon-source',
-        filter: ['==', '$type', 'Polygon'],
-        paint: {
-          'fill-color': drawingColor,
-          'fill-opacity': 0.25,
-        },
-      });
-    } else {
-      map.setPaintProperty('drawing-polygon-fill', 'fill-color', drawingColor);
-    }
+      // Live drawing preview GeoJSON
+      const drawFeatures = [];
+      if (curDrawMode && curDrawPts.length >= 2) {
+        const lineCoords = curDrawPts.map(p => [p.lng, p.lat]);
+        if (curDrawPts.length >= 3) {
+          drawFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'Polygon', coordinates: [[...lineCoords, lineCoords[0]]] },
+            properties: { color: curDrawColor },
+          });
+        } else {
+          drawFeatures.push({
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: lineCoords },
+            properties: { color: curDrawColor },
+          });
+        }
+      }
+      const drawCollection = { type: 'FeatureCollection', features: drawFeatures };
+      if (!map.getSource('drawing-polygon-source')) {
+        map.addSource('drawing-polygon-source', { type: 'geojson', data: drawCollection });
+      } else {
+        map.getSource('drawing-polygon-source').setData(drawCollection);
+      }
 
-    if (!map.getLayer('drawing-polygon-line')) {
-      map.addLayer({
-        id: 'drawing-polygon-line',
-        type: 'line',
-        source: 'drawing-polygon-source',
-        paint: {
-          'line-color': drawingColor,
-          'line-width': 2.5,
-          'line-dasharray': [2, 2],
-        },
-      });
-    } else {
-      map.setPaintProperty('drawing-polygon-line', 'line-color', drawingColor);
+      if (!map.getLayer('drawing-polygon-fill')) {
+        map.addLayer({
+          id: 'drawing-polygon-fill',
+          type: 'fill',
+          source: 'drawing-polygon-source',
+          filter: ['==', '$type', 'Polygon'],
+          paint: {
+            'fill-color': curDrawColor,
+            'fill-opacity': 0.28,
+          },
+        });
+      } else {
+        map.setPaintProperty('drawing-polygon-fill', 'fill-color', curDrawColor);
+      }
+
+      if (!map.getLayer('drawing-polygon-line')) {
+        map.addLayer({
+          id: 'drawing-polygon-line',
+          type: 'line',
+          source: 'drawing-polygon-source',
+          paint: {
+            'line-color': curDrawColor,
+            'line-width': 3,
+            'line-dasharray': [2, 2],
+          },
+        });
+      } else {
+        map.setPaintProperty('drawing-polygon-line', 'line-color', curDrawColor);
+      }
+    } catch (e) {
+      map.once('styledata', () => updateStructurePolygonsLayer());
     }
   };
 

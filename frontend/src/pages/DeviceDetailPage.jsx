@@ -172,7 +172,7 @@ function DeviceLocationMap({ device, deviceId, d }) {
                 DMS
               </button>
             </div>
-            <span className="font-mono text-[10px] font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
+            <span className="text-[10px] font-semibold text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200">
               {formatLatLngPair(lat, lng, coordFormat, 4)}
             </span>
             <button
@@ -232,7 +232,7 @@ function DeviceLocationMap({ device, deviceId, d }) {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 font-mono mt-0.5">
+                  <p className="text-xs text-slate-500 mt-0.5">
                     Lat: {lat.toFixed(6)}° &nbsp;|&nbsp; Lng: {lng.toFixed(6)}°
                   </p>
                 </div>
@@ -373,7 +373,7 @@ function DeviceImageSection({ device, deviceId, onUpload, onRemove, uploading, r
                 <div className="text-white text-xs font-bold leading-tight truncate">
                   {displayName}
                 </div>
-                <div className="text-[10px] text-slate-300 font-mono truncate">
+                <div className="text-[10px] text-slate-300 truncate">
                   Physical Installation Photo
                 </div>
               </div>
@@ -488,7 +488,7 @@ function DeviceImageSection({ device, deviceId, onUpload, onRemove, uploading, r
               </div>
             </div>
             <img src={deviceImage} alt={displayName} className="max-w-full max-h-[75vh] object-contain rounded-xl mx-auto shadow-inner" />
-            <div className="text-center text-slate-400 text-[11px] font-mono pt-2">
+            <div className="text-center text-slate-400 text-[11px] pt-2">
               Hardware Installation Proof • Stored in <code className="text-slate-300">/uploads/device_image/</code>
             </div>
           </div>
@@ -540,7 +540,7 @@ function DeviceSamplingConfigSection({ device, d, embedded = false }) {
               Sleep Interval (Min 15M)
             </span>
           </div>
-          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
+          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
             {sleepVal} Minutes
           </div>
         </div>
@@ -553,7 +553,7 @@ function DeviceSamplingConfigSection({ device, d, embedded = false }) {
               Wake Sampling Duration
             </span>
           </div>
-          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
+          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
             {wakeVal} Seconds
           </div>
         </div>
@@ -568,7 +568,7 @@ function DeviceSamplingConfigSection({ device, d, embedded = false }) {
               Ambient Temperature
             </span>
           </div>
-          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 font-mono text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
+          <div className="px-3.5 py-1 rounded-xl bg-slate-50 border border-slate-200/90 text-xs sm:text-sm font-bold text-slate-900 shadow-2xs">
             {tempDisplay}
           </div>
         </div>
@@ -1324,13 +1324,13 @@ export default function DeviceDetailPage() {
               <h1 className="text-lg font-bold text-slate-900 leading-tight">
                 {device?.name || deviceId}
               </h1>
-              <span className="font-mono text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
                 {deviceId}
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[10px]">
                 {device?.status || 'ONLINE'}
               </span>
-              <span className="flex items-center gap-1 text-[11px] font-mono text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
+              <span className="flex items-center gap-1 text-[11px] text-slate-500 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
                 <Clock className="w-3 h-3 text-slate-400" />
                 <span>Last Updated: {hasData && d.timestamp ? formatFullDateTime(d.timestamp) : '--'}</span>
               </span>
@@ -1416,7 +1416,7 @@ export default function DeviceDetailPage() {
                 required
                 value={fromDateTime}
                 onChange={e => setFromDateTime(e.target.value)}
-                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <span className="text-slate-400">to</span>
               <input
@@ -1424,7 +1424,7 @@ export default function DeviceDetailPage() {
                 required
                 value={toDateTime}
                 onChange={e => setToDateTime(e.target.value)}
-                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                className="px-2 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <button
@@ -1487,7 +1487,7 @@ export default function DeviceDetailPage() {
                   <span className="px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs tracking-tight">
                     Tilt X
                   </span>
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-blue-600 mt-2 font-mono tracking-tight">
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-blue-600 mt-2 tracking-tight">
                     {hasData ? formatSigned(roll, 1) : '--'}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
@@ -1502,7 +1502,7 @@ export default function DeviceDetailPage() {
                   <span className="px-3 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs tracking-tight">
                     Tilt Y
                   </span>
-                  <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-purple-700 mt-2 font-mono tracking-tight">
+                  <div className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-purple-700 mt-2 tracking-tight">
                     {hasData ? formatSigned(pitch, 1) : '--'}
                   </div>
                   <div className="absolute bottom-0 right-0 pointer-events-none opacity-45">
@@ -1521,7 +1521,7 @@ export default function DeviceDetailPage() {
                   <Move className="w-4 h-4 text-slate-800" />
                   <span className="text-xs font-bold text-slate-900 tracking-wide uppercase">X / Y DISPLACEMENT (MM)</span>
                 </div>
-                <span className="text-xs font-medium text-slate-500 font-mono">
+                <span className="text-xs font-medium text-slate-500">
                   Total: <strong className="text-slate-800">0.0 mm</strong>
                 </span>
               </div>
@@ -1532,7 +1532,7 @@ export default function DeviceDetailPage() {
                   <span className="px-3 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
                     DX
                   </span>
-                  <div className="flex items-baseline font-mono mt-1">
+                  <div className="flex items-baseline mt-1">
                     <span className="text-xl sm:text-2xl font-extrabold text-blue-600 tracking-tight">
                       0.0
                     </span>
@@ -1545,7 +1545,7 @@ export default function DeviceDetailPage() {
                   <span className="px-3 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold text-xs">
                     DY
                   </span>
-                  <div className="flex items-baseline font-mono mt-1">
+                  <div className="flex items-baseline mt-1">
                     <span className="text-xl sm:text-2xl font-extrabold text-amber-600 tracking-tight">
                       0.0
                     </span>
@@ -1561,7 +1561,7 @@ export default function DeviceDetailPage() {
                 <Thermometer className="w-5 h-5 text-amber-500 flex-shrink-0" />
                 <span>Ambient Temperature:</span>
               </div>
-              <div className="px-5 py-2 rounded-2xl bg-[#fef9c3] border border-amber-200/90 font-mono text-sm sm:text-base font-bold text-amber-950 shadow-2xs">
+              <div className="px-5 py-2 rounded-2xl bg-[#fef9c3] border border-amber-200/90 text-sm sm:text-base font-bold text-amber-950 shadow-2xs">
                 {hasData && tempVal !== null && tempVal !== undefined
                   ? `${Number(tempVal).toFixed(1)} °C`
                   : '-- °C'}
@@ -1580,12 +1580,12 @@ export default function DeviceDetailPage() {
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
                       Event Type
                     </span>
-                    <span className="text-sm sm:text-base font-extrabold text-indigo-700 font-mono">
+                    <span className="text-sm sm:text-base font-extrabold text-indigo-700">
                       {eventType || motionClassification || 'NORMAL'}
                     </span>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200/60 font-mono">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-700 border border-indigo-200/60">
                   {hasData ? 'Active Flag' : '--'}
                 </span>
               </div>
@@ -1600,12 +1600,12 @@ export default function DeviceDetailPage() {
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide block">
                       Event Sequence
                     </span>
-                    <span className="text-sm sm:text-base font-extrabold text-slate-900 font-mono">
+                    <span className="text-sm sm:text-base font-extrabold text-slate-900">
                       {hasData ? `#${eventSequence}` : '--'}
                     </span>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-700 border border-slate-200 font-mono shadow-2xs">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white text-slate-700 border border-slate-200 shadow-2xs">
                   Sequence Count
                 </span>
               </div>
@@ -1640,10 +1640,10 @@ export default function DeviceDetailPage() {
       <div className={cardCls}>
         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider font-mono text-slate-800">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-800">
               HISTORICAL TELEMETRY LOGS • <span className="text-blue-600">{deviceId}</span> ({filteredRows.length} Records)
             </span>
-            <div className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold font-mono">
+            <div className="flex items-center gap-1 text-[10px] text-blue-600 font-semibold">
               <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
               {/* <span>AUTO SYNC (1m)</span> */}
             </div>
@@ -1660,7 +1660,7 @@ export default function DeviceDetailPage() {
                   setTableSearch(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="pl-8 pr-3 py-1 rounded-xl border border-slate-200 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 w-40 sm:w-56"
+                className="pl-8 pr-3 py-1 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 w-40 sm:w-56"
               />
             </div>
             <button
@@ -1675,7 +1675,7 @@ export default function DeviceDetailPage() {
 
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full text-left text-xs whitespace-nowrap">
-            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10 font-mono">
+            <thead className="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
               <tr className="uppercase text-[10px] tracking-wider text-slate-600 font-bold">
                 <th className="py-2.5 px-3">Timestamp</th>
                 <th className="py-2.5 px-3 text-indigo-700">Classification</th>
@@ -1691,10 +1691,10 @@ export default function DeviceDetailPage() {
                 <th className="py-2.5 px-3 text-center">Stability</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 font-mono">
+            <tbody className="divide-y divide-slate-100">
               {paginatedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs font-mono">
+                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs">
                     {loading ? 'Fetching telemetry logs for this device...' : 'No telemetry records found for this period.'}
                   </td>
                 </tr>
@@ -1719,10 +1719,10 @@ export default function DeviceDetailPage() {
                         {r.motionClassification || 'STABLE'}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-slate-800 font-semibold font-mono text-[11px]">
+                    <td className="py-2 px-3 text-slate-800 font-semibold text-[11px]">
                       {r.eventType || r.motionClassification || 'NORMAL'}
                     </td>
-                    <td className="py-2 px-3 text-slate-700 font-mono text-[11px]">
+                    <td className="py-2 px-3 text-slate-700 text-[11px]">
                       <div className="flex items-center gap-1.5">
                         <span className={`w-2 h-2 rounded-full ${r.alarmActive || r.rockfallAlarm?.active ? 'bg-red-600 animate-pulse' : 'bg-emerald-500'}`} />
                         <span>{r.rockfallSequence !== null && r.rockfallSequence !== undefined ? `Seq #${r.rockfallSequence}` : (r.sequence !== null && r.sequence !== undefined ? `Seq #${r.sequence}` : 'Seq #0')}</span>
@@ -1763,7 +1763,7 @@ export default function DeviceDetailPage() {
 
         {/* Table Pagination Controls */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs font-mono">
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
             <span className="text-slate-500">
               Page {currentPage} of {totalPages} ({filteredRows.length} total entries)
             </span>
@@ -1816,7 +1816,7 @@ export default function DeviceDetailPage() {
                     <Camera className="w-4 h-4 text-indigo-600" />
                     <h4 className="text-sm font-bold text-slate-800">Hardware Installation Photo</h4>
                   </div>
-                  <span className="text-[11px] text-slate-400 font-mono">Upload to server</span>
+                  <span className="text-[11px] text-slate-400">Upload to server</span>
                 </div>
                 <div className="flex items-center gap-3.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70">
                   {device?.imageUrl ? (
@@ -1868,7 +1868,7 @@ export default function DeviceDetailPage() {
                       )}
                     </div>
                     <p className="text-[11px] text-slate-500">
-                      Physical site installation photo. Stored in server <code className="font-mono text-slate-700 font-semibold">/uploads/device_image/</code> and saved in database.
+                      Physical site installation photo. Stored in server <code className="text-slate-700 font-semibold">/uploads/device_image/</code> and saved in database.
                     </p>
                   </div>
                 </div>
@@ -1887,7 +1887,7 @@ export default function DeviceDetailPage() {
                       max="1440"
                       value={configForm.sleep_count}
                       onChange={e => setConfigForm({ ...configForm, sleep_count: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 15m</span>
                   </div>
@@ -1900,7 +1900,7 @@ export default function DeviceDetailPage() {
                       max="3600"
                       value={configForm.wake_count}
                       onChange={e => setConfigForm({ ...configForm, wake_count: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 30s</span>
                   </div>
@@ -1912,7 +1912,7 @@ export default function DeviceDetailPage() {
                       min="1"
                       value={configForm.gaugeLength_mm}
                       onChange={e => setConfigForm({ ...configForm, gaugeLength_mm: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">L for ΔDisp (1000)</span>
                   </div>
@@ -1925,7 +1925,7 @@ export default function DeviceDetailPage() {
                       max="1000"
                       value={configForm.samplingRateHz}
                       onChange={e => setConfigForm({ ...configForm, samplingRateHz: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">LSM6DSO: 400Hz</span>
                   </div>
@@ -1936,7 +1936,7 @@ export default function DeviceDetailPage() {
               <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-slate-800">Priority 1: Rockfall Thresholds (m/s²)</h4>
-                  <span className="font-mono text-xs font-bold text-red-600">rockfallAlarm</span>
+                  <span className="text-xs font-bold text-red-600">rockfallAlarm</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -1946,7 +1946,7 @@ export default function DeviceDetailPage() {
                       step="0.1"
                       value={configForm.rockfall_on}
                       onChange={e => setConfigForm({ ...configForm, rockfall_on: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 12.0 m/s²</span>
                   </div>
@@ -1957,7 +1957,7 @@ export default function DeviceDetailPage() {
                       step="0.1"
                       value={configForm.rockfall_off}
                       onChange={e => setConfigForm({ ...configForm, rockfall_off: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 3.0 m/s²</span>
                   </div>
@@ -1968,7 +1968,7 @@ export default function DeviceDetailPage() {
               <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-slate-800">Priority 2: Landslide Thresholds (deg &amp; duration)</h4>
-                  <span className="font-mono text-xs font-bold text-amber-600">Continuous Angle Drift</span>
+                  <span className="text-xs font-bold text-amber-600">Continuous Angle Drift</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
@@ -1978,7 +1978,7 @@ export default function DeviceDetailPage() {
                       step="0.1"
                       value={configForm.landslide_on}
                       onChange={e => setConfigForm({ ...configForm, landslide_on: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 15.0°</span>
                   </div>
@@ -1989,7 +1989,7 @@ export default function DeviceDetailPage() {
                       step="0.1"
                       value={configForm.landslide_off}
                       onChange={e => setConfigForm({ ...configForm, landslide_off: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 5.0°</span>
                   </div>
@@ -2001,7 +2001,7 @@ export default function DeviceDetailPage() {
                       min="1"
                       value={configForm.landslide_seconds}
                       onChange={e => setConfigForm({ ...configForm, landslide_seconds: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 5s</span>
                   </div>
@@ -2012,7 +2012,7 @@ export default function DeviceDetailPage() {
               <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-slate-800">Priority 3: Human Touch Vibration Thresholds (m/s²)</h4>
-                  <span className="font-mono text-xs font-bold text-blue-600">Transient Touch</span>
+                  <span className="text-xs font-bold text-blue-600">Transient Touch</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -2022,7 +2022,7 @@ export default function DeviceDetailPage() {
                       step="0.1"
                       value={configForm.human_touch_on}
                       onChange={e => setConfigForm({ ...configForm, human_touch_on: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 5.0 m/s²</span>
                   </div>
@@ -2033,7 +2033,7 @@ export default function DeviceDetailPage() {
                       step="0.1"
                       value={configForm.human_touch_off}
                       onChange={e => setConfigForm({ ...configForm, human_touch_off: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 1.5 m/s²</span>
                   </div>
@@ -2044,7 +2044,7 @@ export default function DeviceDetailPage() {
               <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-slate-800">Priority 4: Air / Wind Disturbance Thresholds</h4>
-                  <span className="font-mono text-xs font-bold text-teal-600">Low-Frequency Wind Gusts</span>
+                  <span className="text-xs font-bold text-teal-600">Low-Frequency Wind Gusts</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
@@ -2054,7 +2054,7 @@ export default function DeviceDetailPage() {
                       step="0.05"
                       value={configForm.air_wind_on}
                       onChange={e => setConfigForm({ ...configForm, air_wind_on: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 0.8</span>
                   </div>
@@ -2065,7 +2065,7 @@ export default function DeviceDetailPage() {
                       step="0.05"
                       value={configForm.air_wind_off}
                       onChange={e => setConfigForm({ ...configForm, air_wind_off: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 0.25</span>
                   </div>
@@ -2077,7 +2077,7 @@ export default function DeviceDetailPage() {
                       min="1"
                       value={configForm.air_wind_seconds}
                       onChange={e => setConfigForm({ ...configForm, air_wind_seconds: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 12s</span>
                   </div>
@@ -2089,7 +2089,7 @@ export default function DeviceDetailPage() {
                       min="1"
                       value={configForm.normal_seconds}
                       onChange={e => setConfigForm({ ...configForm, normal_seconds: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white font-mono text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
                     <span className="block text-[11px] text-slate-400 mt-1">Default: 10s</span>
                   </div>

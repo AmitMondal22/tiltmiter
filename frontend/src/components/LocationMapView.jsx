@@ -938,12 +938,21 @@ export default function LocationMapView({
       drawingColor: curDrawColor,
     } = latestPolygonStateRef.current;
 
+    const selectedSiteObj = curSiteId === 'ALL'
+      ? null
+      : sites.find(s => String(s.id || '') === String(curSiteId) || String(s.siteId || '') === String(curSiteId));
+    const validSiteIds = new Set(
+      [curSiteId, selectedSiteObj?.id, selectedSiteObj?.siteId]
+        .filter(v => v !== undefined && v !== null && String(v).trim() !== '')
+        .map(v => String(v))
+    );
+
     const visibleStructures = curSiteId === 'ALL'
       ? curStructures
       : curStructures.filter(st =>
-          String(st.siteId || '') === String(curSiteId) ||
-          String(st.site?.id || '') === String(curSiteId) ||
-          String(st.site?.siteId || '') === String(curSiteId)
+          validSiteIds.has(String(st.siteId || '')) ||
+          validSiteIds.has(String(st.site?.id || '')) ||
+          validSiteIds.has(String(st.site?.siteId || ''))
         );
 
     const savedFeatures = visibleStructures
@@ -1088,12 +1097,21 @@ export default function LocationMapView({
       drawingColor: curDrawColor,
     } = latestPolygonStateRef.current;
 
+    const selectedSiteObj = curSiteId === 'ALL'
+      ? null
+      : sites.find(s => String(s.id || '') === String(curSiteId) || String(s.siteId || '') === String(curSiteId));
+    const validSiteIds = new Set(
+      [curSiteId, selectedSiteObj?.id, selectedSiteObj?.siteId]
+        .filter(v => v !== undefined && v !== null && String(v).trim() !== '')
+        .map(v => String(v))
+    );
+
     const visibleStructures = curSiteId === 'ALL'
       ? curStructures
       : curStructures.filter(st =>
-          String(st.siteId || '') === String(curSiteId) ||
-          String(st.site?.id || '') === String(curSiteId) ||
-          String(st.site?.siteId || '') === String(curSiteId)
+          validSiteIds.has(String(st.siteId || '')) ||
+          validSiteIds.has(String(st.site?.id || '')) ||
+          validSiteIds.has(String(st.site?.siteId || ''))
         );
 
     const saved = visibleStructures

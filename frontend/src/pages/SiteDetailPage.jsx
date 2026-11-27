@@ -169,7 +169,7 @@ export default function SiteDetailPage() {
             structures={siteStructures}
             projects={project ? [project] : []}
             organizations={org ? [org] : []}
-            initialSelectedSiteId={site?.siteId || site?.id}
+            initialSelectedSiteId={site?.id || site?.siteId}
             onSelectSite={() => {}}
           />
         </div>

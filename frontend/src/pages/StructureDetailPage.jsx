@@ -29,7 +29,6 @@ export default function StructureDetailPage() {
   const [loading, setLoading] = useState(true);
   const [viewType, setViewType] = useState('satellite'); // 'satellite' or '3d'
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [showAnalytics, setShowAnalytics] = useState(false);
   const [sidebarTab, setSidebarTab] = useState('devices'); // 'devices' or 'structures'
   const [deviceSearch, setDeviceSearch] = useState('');
   const [structureSearch, setStructureSearch] = useState('');
@@ -389,19 +388,6 @@ export default function StructureDetailPage() {
             <span>{dragLocationEnabled ? 'Disable Drag Location' : 'Enable Drag Location'}</span>
           </button>
 
-          {/* Collapsible Analytics Toggle */}
-          <button
-            onClick={() => setShowAnalytics(!showAnalytics)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
-              showAnalytics
-                ? 'bg-blue-50 border-blue-300 text-blue-700'
-                : 'border-slate-300 bg-white hover:bg-slate-50 text-black'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Analytics</span>
-          </button>
-
           <button
             onClick={loadData}
             className="p-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-black transition-colors cursor-pointer"
@@ -474,7 +460,7 @@ export default function StructureDetailPage() {
           {/* Quick Metrics Badges */}
           <div className="flex items-center gap-3">
             <div className="text-right px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Inclinometers</div>
+              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Tiltmeters</div>
               <div className="text-sm font-black text-black font-mono">
                 {attachedDevices.length} <span className="text-[11px] font-normal text-emerald-700 font-bold">({onlineCount} live)</span>
               </div>
@@ -496,58 +482,6 @@ export default function StructureDetailPage() {
           </div>
         </div>
       </div>
-
-      {/* Collapsible Analytics Row */}
-      {showAnalytics && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-fadeIn">
-          <div className={cardCls}>
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Attached Inclinometers</span>
-              <Cpu className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="text-xl font-black text-black font-mono mt-1">{attachedDevices.length}</div>
-            <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-              <span className="text-emerald-700 font-bold">{onlineCount} online</span>
-              {offlineCount > 0 && <span className="text-amber-700 font-bold"> &bull; {offlineCount} offline</span>}
-            </div>
-          </div>
-
-          <div className={cardCls}>
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Peak Displacement</span>
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-xl font-black text-black font-mono mt-1">Δ {maxDisp.toFixed(2)} mm</div>
-            <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-              Alert threshold: 15.0 mm
-            </div>
-          </div>
-
-          <div className={cardCls}>
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Mean Resultant Tilt</span>
-              <Activity className="w-4 h-4 text-purple-600" />
-            </div>
-            <div className="text-xl font-black text-purple-700 font-mono mt-1">θ {avgTilt.toFixed(2)}°</div>
-            <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-              Dual-axis MEMS vector
-            </div>
-          </div>
-
-          <div className={cardCls}>
-            <div className="flex items-center justify-between pb-1">
-              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Slope Stability Status</span>
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-xl font-black text-emerald-700 font-mono mt-1">
-              {stabilityStatus === 'STABLE' ? 'STABLE (98.4%)' : stabilityStatus}
-            </div>
-            <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-              Continuous 24/7 telemetry
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Layout: Left Map / Right Devices */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">

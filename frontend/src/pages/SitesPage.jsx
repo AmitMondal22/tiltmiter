@@ -198,7 +198,7 @@ export default function SitesPage() {
                   <th className="py-3 px-3.5">Site Name</th>
                   <th className="py-3 px-3.5">Project / Org</th>
                   <th className="py-3 px-3.5">GPS Coordinates</th>
-                  <th className="py-3 px-3.5">Assets & Inclinometers</th>
+                  <th className="py-3 px-3.5">Assets & Tiltmeters</th>
                   <th className="py-3 px-3.5">Status</th>
                   <th className="py-3 px-3.5 text-right">Actions</th>
                 </tr>

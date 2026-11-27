@@ -312,7 +312,7 @@ export default function StructuresPage() {
                   <th className="py-3 px-3.5">Asset Name</th>
                   <th className="py-3 px-3.5">Type & Elevation</th>
                   <th className="py-3 px-3.5">Site Location</th>
-                  <th className="py-3 px-3.5">Attached Inclinometer Devices</th>
+                  <th className="py-3 px-3.5">Attached Devices</th>
                   <th className="py-3 px-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -373,7 +373,7 @@ export default function StructuresPage() {
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 font-bold text-black text-[11px] shadow-2xs cursor-pointer"
                           >
                             <Cpu className="w-3.5 h-3.5 text-black" />
-                            <span>{attachedDevs.length} Inclinometer Devices</span>
+                            <span>{attachedDevs.length} Devices</span>
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         </td>

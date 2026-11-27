@@ -874,6 +874,16 @@ export default function LocationMapView({
     const chevronRightSvg = renderToString(<ChevronRight style={{ width: 12, height: 12, color: '#ffffff', display: 'inline-block' }} />);
     const mapPinSvg = renderToString(<MapPin style={{ width: 13, height: 13, color: '#ffffff', display: 'inline-block' }} />);
     const layersIconSvg = renderToString(<Layers style={{ width: 13, height: 13, color: '#ffffff', display: 'inline-block' }} />);
+    const tiltmeterIconSvg = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display: inline-block;">
+        <path d="M12 3a9 9 0 0 1 9 9" />
+        <path d="M12 3a9 9 0 0 0-9 9" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="12" y1="12" x2="17" y2="6" />
+        <circle cx="12" cy="12" r="2" fill="#ffffff" />
+        <line x1="12" y1="14" x2="12" y2="21" />
+      </svg>
+    `;
 
     // Clear previous markers
     markersRef.current.forEach(m => m.remove());
@@ -1081,12 +1091,14 @@ export default function LocationMapView({
       el.style.height = 'fit-content';
       el.style.cursor = dragMode ? 'grab' : 'pointer';
       if (pointOnlyMarkers) {
-        const dotColor = isMoved ? '#2563eb' : (isEditingTarget ? '#4f46e5' : (isAlertDev ? '#ef4444' : '#10b981'));
-        const ringColor = isAlertDev ? 'rgba(239, 68, 68, 0.35)' : 'rgba(16, 185, 129, 0.30)';
-        el.title = `${dev.name || dev.id} (${isAlertDev ? 'ALERT' : 'NORMAL'}) - Click for details`;
+        const badgeColor = isMoved ? '#2563eb' : (isEditingTarget ? '#4f46e5' : (isAlertDev ? '#ef4444' : '#059669'));
+        const ringColor = isEditingTarget ? 'rgba(79, 70, 229, 0.30)' : (isAlertDev ? 'rgba(239, 68, 68, 0.30)' : 'rgba(16, 185, 129, 0.25)');
+        el.title = `${dev.name || dev.id} (Tiltmeter - ${isAlertDev ? 'ALERT' : 'NORMAL'}) - Click for details`;
         el.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: ${ringColor}; pointer-events: auto;">
-            <div style="width: 13px; height: 13px; border-radius: 50%; background: ${dotColor}; border: 2.5px solid #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.45);"></div>
+          <div style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 9px; background: ${ringColor}; pointer-events: auto;">
+            <div style="width: 22px; height: 22px; border-radius: 7px; background: ${badgeColor}; border: 2px solid #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center;">
+              ${tiltmeterIconSvg}
+            </div>
           </div>
         `;
       } else {

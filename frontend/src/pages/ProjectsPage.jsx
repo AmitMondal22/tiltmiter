@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, X, CheckCircle2, FolderTree, AlertTriangle } from 'lucide-react';
-import { getProjects, getOrganizations, createProject, updateProject, deleteProject } from '../api/apiClient';
+import { Plus, Edit, Trash2, X, CheckCircle2, FolderTree, AlertTriangle, Cpu, Radio, MapPin, Building2 } from 'lucide-react';
+import { getProjects, getOrganizations, getDevices, getSites, createProject, updateProject, deleteProject } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProjectsPage() {
   const { user: currentUser } = useAuth();
-  const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
   const [projectsList, setProjectsList] = useState([]);
   const [orgsList, setOrgsList] = useState([]);
+  const [devicesList, setDevicesList] = useState([]);
+  const [sitesList, setSitesList] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProj, setEditingProj] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -29,9 +30,11 @@ export default function ProjectsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [projRes, orgRes] = await Promise.all([
+      const [projRes, orgRes, devRes, siteRes] = await Promise.all([
         getProjects().catch(() => ({ projects: [] })),
         getOrganizations().catch(() => ({ organizations: [] })),
+        getDevices().catch(() => ({ devices: [] })),
+        getSites().catch(() => ({ sites: [] })),
       ]);
 
       if (projRes?.projects) {
@@ -40,9 +43,17 @@ export default function ProjectsPage() {
       if (orgRes?.organizations) {
         setOrgsList(orgRes.organizations);
       }
+      if (devRes?.devices) {
+        setDevicesList(devRes.devices);
+      }
+      if (siteRes?.sites) {
+        setSitesList(siteRes.sites);
+      }
     } catch (e) {
       setProjectsList([]);
       setOrgsList([]);
+      setDevicesList([]);
+      setSitesList([]);
     }
     setLoading(false);
   };
@@ -153,88 +164,136 @@ export default function ProjectsPage() {
         )}
       </div>
 
-      {/* Projects Table */}
-      <div className={cardCls}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b-2 border-slate-200 text-black font-extrabold uppercase text-[11px] tracking-wider">
-                <th className="py-3 px-3.5">Project Name</th>
-                <th className="py-3 px-3.5">Organization</th>
-                <th className="py-3 px-3.5">Sites</th>
-                <th className="py-3 px-3.5">Status</th>
-                {canManageProjects && <th className="py-3 px-3.5 text-right">Actions</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 text-black font-medium">
-              {loading && projectsList.length === 0 ? (
-                Array.from({ length: 5 }).map((_, idx) => (
-                  <tr key={`skel-${idx}`}>
-                    <td colSpan={canManageProjects ? 5 : 4} className="py-3 px-3.5">
-                      <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
-                    </td>
-                  </tr>
-                ))
-              ) : projectsList.length === 0 ? (
-                <tr>
-                  <td colSpan={canManageProjects ? 5 : 4} className="py-8 text-center text-slate-500 text-xs">
-                    No projects registered yet. Click "+ Add Project" to create one.
-                  </td>
-                </tr>
-              ) : (
-                projectsList.map(proj => {
-                  const org = orgsList.find(o => o.id === proj.organizationId || o.id === proj.Organization?.id);
-                  const siteCount = proj.Sites ? proj.Sites.length : 0;
-
-                  return (
-                    <tr key={proj.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-4 px-3.5">
-                        <div className="font-bold text-black text-sm">{proj.name}</div>
-                        <div className="text-[11px] text-slate-700 font-mono mt-0.5">{proj.description || 'Geotechnical Monitoring'}</div>
-                      </td>
-                      <td className="py-4 px-3.5">
-                        <span className="font-bold text-black">
-                          {org?.name || proj.Organization?.name || '--'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-3.5">
-                        <span className="px-2.5 py-1 rounded-md bg-black text-white font-bold text-[11px]">
-                          {siteCount} Sites
-                        </span>
-                      </td>
-                      <td className="py-4 px-3.5">
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-950 border border-emerald-300 font-extrabold text-[10px]">
-                          {proj.status || 'ACTIVE'}
-                        </span>
-                      </td>
-                      {canManageProjects && (
-                        <td className="py-4 px-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleOpenEdit(proj)}
-                              className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-                              title="Edit project"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(proj.id)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                              title="Delete project"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+      {/* Projects Card Grid */}
+      {loading && projectsList.length === 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <div key={`skel-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-xs">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2 flex-1">
+                  <div className="h-5 w-40 rounded-lg bg-slate-200 animate-pulse" />
+                  <div className="h-3.5 w-56 rounded-lg bg-slate-100 animate-pulse" />
+                </div>
+                <div className="h-6 w-16 rounded-full bg-slate-100 animate-pulse" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="h-16 rounded-xl bg-slate-100 animate-pulse" />
+                <div className="h-16 rounded-xl bg-slate-100 animate-pulse" />
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      ) : projectsList.length === 0 ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-xs">
+          <FolderTree className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+          <div className="text-sm font-bold text-slate-800">No projects registered yet</div>
+          <div className="text-xs text-slate-500 mt-1">Click "+ Add Project" to create one.</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {projectsList.map(proj => {
+            const org = orgsList.find(o => o.id === proj.organizationId || o.id === proj.Organization?.id);
+            const projSites = sitesList.filter(s => String(s.projectId) === String(proj.id));
+            const siteCount = proj.Sites ? Math.max(proj.Sites.length, projSites.length) : projSites.length;
+            const projSiteIds = new Set([
+              ...projSites.flatMap(s => [String(s.id || ''), String(s.siteId || '')]),
+              ...(proj.Sites || []).flatMap(s => [String(s.id || ''), String(s.siteId || '')]),
+            ].filter(Boolean));
+
+            const projDevices = devicesList.filter(d =>
+              String(d.projectId || '') === String(proj.id) ||
+              (d.siteId && projSiteIds.has(String(d.siteId)))
+            );
+            const totalDevices = projDevices.length;
+            const onlineDevices = projDevices.filter(
+              d => String(d.status || 'ONLINE').toUpperCase() !== 'OFFLINE'
+            ).length;
+
+            return (
+              <div
+                key={proj.id}
+                className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between gap-4"
+              >
+                {/* Card Header: Project Name, Description, Status & Actions */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/80 text-blue-600 flex items-center justify-center shrink-0">
+                      <FolderTree className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-extrabold text-slate-900 text-base truncate" title={proj.name}>
+                        {proj.name}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+                        {proj.description || 'Geotechnical Monitoring Project'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-[10px]">
+                      {proj.status || 'ACTIVE'}
+                    </span>
+                    {canManageProjects && (
+                      <>
+                        <button
+                          onClick={() => handleOpenEdit(proj)}
+                          className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                          title="Edit project"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(proj.id)}
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete project"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Device Counts: Total Devices & Total Online Devices */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <Cpu className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Total Devices</span>
+                    </div>
+                    <div className="text-xl font-black text-slate-900 font-mono tabular-nums mt-1">
+                      {totalDevices}
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                      <Radio className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Online Devices</span>
+                    </div>
+                    <div className="text-xl font-black text-emerald-800 font-mono tabular-nums mt-1">
+                      {onlineDevices}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Footer: Organization & Sites Count */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
+                  <span className="flex items-center gap-1.5 font-semibold truncate">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">{org?.name || proj.Organization?.name || '--'}</span>
+                  </span>
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 font-bold shrink-0">
+                    <MapPin className="w-3 h-3 text-blue-600" />
+                    <span>{siteCount} Sites</span>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Modal */}
       {modalOpen && (

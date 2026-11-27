@@ -501,30 +501,6 @@ export default function StructureDetailPage() {
               </p>
             )}
           </div>
-
-          {/* Quick Metrics Badges */}
-          <div className="flex items-center gap-3">
-            <div className="text-right px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Tiltmeters</div>
-              <div className="text-sm font-black text-black font-mono">
-                {attachedDevices.length} <span className="text-[11px] font-normal text-emerald-700 font-bold">({onlineCount} live)</span>
-              </div>
-            </div>
-
-            <div className="text-right px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Max Displacement</div>
-              <div className="text-sm font-black text-black font-mono">
-                Δ {maxDisp.toFixed(2)} mm
-              </div>
-            </div>
-
-            <div className="text-right px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Avg Tilt</div>
-              <div className="text-sm font-black text-purple-700 font-mono">
-                θ {avgTilt.toFixed(2)}°
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

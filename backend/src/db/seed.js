@@ -98,6 +98,10 @@ export async function seedDatabase() {
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "rockfallDeltaPeak" FLOAT;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "vibrationPeak" FLOAT;',
       'ALTER TABLE devices ADD COLUMN IF NOT EXISTS "monitoringSettings" JSONB;',
+
+      // Polygon boundary columns for structures
+      'ALTER TABLE structures ADD COLUMN IF NOT EXISTS "polygon" JSONB DEFAULT \'[]\'::jsonb;',
+      'ALTER TABLE structures ADD COLUMN IF NOT EXISTS "polygonColor" VARCHAR(32) DEFAULT \'#7c3aed\';',
     ];
 
     for (const q of addColumnQueries) {

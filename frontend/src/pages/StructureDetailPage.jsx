@@ -4,11 +4,12 @@ import {
   ArrowLeft, MapPin, Cpu, Shield, Layers, Box, Map as MapIcon,
   Activity, AlertTriangle, CheckCircle2, Battery, Signal, Zap,
   ExternalLink, TrendingUp, Navigation, RefreshCw, Radio, ShieldCheck,
-  Mountain, Calendar, Hash, Globe, Info, Search, X, Plus, Edit
+  Mountain, Calendar, Hash, Globe, Info, Search, X, Plus, Edit, PenTool
 } from 'lucide-react';
 import {
   getStructure, getStructures, getSites, getDevices,
-  getProjects, getOrganizations, createDevice, updateDevice, updateStructureDeviceLocationsBulk
+  getProjects, getOrganizations, createDevice, updateDevice,
+  updateStructureDeviceLocationsBulk, updateStructurePolygon
 } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
 import { DetailPageSkeleton } from '../components/SkeletonLoader';
@@ -33,6 +34,7 @@ export default function StructureDetailPage() {
   const [deviceSearch, setDeviceSearch] = useState('');
   const [structureSearch, setStructureSearch] = useState('');
   const [dragLocationEnabled, setDragLocationEnabled] = useState(false);
+  const [polygonDrawEnabled, setPolygonDrawEnabled] = useState(false);
   const [editingMapDevice, setEditingMapDevice] = useState(null);
   const [addDeviceModalOpen, setAddDeviceModalOpen] = useState(false);
   const [savingDevice, setSavingDevice] = useState(false);
@@ -376,6 +378,7 @@ export default function StructureDetailPage() {
               const next = !dragLocationEnabled;
               setDragLocationEnabled(next);
               if (!next) setEditingMapDevice(null);
+              if (next) setPolygonDrawEnabled(false);
             }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
               dragLocationEnabled
@@ -386,6 +389,28 @@ export default function StructureDetailPage() {
           >
             <MapPin className={`w-3.5 h-3.5 ${dragLocationEnabled ? 'text-white' : 'text-blue-600'}`} />
             <span>{dragLocationEnabled ? 'Disable Drag Location' : 'Enable Drag Location'}</span>
+          </button>
+
+          {/* Top Draw / Edit Asset Polygon Button */}
+          <button
+            type="button"
+            onClick={() => {
+              const next = !polygonDrawEnabled;
+              setPolygonDrawEnabled(next);
+              if (next) {
+                setDragLocationEnabled(false);
+                setEditingMapDevice(null);
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+              polygonDrawEnabled
+                ? 'bg-purple-600 border-purple-600 text-white ring-2 ring-purple-200'
+                : 'border-slate-300 bg-white hover:bg-slate-50 text-black'
+            }`}
+            title="Draw or edit boundary polygon for this Structural Asset"
+          >
+            <PenTool className={`w-3.5 h-3.5 ${polygonDrawEnabled ? 'text-white' : 'text-purple-600'}`} />
+            <span>{polygonDrawEnabled ? 'Exit Draw Polygon' : 'Draw Polygon'}</span>
           </button>
 
           <button
@@ -539,6 +564,16 @@ export default function StructureDetailPage() {
             }}
             editingDevice={editingMapDevice}
             onClearEditingDevice={() => setEditingMapDevice(null)}
+            enablePolygonDraw={true}
+            polygonDrawActive={polygonDrawEnabled}
+            onPolygonDrawActiveChange={setPolygonDrawEnabled}
+            onSaveStructurePolygon={async (targetId, points, color) => {
+              const res = await updateStructurePolygon(targetId, points, color);
+              const updatedStruct = res?.structure || { ...structure, polygon: points, polygonColor: color };
+              setStructure(prev => ({ ...prev, ...updatedStruct, polygon: points, polygonColor: color }));
+              setMsg({ type: 'success', text: `Saved ${points.length} polygon point(s) to database.` });
+              setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+            }}
           />
         </div>
 

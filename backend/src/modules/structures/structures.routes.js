@@ -85,7 +85,12 @@ export async function structuresRoutes(fastify) {
         });
       }
 
-      const { siteId, projectId, organizationId, name, type, heightElevation, latitude, longitude, description, status } = req.body;
+      const { siteId, projectId, organizationId, name, type, heightElevation, latitude, longitude, description, status, polygon, polygonColor } = req.body;
+      const cleanPolygon = Array.isArray(polygon)
+        ? polygon
+            .map(pt => ({ lat: parseFloat(pt?.lat), lng: parseFloat(pt?.lng) }))
+            .filter(pt => Number.isFinite(pt.lat) && Number.isFinite(pt.lng))
+        : [];
       const targetOrgId = req.user.role === 'ORG_ADMIN' ? req.user.organizationId : (organizationId || req.user.organizationId || 1);
 
       // Backend generates sequential numeric Asset / Structure ID (e.g. 1001, 1002, ...)
@@ -117,6 +122,8 @@ export async function structuresRoutes(fastify) {
         longitude: longitude !== undefined && longitude !== '' ? parseFloat(longitude) : 88.3639,
         description: description || '',
         status: status || 'ACTIVE',
+        polygon: cleanPolygon,
+        polygonColor: polygonColor || '#7c3aed',
       });
 
       const loadedStructure = await Structure.findByPk(structure.id, {
@@ -159,6 +166,12 @@ export async function structuresRoutes(fastify) {
       delete updateData.id;
       delete updateData.code;
 
+      if (Array.isArray(updateData.polygon)) {
+        updateData.polygon = updateData.polygon
+          .map(pt => ({ lat: parseFloat(pt?.lat), lng: parseFloat(pt?.lng) }))
+          .filter(pt => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
+      }
+
       if (req.user.role === 'ORG_ADMIN') {
         updateData.organizationId = req.user.organizationId;
       }
@@ -169,6 +182,48 @@ export async function structuresRoutes(fastify) {
       });
 
       return reply.send({ statusCode: 200, message: 'Structure updated successfully', structure: loaded || structure });
+    } catch (err) {
+      return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
+    }
+  });
+
+  // Save polygon boundary points for a Structural Asset
+  fastify.put('/api/structures/:id/polygon', { preHandler: [authenticate(fastify), tenantScopeGuard()] }, async (req, reply) => {
+    try {
+      const { id } = req.params;
+      const structure = await Structure.findByPk(id);
+      if (!structure) return reply.status(404).send({ statusCode: 404, error: 'Not Found', message: 'Structure not found' });
+
+      if (req.user.role !== 'SUPER_ADMIN') {
+        if (req.user.role === 'ORG_ADMIN') {
+          if (structure.organizationId !== req.user.organizationId) {
+            return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Cannot modify structures belonging to other organizations.' });
+          }
+        } else {
+          return reply.status(403).send({ statusCode: 403, error: 'Forbidden', message: 'Only Administrators can modify structure polygons.' });
+        }
+      }
+
+      const rawPolygon = Array.isArray(req.body?.polygon) ? req.body.polygon : [];
+      const cleanPolygon = rawPolygon
+        .map(pt => ({ lat: parseFloat(pt?.lat), lng: parseFloat(pt?.lng) }))
+        .filter(pt => Number.isFinite(pt.lat) && Number.isFinite(pt.lng));
+
+      const updateFields = { polygon: cleanPolygon };
+      if (req.body?.polygonColor) {
+        updateFields.polygonColor = String(req.body.polygonColor);
+      }
+
+      await structure.update(updateFields);
+      const loaded = await Structure.findByPk(id, {
+        include: [{ model: Site, include: [Project, Organization] }, Device]
+      });
+
+      return reply.send({
+        statusCode: 200,
+        message: `Saved ${cleanPolygon.length} polygon point(s) for ${structure.name}`,
+        structure: loaded || structure,
+      });
     } catch (err) {
       return reply.status(400).send({ statusCode: 400, error: 'Bad Request', message: err.message });
     }

@@ -344,6 +344,13 @@ export async function updateStructureDeviceLocationsBulk(structureId, updates) {
   });
 }
 
+export async function updateStructurePolygon(structureId, polygon, polygonColor = '#7c3aed') {
+  return await request(`/structures/${structureId}/polygon`, {
+    method: 'PUT',
+    body: JSON.stringify({ polygon, polygonColor }),
+  });
+}
+
 export async function deleteStructure(id) {
   return await request(`/structures/${id}`, {
     method: 'DELETE',

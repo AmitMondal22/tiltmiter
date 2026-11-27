@@ -46,6 +46,16 @@ export const Structure = sequelize.define('Structure', {
     type: DataTypes.TEXT,
     allowNull: true,
   },
+  polygon: {
+    type: DataTypes.JSONB,
+    allowNull: true,
+    defaultValue: [], // Array of { lat, lng } polygon boundary points
+  },
+  polygonColor: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    defaultValue: '#7c3aed',
+  },
 }, {
   timestamps: true,
   tableName: 'structures',

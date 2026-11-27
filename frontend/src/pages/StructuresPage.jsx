@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, X, CheckCircle2, ChevronRight, Cpu, Layers, Map as MapIcon, List, Shield, Box, MapPin, Activity, Zap, Radio, ExternalLink } from 'lucide-react';
-import { getStructures, getSites, getProjects, getOrganizations, createStructure, updateStructure, deleteStructure, createDevice, getDevices, updateDevice, updateStructureDeviceLocationsBulk } from '../api/apiClient';
+import { getStructures, getSites, getProjects, getOrganizations, createStructure, updateStructure, deleteStructure, createDevice, getDevices, updateDevice, updateStructureDeviceLocationsBulk, updateStructurePolygon } from '../api/apiClient';
 import { ASSET_TYPES, getAssetTypeConfig } from '../components/AssetsMapView';
 import LocationMapView from '../components/LocationMapView';
 import MapPicker from '../components/MapPicker';
@@ -545,6 +545,17 @@ export default function StructuresPage() {
                   }}
                   editingDevice={editingMapDevice}
                   onClearEditingDevice={() => setEditingMapDevice(null)}
+                  enablePolygonDraw={true}
+                  onSaveStructurePolygon={async (targetId, points, color) => {
+                    const res = await updateStructurePolygon(targetId, points, color);
+                    const updated = res?.structure || { ...selectedAsset, polygon: points, polygonColor: color };
+                    setSelectedAsset(prev => (prev ? { ...prev, ...updated, polygon: points, polygonColor: color } : prev));
+                    setStructuresList(prev =>
+                      prev.map(st => (String(st.id) === String(targetId) ? { ...st, polygon: points, polygonColor: color } : st))
+                    );
+                    setMsg({ type: 'success', text: `Saved ${points.length} polygon point(s) to database.` });
+                    setTimeout(() => setMsg({ type: '', text: '' }), 3500);
+                  }}
                 />
               </div>
 

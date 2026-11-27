@@ -8,7 +8,7 @@ import {
   Navigation, ExternalLink, ChevronLeft, ChevronRight, Activity, ShieldCheck,
   BarChart3, Zap, TrendingUp, AlertTriangle, CheckCircle2, Box,
   Map as MapIcon, Globe, Mountain, Flame, Eye, Maximize2, Camera,
-  X, RotateCcw, Compass, Home, Plus, Minus
+  X, RotateCcw, Compass, Home, Plus, Minus, PenTool, Undo2
 } from 'lucide-react';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatAssetUrl, getDeviceTelemetry, getAlertRules } from '../api/apiClient';
@@ -288,6 +288,10 @@ export default function LocationMapView({
   pointOnlyMarkers = true,
   controlsInsideMap = true,
   fullHeight = false,
+  enablePolygonDraw = false,
+  polygonDrawActive = undefined,
+  onPolygonDrawActiveChange = null,
+  onSaveStructurePolygon = null,
 }) {
   const navigate = useNavigate();
   const mapContainerRef = useRef(null);
@@ -399,6 +403,110 @@ export default function LocationMapView({
   };
   const [pendingMoves, setPendingMoves] = useState({});
   const [savingMoves, setSavingMoves] = useState(false);
+
+  // Structural Asset Polygon Drawing State
+  const [internalDrawPolygonMode, setInternalDrawPolygonMode] = useState(false);
+  const drawPolygonMode = polygonDrawActive !== undefined ? Boolean(polygonDrawActive) : internalDrawPolygonMode;
+  const [drawingPoints, setDrawingPoints] = useState([]);
+  const [drawingColor, setDrawingColor] = useState('#7c3aed');
+  const [savingPolygon, setSavingPolygon] = useState(false);
+  const drawMarkersRef = useRef([]);
+
+  const setDrawPolygonMode = (nextVal) => {
+    const resolved = typeof nextVal === 'function' ? nextVal(drawPolygonMode) : Boolean(nextVal);
+    setInternalDrawPolygonMode(resolved);
+    if (onPolygonDrawActiveChange) onPolygonDrawActiveChange(resolved);
+    if (resolved) {
+      const targetSt = structures.length === 1 ? structures[0] : null;
+      if (targetSt && Array.isArray(targetSt.polygon) && targetSt.polygon.length > 0) {
+        setDrawingPoints(
+          targetSt.polygon
+            .map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lng) }))
+            .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+        );
+        setDrawingColor(targetSt.polygonColor || '#7c3aed');
+      } else {
+        setDrawingPoints([]);
+        setDrawingColor(targetSt?.polygonColor || '#7c3aed');
+      }
+      if (dragMode) setDragMode(false);
+    } else {
+      setDrawingPoints([]);
+    }
+  };
+
+  // Sync preloaded polygon points if controlled polygonDrawActive turns true externally
+  useEffect(() => {
+    if (polygonDrawActive) {
+      const targetSt = structures.length === 1 ? structures[0] : null;
+      if (targetSt && Array.isArray(targetSt.polygon) && targetSt.polygon.length > 0) {
+        setDrawingPoints(
+          targetSt.polygon
+            .map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lng) }))
+            .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+        );
+        setDrawingColor(targetSt.polygonColor || '#7c3aed');
+      }
+    } else if (polygonDrawActive === false) {
+      setDrawingPoints([]);
+    }
+  }, [polygonDrawActive]);
+
+  // Click map to add polygon vertices while drawPolygonMode is active
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !enablePolygonDraw || !drawPolygonMode) return;
+
+    const handlePolygonMapClick = (e) => {
+      if (e.originalEvent?.target?.closest?.('.maplibregl-marker')) return;
+      const { lng, lat } = e.lngLat;
+      setDrawingPoints(prev => [
+        ...prev,
+        { lat: parseFloat(lat.toFixed(6)), lng: parseFloat(lng.toFixed(6)) },
+      ]);
+    };
+
+    map.on('click', handlePolygonMapClick);
+    return () => {
+      map.off('click', handlePolygonMapClick);
+    };
+  }, [enablePolygonDraw, drawPolygonMode]);
+
+  // Render numbered draggable vertex markers for active polygon drawing
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    drawMarkersRef.current.forEach(m => m.remove());
+    drawMarkersRef.current = [];
+    if (!map || !enablePolygonDraw || !drawPolygonMode) return;
+
+    drawingPoints.forEach((pt, idx) => {
+      const el = document.createElement('div');
+      el.className = 'polygon-vertex-marker select-none';
+      el.style.cursor = 'grab';
+      el.innerHTML = `
+        <div style="width: 20px; height: 20px; border-radius: 9999px; background: ${drawingColor}; border: 2px solid #ffffff; color: #ffffff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.45);">
+          ${idx + 1}
+        </div>
+      `;
+      const marker = new maplibregl.Marker({ element: el, draggable: true, anchor: 'center' })
+        .setLngLat([pt.lng, pt.lat])
+        .addTo(map);
+      marker.on('dragend', () => {
+        const ll = marker.getLngLat();
+        setDrawingPoints(prev =>
+          prev.map((p, i) =>
+            i === idx ? { lat: parseFloat(ll.lat.toFixed(6)), lng: parseFloat(ll.lng.toFixed(6)) } : p
+          )
+        );
+      });
+      drawMarkersRef.current.push(marker);
+    });
+
+    return () => {
+      drawMarkersRef.current.forEach(m => m.remove());
+      drawMarkersRef.current = [];
+    };
+  }, [enablePolygonDraw, drawPolygonMode, drawingPoints, drawingColor]);
 
   // When parent activates editingDevice, focus the map on it and turn on dragMode
   useEffect(() => {
@@ -586,6 +694,8 @@ export default function LocationMapView({
           console.warn('Terrain DEM setup:', e);
         }
       }
+
+      updateStructurePolygonsLayer();
     });
 
     return () => {
@@ -620,6 +730,7 @@ export default function LocationMapView({
       }
 
       updateHeatmapLayer();
+      updateStructurePolygonsLayer();
     });
   }, [mapType]);
 
@@ -751,6 +862,142 @@ export default function LocationMapView({
       return true;
     });
   }, [devices, sites, structures, alarms, selectedSiteId, statusFilter, alertSeverityFilter, searchQuery]);
+
+  // 7b. Render Saved Structural Asset Polygons + Live Drawing Preview on ALL Maps
+  const updateStructurePolygonsLayer = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (!map.isStyleLoaded()) {
+      map.once('styledata', () => updateStructurePolygonsLayer());
+      return;
+    }
+
+    const visibleStructures = selectedSiteId === 'ALL'
+      ? structures
+      : structures.filter(st =>
+          String(st.siteId || '') === String(selectedSiteId) ||
+          String(st.site?.id || '') === String(selectedSiteId) ||
+          String(st.site?.siteId || '') === String(selectedSiteId)
+        );
+
+    const savedFeatures = visibleStructures
+      .map(st => {
+        if (!Array.isArray(st.polygon) || st.polygon.length < 3) return null;
+        // Hide the currently-edited single structure's old polygon while actively drawing
+        if (drawPolygonMode && structures.length === 1 && String(st.id) === String(structures[0]?.id)) {
+          return null;
+        }
+        const coords = st.polygon
+          .map(p => [parseFloat(p?.lng), parseFloat(p?.lat)])
+          .filter(c => Number.isFinite(c[0]) && Number.isFinite(c[1]));
+        if (coords.length < 3) return null;
+        const first = coords[0];
+        const last = coords[coords.length - 1];
+        if (first[0] !== last[0] || first[1] !== last[1]) {
+          coords.push([first[0], first[1]]);
+        }
+        return {
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [coords] },
+          properties: {
+            id: st.id,
+            name: st.name || st.id,
+            color: st.polygonColor || '#7c3aed',
+          },
+        };
+      })
+      .filter(Boolean);
+
+    const savedCollection = { type: 'FeatureCollection', features: savedFeatures };
+    if (!map.getSource('structure-polygons-source')) {
+      map.addSource('structure-polygons-source', { type: 'geojson', data: savedCollection });
+    } else {
+      map.getSource('structure-polygons-source').setData(savedCollection);
+    }
+
+    if (!map.getLayer('structure-polygons-fill')) {
+      map.addLayer({
+        id: 'structure-polygons-fill',
+        type: 'fill',
+        source: 'structure-polygons-source',
+        paint: {
+          'fill-color': ['get', 'color'],
+          'fill-opacity': 0.22,
+        },
+      });
+    }
+    if (!map.getLayer('structure-polygons-outline')) {
+      map.addLayer({
+        id: 'structure-polygons-outline',
+        type: 'line',
+        source: 'structure-polygons-source',
+        paint: {
+          'line-color': ['get', 'color'],
+          'line-width': 2.5,
+        },
+      });
+    }
+
+    // Live drawing preview GeoJSON
+    const drawFeatures = [];
+    if (drawPolygonMode && drawingPoints.length >= 2) {
+      const lineCoords = drawingPoints.map(p => [p.lng, p.lat]);
+      if (drawingPoints.length >= 3) {
+        drawFeatures.push({
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [[...lineCoords, lineCoords[0]]] },
+          properties: { color: drawingColor },
+        });
+      } else {
+        drawFeatures.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: lineCoords },
+          properties: { color: drawingColor },
+        });
+      }
+    }
+    const drawCollection = { type: 'FeatureCollection', features: drawFeatures };
+    if (!map.getSource('drawing-polygon-source')) {
+      map.addSource('drawing-polygon-source', { type: 'geojson', data: drawCollection });
+    } else {
+      map.getSource('drawing-polygon-source').setData(drawCollection);
+    }
+
+    if (!map.getLayer('drawing-polygon-fill')) {
+      map.addLayer({
+        id: 'drawing-polygon-fill',
+        type: 'fill',
+        source: 'drawing-polygon-source',
+        filter: ['==', '$type', 'Polygon'],
+        paint: {
+          'fill-color': drawingColor,
+          'fill-opacity': 0.25,
+        },
+      });
+    } else {
+      map.setPaintProperty('drawing-polygon-fill', 'fill-color', drawingColor);
+    }
+
+    if (!map.getLayer('drawing-polygon-line')) {
+      map.addLayer({
+        id: 'drawing-polygon-line',
+        type: 'line',
+        source: 'drawing-polygon-source',
+        paint: {
+          'line-color': drawingColor,
+          'line-width': 2.5,
+          'line-dasharray': [2, 2],
+        },
+      });
+    } else {
+      map.setPaintProperty('drawing-polygon-line', 'line-color', drawingColor);
+    }
+  };
+
+  useEffect(() => {
+    updateStructurePolygonsLayer();
+  }, [structures, selectedSiteId, drawPolygonMode, drawingPoints, drawingColor]);
 
   // 7. Update Heatmap Layer
   const updateHeatmapLayer = () => {
@@ -1685,6 +1932,17 @@ export default function LocationMapView({
                     <MapPin className="w-3.5 h-3.5" />
                   </button>
                 )}
+                {/* Polygon Draw Toggle (when enabled by parent, e.g. Structural Assets) */}
+                {enablePolygonDraw && (
+                  <button
+                    type="button"
+                    onClick={() => setDrawPolygonMode(!drawPolygonMode)}
+                    className={`p-2 hover:bg-white/15 transition-colors cursor-pointer border-b border-white/10 ${drawPolygonMode ? 'bg-purple-600 text-white' : ''}`}
+                    title={drawPolygonMode ? 'Polygon Draw: ON (Click to exit)' : 'Draw / Edit Asset Polygon'}
+                  >
+                    <PenTool className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 {/* Analytics Panel */}
                 <button
                   type="button"
@@ -1853,6 +2111,69 @@ export default function LocationMapView({
               </div>
             </div>
           </>
+        )}
+
+        {/* Floating Polygon Drawing & Save Bar */}
+        {enablePolygonDraw && drawPolygonMode && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex flex-wrap items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900/95 text-white backdrop-blur-md border border-purple-500/50 shadow-2xl text-xs pointer-events-auto max-w-[95%] animate-fadeIn">
+            <div className="flex items-center gap-1.5 font-bold text-purple-300">
+              <PenTool className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+              <span>{drawingPoints.length} point(s)</span>
+            </div>
+            <span className="text-[11px] text-slate-300 hidden sm:inline">Click map to add polygon points</span>
+            <input
+              type="color"
+              value={drawingColor}
+              onChange={(e) => setDrawingColor(e.target.value)}
+              className="w-6 h-6 rounded border border-white/20 cursor-pointer bg-transparent p-0"
+              title="Polygon Color"
+            />
+            <button
+              type="button"
+              disabled={drawingPoints.length === 0 || savingPolygon}
+              onClick={() => setDrawingPoints(prev => prev.slice(0, -1))}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold text-[11px] cursor-pointer"
+              title="Undo last point"
+            >
+              <Undo2 className="w-3 h-3" />
+              <span>Undo</span>
+            </button>
+            <button
+              type="button"
+              disabled={drawingPoints.length === 0 || savingPolygon}
+              onClick={() => setDrawingPoints([])}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold text-[11px] cursor-pointer"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              disabled={drawingPoints.length < 3 || savingPolygon}
+              onClick={async () => {
+                const targetStruct = structures.length === 1 ? structures[0] : null;
+                if (!onSaveStructurePolygon || !targetStruct) return;
+                setSavingPolygon(true);
+                try {
+                  await onSaveStructurePolygon(targetStruct.id, drawingPoints, drawingColor);
+                  setDrawPolygonMode(false);
+                } finally {
+                  setSavingPolygon(false);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-[11px] cursor-pointer"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{savingPolygon ? 'Saving...' : 'Save Polygon'}</span>
+            </button>
+            <button
+              type="button"
+              disabled={savingPolygon}
+              onClick={() => setDrawPolygonMode(false)}
+              className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
         )}
 
         {/* Floating All-Device Pin Move & Batch Save Bar */}

@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, MapPin, Cpu, Shield, Layers, Box, Map as MapIcon,
   Activity, AlertTriangle, CheckCircle2, Battery, Signal, Zap,
-  ExternalLink, TrendingUp, Navigation, RefreshCw, Radio, ShieldCheck, Mountain
+  ExternalLink, TrendingUp, Navigation, RefreshCw, Radio, ShieldCheck, Mountain,
+  PanelRight, X
 } from 'lucide-react';
 import { getSites, getDevices, getStructures, getProjects, getOrganizations } from '../api/apiClient';
 import LocationMapView from '../components/LocationMapView';
@@ -25,6 +26,7 @@ export default function SiteDetailPage() {
   const [viewType, setViewType] = useState('satellite'); // 'satellite', 'street', or '3d'
   const [selectedDevice, setSelectedDevice] = useState(null);
   const [sidebarTab, setSidebarTab] = useState('assets'); // 'assets' or 'devices'
+  const [showSidebar, setShowSidebar] = useState(false);
 
   const cardCls = 'rounded-2xl border border-slate-200 bg-white p-5 text-black shadow-xs';
 
@@ -129,6 +131,25 @@ export default function SiteDetailPage() {
           </div>
 
           <button
+            type="button"
+            onClick={() => setShowSidebar(prev => !prev)}
+            title={showSidebar ? 'Hide Assets & Devices' : 'Show Assets & Devices'}
+            className={`relative p-2 rounded-xl border shadow-2xs transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold ${
+              showSidebar
+                ? 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
+                : 'bg-white border-slate-300 text-black hover:bg-slate-100'
+            }`}
+          >
+            <PanelRight className="w-4 h-4" />
+            <span className="hidden sm:inline">Assets & Devices</span>
+            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+              showSidebar ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+            }`}>
+              {siteStructures.length + siteDevices.length}
+            </span>
+          </button>
+
+          <button
             onClick={loadData}
             className="p-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-black shadow-2xs transition-colors cursor-pointer"
             title="Refresh location telemetry"
@@ -138,10 +159,10 @@ export default function SiteDetailPage() {
         </div>
       </div>
 
-      {/* Main Map Viewport & Devices List */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Left 3 Cols: Map (Satellite/Street) */}
-        <div className="lg:col-span-3">
+      {/* Main Map Viewport & Collapsible Assets / Devices Panel */}
+      <div className={`grid grid-cols-1 ${showSidebar ? 'lg:grid-cols-4' : ''} gap-4`}>
+        {/* Map (Full width when panel is hidden; 3 Cols when panel is open) */}
+        <div className={showSidebar ? 'lg:col-span-3' : 'w-full'}>
           <LocationMapView
             sites={[effectiveSite]}
             devices={siteDevices}
@@ -153,10 +174,24 @@ export default function SiteDetailPage() {
           />
         </div>
 
-        {/* Right 1 Col: Tabs for Assets & Hardware Inclinometers */}
-        <div className="space-y-3">
-          <div className={cardCls}>
-            {/* Tab Switcher */}
+        {/* Right 1 Col: Tabs for Assets & Hardware Inclinometers (Hidden by default) */}
+        {showSidebar && (
+          <div className="space-y-3">
+            <div className={cardCls}>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">
+                  Assets & Devices
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSidebar(false)}
+                  title="Hide panel"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {/* Tab Switcher */}
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl mb-3 border border-slate-200">
               <button
                 type="button"
@@ -308,8 +343,9 @@ export default function SiteDetailPage() {
                 )}
               </div>
             )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

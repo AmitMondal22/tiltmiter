@@ -698,6 +698,10 @@ export default function LocationMapView({
       updateStructurePolygonsLayer();
     });
 
+    map.on('style.load', () => {
+      updateStructurePolygonsLayer();
+    });
+
     return () => {
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
@@ -706,8 +710,13 @@ export default function LocationMapView({
     };
   }, []);
 
-  // 2. Handle Map Style Change
+  // 2. Handle Map Style Change (skip initial mount since Map constructor already sets initial style)
+  const isInitialMapTypeRef = useRef(true);
   useEffect(() => {
+    if (isInitialMapTypeRef.current) {
+      isInitialMapTypeRef.current = false;
+      return;
+    }
     const map = mapInstanceRef.current;
     if (!map) return;
 
@@ -730,6 +739,10 @@ export default function LocationMapView({
       }
 
       updateHeatmapLayer();
+      updateStructurePolygonsLayer();
+    });
+
+    map.on('style.load', () => {
       updateStructurePolygonsLayer();
     });
   }, [mapType]);
@@ -904,7 +917,7 @@ export default function LocationMapView({
     if (!map) return;
 
     if (!map.getStyle()) {
-      map.once('styledata', () => updateStructurePolygonsLayer());
+      map.once('style.load', () => updateStructurePolygonsLayer());
       return;
     }
 
@@ -1036,7 +1049,7 @@ export default function LocationMapView({
         map.setPaintProperty('drawing-polygon-line', 'line-color', curDrawColor);
       }
     } catch (e) {
-      map.once('styledata', () => updateStructurePolygonsLayer());
+      map.once('style.load', () => updateStructurePolygonsLayer());
     }
   };
 

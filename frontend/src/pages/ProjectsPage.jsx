@@ -392,14 +392,14 @@ export default function ProjectsPage() {
                   return (
                     <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center gap-3.5">
                       {/* Left: Recharts Donut Chart (no background/shadow, thin ring, large hollow center) */}
-                      <div className="w-[116px] h-[116px] flex items-center justify-center shrink-0">
-                        <PieChart width={116} height={116} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                      <div className="w-[140px] h-[140px] flex items-center justify-center shrink-0">
+                        <PieChart width={140} height={140} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                           <Pie
                             data={chartData}
-                            cx={58}
-                            cy={58}
-                            innerRadius={36}
-                            outerRadius={52}
+                            cx={70}
+                            cy={70}
+                            innerRadius={45}
+                            outerRadius={64}
                             paddingAngle={chartData.length > 1 ? 3 : 0}
                             dataKey="value"
                             stroke="none"

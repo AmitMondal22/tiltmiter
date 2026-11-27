@@ -276,38 +276,122 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Device Counts: Total, Online & Offline Devices */}
-                <div className="grid grid-cols-3 gap-2.5">
-                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      <Cpu className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span>Total</span>
-                    </div>
-                    <div className="text-lg font-black text-slate-900 font-mono tabular-nums mt-0.5">
-                      {totalDevices}
-                    </div>
-                  </div>
+                {/* Nodes Donut Chart & Summary */}
+                {(() => {
+                  const r = 30;
+                  const circumference = 2 * Math.PI * r;
+                  const gap = 4;
+                  const hasBoth = onlineDevices > 0 && offlineDevices > 0;
+                  const offlineLen = hasBoth
+                    ? Math.max(6, (offlineDevices / totalDevices) * circumference - gap)
+                    : 0;
+                  const onlineLen = hasBoth
+                    ? Math.max(6, circumference - offlineLen - gap * 2)
+                    : 0;
+                  const gradIdOnline = `proj-online-${proj.id}`;
+                  const gradIdOffline = `proj-offline-${proj.id}`;
 
-                  <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
-                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                      <Radio className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>Online</span>
-                    </div>
-                    <div className="text-lg font-black text-emerald-800 font-mono tabular-nums mt-0.5">
-                      {onlineDevices}
-                    </div>
-                  </div>
+                  return (
+                    <div className="p-3.5 rounded-xl bg-slate-50/60 border border-slate-200/80 flex items-center gap-4">
+                      {/* Left: Donut Chart in circular white ring */}
+                      <div className="w-24 h-24 rounded-full bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0">
+                        <svg viewBox="0 0 84 84" className="w-[84px] h-[84px]">
+                          <defs>
+                            <linearGradient id={gradIdOnline} x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="#65a30d" />
+                              <stop offset="100%" stopColor="#84cc16" />
+                            </linearGradient>
+                            <linearGradient id={gradIdOffline} x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="#fb7185" />
+                              <stop offset="100%" stopColor="#f97316" />
+                            </linearGradient>
+                          </defs>
+                          <g transform="rotate(-95 42 42)">
+                            {totalDevices === 0 ? (
+                              <circle
+                                cx="42"
+                                cy="42"
+                                r={r}
+                                fill="none"
+                                stroke="#e2e8f0"
+                                strokeWidth="14"
+                              />
+                            ) : hasBoth ? (
+                              <>
+                                <circle
+                                  cx="42"
+                                  cy="42"
+                                  r={r}
+                                  fill="none"
+                                  stroke={`url(#${gradIdOffline})`}
+                                  strokeWidth="14"
+                                  strokeDasharray={`${offlineLen} ${circumference}`}
+                                  strokeDashoffset={0}
+                                />
+                                <circle
+                                  cx="42"
+                                  cy="42"
+                                  r={r}
+                                  fill="none"
+                                  stroke={`url(#${gradIdOnline})`}
+                                  strokeWidth="14"
+                                  strokeDasharray={`${onlineLen} ${circumference}`}
+                                  strokeDashoffset={-(offlineLen + gap)}
+                                />
+                              </>
+                            ) : onlineDevices > 0 ? (
+                              <circle
+                                cx="42"
+                                cy="42"
+                                r={r}
+                                fill="none"
+                                stroke={`url(#${gradIdOnline})`}
+                                strokeWidth="14"
+                              />
+                            ) : (
+                              <circle
+                                cx="42"
+                                cy="42"
+                                r={r}
+                                fill="none"
+                                stroke={`url(#${gradIdOffline})`}
+                                strokeWidth="14"
+                              />
+                            )}
+                          </g>
+                        </svg>
+                      </div>
 
-                  <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/80">
-                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      <span>Offline</span>
+                      {/* Right: Total Nodes, Nodes Online, Nodes Offline */}
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[13px] font-bold text-[#155b94]">Total Nodes</span>
+                          <span className="text-[13px] font-bold text-[#155b94] tabular-nums">
+                            : {totalDevices}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="flex items-center gap-2 text-slate-600">
+                            <span className="w-2 h-2 rounded-full bg-[#84cc16] shrink-0" />
+                            <span>Nodes Online</span>
+                          </span>
+                          <span className="font-semibold text-slate-800 tabular-nums">
+                            : {onlineDevices}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="flex items-center gap-2 text-slate-600">
+                            <span className="w-2 h-2 rounded-full bg-[#f97316] shrink-0" />
+                            <span>Nodes Offline</span>
+                          </span>
+                          <span className="font-semibold text-slate-800 tabular-nums">
+                            : {offlineDevices}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-lg font-black text-amber-800 font-mono tabular-nums mt-0.5">
-                      {offlineDevices}
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Total Alerts & Color-Coded Alert Types */}
                 <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, X, CheckCircle2, FolderTree, AlertTriangle, Cpu, Radio, MapPin, Building2 } from 'lucide-react';
-import { getProjects, getOrganizations, getDevices, getSites, createProject, updateProject, deleteProject } from '../api/apiClient';
+import { getProjects, getOrganizations, getDevices, getSites, getAlarms, createProject, updateProject, deleteProject } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProjectsPage() {
@@ -10,6 +10,7 @@ export default function ProjectsPage() {
   const [orgsList, setOrgsList] = useState([]);
   const [devicesList, setDevicesList] = useState([]);
   const [sitesList, setSitesList] = useState([]);
+  const [alarmsList, setAlarmsList] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProj, setEditingProj] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -30,11 +31,12 @@ export default function ProjectsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [projRes, orgRes, devRes, siteRes] = await Promise.all([
+      const [projRes, orgRes, devRes, siteRes, alarmRes] = await Promise.all([
         getProjects().catch(() => ({ projects: [] })),
         getOrganizations().catch(() => ({ organizations: [] })),
         getDevices().catch(() => ({ devices: [] })),
         getSites().catch(() => ({ sites: [] })),
+        getAlarms().catch(() => ({ alarms: [] })),
       ]);
 
       if (projRes?.projects) {
@@ -49,11 +51,15 @@ export default function ProjectsPage() {
       if (siteRes?.sites) {
         setSitesList(siteRes.sites);
       }
+      if (alarmRes?.alarms) {
+        setAlarmsList(alarmRes.alarms);
+      }
     } catch (e) {
       setProjectsList([]);
       setOrgsList([]);
       setDevicesList([]);
       setSitesList([]);
+      setAlarmsList([]);
     }
     setLoading(false);
   };
@@ -208,6 +214,21 @@ export default function ProjectsPage() {
             const onlineDevices = projDevices.filter(
               d => String(d.status || 'ONLINE').toUpperCase() !== 'OFFLINE'
             ).length;
+            const offlineDevices = Math.max(0, totalDevices - onlineDevices);
+
+            const projDeviceIds = new Set(projDevices.map(d => String(d.id || d.deviceId || '')));
+            const projAlarms = alarmsList.filter(a => {
+              const isActive = String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
+              if (!isActive) return false;
+              return (
+                (a.deviceId && projDeviceIds.has(String(a.deviceId))) ||
+                (a.siteId && projSiteIds.has(String(a.siteId)))
+              );
+            });
+            const criticalAlerts = projAlarms.filter(a => ['CRITICAL', 'EMERGENCY'].includes(String(a.severity || '').toUpperCase())).length;
+            const warningAlerts = projAlarms.filter(a => ['WARNING', 'MAJOR'].includes(String(a.severity || '').toUpperCase())).length;
+            const infoAlerts = projAlarms.filter(a => !['CRITICAL', 'EMERGENCY', 'WARNING', 'MAJOR'].includes(String(a.severity || '').toUpperCase())).length;
+            const totalAlerts = projAlarms.length;
 
             return (
               <div
@@ -255,25 +276,64 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Device Counts: Total Devices & Total Online Devices */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                      <Cpu className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Total Devices</span>
+                {/* Device Counts: Total, Online & Offline Devices */}
+                <div className="grid grid-cols-3 gap-2.5">
+                  <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <Cpu className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <span>Total</span>
                     </div>
-                    <div className="text-xl font-black text-slate-900 font-mono tabular-nums mt-1">
+                    <div className="text-lg font-black text-slate-900 font-mono tabular-nums mt-0.5">
                       {totalDevices}
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                      <Radio className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Online Devices</span>
+                  <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                      <Radio className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Online</span>
                     </div>
-                    <div className="text-xl font-black text-emerald-800 font-mono tabular-nums mt-1">
+                    <div className="text-lg font-black text-emerald-800 font-mono tabular-nums mt-0.5">
                       {onlineDevices}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-amber-50/60 border border-amber-200/80">
+                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>Offline</span>
+                    </div>
+                    <div className="text-lg font-black text-amber-800 font-mono tabular-nums mt-0.5">
+                      {offlineDevices}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Alerts & Color-Coded Alert Types */}
+                <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <AlertTriangle className={`w-3.5 h-3.5 ${totalAlerts > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
+                      <span>Total Alerts</span>
+                    </span>
+                    <span className={`font-black font-mono tabular-nums px-2 py-0.5 rounded-md border text-[11px] ${
+                      totalAlerts > 0
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}>
+                      {totalAlerts}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 text-[10px] font-bold text-center">
+                    <div className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-mono">
+                      Crit: {criticalAlerts}
+                    </div>
+                    <div className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 font-mono">
+                      Warn: {warningAlerts}
+                    </div>
+                    <div className="px-2 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 font-mono">
+                      Info: {infoAlerts}
                     </div>
                   </div>
                 </div>

@@ -390,21 +390,21 @@ export default function ProjectsPage() {
                   const hasChartData = rawChartData.length > 0;
 
                   return (
-                    <div className="p-2.5 rounded-xl bg-slate-50/60 border border-slate-200/80 flex items-center gap-3">
-                      {/* Left: Recharts Donut Chart */}
-                      <div className="w-[74px] h-[74px] rounded-full bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0">
-                        <PieChart width={70} height={70}>
+                    <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 flex items-center gap-3.5">
+                      {/* Left: Recharts Donut Chart (no background/shadow, thin ring, large hollow center) */}
+                      <div className="w-[116px] h-[116px] flex items-center justify-center shrink-0">
+                        <PieChart width={116} height={116} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                           <Pie
                             data={chartData}
-                            cx={35}
-                            cy={35}
-                            innerRadius={19}
-                            outerRadius={30}
-                            paddingAngle={chartData.length > 1 ? 4 : 0}
+                            cx={58}
+                            cy={58}
+                            innerRadius={36}
+                            outerRadius={52}
+                            paddingAngle={chartData.length > 1 ? 3 : 0}
                             dataKey="value"
                             stroke="none"
-                            startAngle={95}
-                            endAngle={-265}
+                            startAngle={90}
+                            endAngle={-270}
                             isAnimationActive={false}
                           >
                             {chartData.map((entry, idx) => (

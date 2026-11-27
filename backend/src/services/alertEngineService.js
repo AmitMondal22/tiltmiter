@@ -35,7 +35,8 @@ function checkThresholdBreach(val, threshold, operator = '>') {
  * Automatically evaluates rules assigned to this particular device.
  */
 export async function evaluateTelemetryAlerts(device, telemetry) {
-  if (process.env.AUTO_ALERTS_ENABLED === 'false') return [];
+  // Auto alert generation is disabled unless AUTO_ALERTS_ENABLED=true
+  if (process.env.AUTO_ALERTS_ENABLED !== 'true') return [];
   if (!device || !telemetry) return [];
 
   const triggeredAlerts = [];

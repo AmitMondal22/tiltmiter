@@ -410,6 +410,7 @@ export default function LocationMapView({
   const [drawingPoints, setDrawingPoints] = useState([]);
   const [drawingColor, setDrawingColor] = useState('#7c3aed');
   const [savingPolygon, setSavingPolygon] = useState(false);
+  const [projectedPolygons, setProjectedPolygons] = useState({ saved: [], drawing: null });
   const drawMarkersRef = useRef([]);
 
   const setDrawPolygonMode = (nextVal) => {
@@ -700,7 +701,11 @@ export default function LocationMapView({
 
     map.on('style.load', () => {
       updateStructurePolygonsLayer();
+      syncPolygonSvg();
     });
+
+    map.on('move', syncPolygonSvg);
+    map.on('resize', syncPolygonSvg);
 
     return () => {
       if (mapInstanceRef.current) {
@@ -744,7 +749,11 @@ export default function LocationMapView({
 
     map.on('style.load', () => {
       updateStructurePolygonsLayer();
+      syncPolygonSvg();
     });
+
+    map.on('move', syncPolygonSvg);
+    map.on('resize', syncPolygonSvg);
   }, [mapType]);
 
   // 3. Handle Projection (Globe vs Mercator)
@@ -1066,8 +1075,66 @@ export default function LocationMapView({
     }
   };
 
+  // 7c. Project saved & live-drawing polygons directly to an SVG overlay so area & lines always render smoothly
+  const syncPolygonSvg = () => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    const {
+      structures: curStructures,
+      selectedSiteId: curSiteId,
+      drawPolygonMode: curDrawMode,
+      drawingPoints: curDrawPts,
+      drawingColor: curDrawColor,
+    } = latestPolygonStateRef.current;
+
+    const visibleStructures = curSiteId === 'ALL'
+      ? curStructures
+      : curStructures.filter(st =>
+          String(st.siteId || '') === String(curSiteId) ||
+          String(st.site?.id || '') === String(curSiteId) ||
+          String(st.site?.siteId || '') === String(curSiteId)
+        );
+
+    const saved = visibleStructures
+      .map(st => {
+        if (curDrawMode && curStructures.length === 1 && String(st.id) === String(curStructures[0]?.id)) {
+          return null;
+        }
+        const parsedPts = parsePolygonPoints(st.polygon);
+        if (parsedPts.length < 3) return null;
+        const screenPts = parsedPts.map(pt => {
+          const px = map.project([pt.lng, pt.lat]);
+          return `${px.x.toFixed(1)},${px.y.toFixed(1)}`;
+        }).join(' ');
+        return {
+          id: st.id,
+          name: st.name || st.id,
+          color: st.polygonColor || '#7c3aed',
+          pointsStr: screenPts,
+        };
+      })
+      .filter(Boolean);
+
+    let drawing = null;
+    if (curDrawMode && curDrawPts.length >= 2) {
+      const screenPts = curDrawPts.map(pt => {
+        const px = map.project([pt.lng, pt.lat]);
+        return `${px.x.toFixed(1)},${px.y.toFixed(1)}`;
+      }).join(' ');
+      drawing = {
+        count: curDrawPts.length,
+        color: curDrawColor,
+        pointsStr: screenPts,
+      };
+    }
+
+    setProjectedPolygons({ saved, drawing });
+  };
+
   useEffect(() => {
     updateStructurePolygonsLayer();
+    syncPolygonSvg();
   }, [structures, selectedSiteId, drawPolygonMode, drawingPoints, drawingColor]);
 
   // 7. Update Heatmap Layer
@@ -1877,6 +1944,43 @@ export default function LocationMapView({
       {/* Main MapLibre 3D Canvas */}
       <div className="flex-1 relative flex overflow-hidden w-full h-full">
         <div ref={mapContainerRef} className="w-full h-full relative z-0" />
+
+        {/* Guaranteed SVG Polygon Area Overlay (Saved Asset Areas + Live Drawing Start-to-End Preview) */}
+        {(projectedPolygons.saved.length > 0 || projectedPolygons.drawing) && (
+          <svg className="absolute inset-0 w-full h-full pointer-events-none z-[1]">
+            {projectedPolygons.saved.map(poly => (
+              <polygon
+                key={`svg-poly-${poly.id}`}
+                points={poly.pointsStr}
+                fill={poly.color}
+                fillOpacity={0.28}
+                stroke={poly.color}
+                strokeWidth={2.5}
+                strokeLinejoin="round"
+              />
+            ))}
+            {projectedPolygons.drawing && (
+              projectedPolygons.drawing.count >= 3 ? (
+                <polygon
+                  points={projectedPolygons.drawing.pointsStr}
+                  fill={projectedPolygons.drawing.color}
+                  fillOpacity={0.30}
+                  stroke={projectedPolygons.drawing.color}
+                  strokeWidth={3}
+                  strokeLinejoin="round"
+                />
+              ) : (
+                <polyline
+                  points={projectedPolygons.drawing.pointsStr}
+                  fill="none"
+                  stroke={projectedPolygons.drawing.color}
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                />
+              )
+            )}
+          </svg>
+        )}
 
         {/* GIS Inside-Map Controls (Dashboard Map Mode) */}
         {controlsInsideMap && (

@@ -28,6 +28,7 @@ export default function DevicesPage() {
   const [coordViewFormat, setCoordViewFormat] = useState(getStoredCoordFormat);
   const [tableSearch, setTableSearch] = useState('');
   const [entriesLimit, setEntriesLimit] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: 'id', dir: 'asc' });
   const [coordInputType, setCoordInputType] = useState(() => getStoredCoordFormat());
   const [dmsLat, setDmsLat] = useState({ deg: '', min: '', sec: '', dir: 'N' });
@@ -446,7 +447,11 @@ export default function DevicesPage() {
           return va.localeCompare(vb) * dir;
         });
 
-        const visibleDevices = sortedDevices.slice(0, entriesLimit);
+        const totalEntries = sortedDevices.length;
+        const totalPages = Math.max(1, Math.ceil(totalEntries / entriesLimit));
+        const safePage = Math.min(currentPage, totalPages);
+        const startIdx = (safePage - 1) * entriesLimit;
+        const visibleDevices = sortedDevices.slice(startIdx, startIdx + entriesLimit);
 
         return (
           <div className="rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-xs overflow-hidden">
@@ -459,7 +464,10 @@ export default function DevicesPage() {
                   <span>Show</span>
                   <select
                     value={entriesLimit}
-                    onChange={(e) => setEntriesLimit(Number(e.target.value))}
+                    onChange={(e) => {
+                      setEntriesLimit(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
                     className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#155b94] cursor-pointer"
                   >
                     {[10, 25, 50, 100].map((n) => (
@@ -474,7 +482,10 @@ export default function DevicesPage() {
                   <input
                     type="text"
                     value={tableSearch}
-                    onChange={(e) => setTableSearch(e.target.value)}
+                    onChange={(e) => {
+                      setTableSearch(e.target.value);
+                      setCurrentPage(1);
+                    }}
                     placeholder="Search"
                     className="rounded-full border border-slate-300 bg-white pl-8 pr-3 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#155b94] w-44 sm:w-52"
                   />
@@ -718,6 +729,61 @@ export default function DevicesPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
+              <div>
+                Showing <span className="font-semibold text-slate-800">{totalEntries === 0 ? 0 : startIdx + 1}</span> to{' '}
+                <span className="font-semibold text-slate-800">{Math.min(startIdx + entriesLimit, totalEntries)}</span> of{' '}
+                <span className="font-semibold text-slate-800">{totalEntries}</span> entries
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-semibold cursor-pointer transition-colors"
+                >
+                  Previous
+                </button>
+
+                {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                  .reduce((acc, p, idx, arr) => {
+                    if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    item === '...' ? (
+                      <span key={`ellipsis-${idx}`} className="px-1.5 text-slate-400">...</span>
+                    ) : (
+                      <button
+                        key={`page-${item}`}
+                        type="button"
+                        onClick={() => setCurrentPage(item)}
+                        className={`min-w-[28px] h-7 px-2 rounded-lg font-bold transition-colors cursor-pointer ${
+                          safePage === item
+                            ? 'bg-[#155b94] text-white shadow-2xs'
+                            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-semibold cursor-pointer transition-colors"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           </div>
         );

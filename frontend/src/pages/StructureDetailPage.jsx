@@ -163,15 +163,10 @@ export default function StructureDetailPage() {
   const typeConfig = getAssetTypeConfig(structure?.type);
   const TypeIcon = typeConfig?.icon || Mountain;
 
-  // Compute live geotechnical displacement & tilt aggregates
-  const maxDisp = attachedDevices.reduce((max, d) => {
-    const v = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 0);
-    return v > max ? v : max;
-  }, 0);
+  // Static zeroed displacement & tilt aggregates for frontend display
+  const maxDisp = 0;
 
-  const avgTilt = attachedDevices.length > 0
-    ? attachedDevices.reduce((sum, d) => sum + Number(d.resultantTilt || d.tilt?.tilt || 0), 0) / attachedDevices.length
-    : 0;
+  const avgTilt = 0;
 
   const onlineCount = attachedDevices.length;
   const offlineCount = 0;
@@ -698,8 +693,8 @@ export default function StructureDetailPage() {
                   ) : (
                     filteredAttachedDevices.map(d => {
                       const isOnline = (d.status || 'ONLINE') === 'ONLINE';
-                      const disp = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 0.18);
-                      const tiltVal = Number(d.resultantTilt || d.tilt?.tilt || 0.22);
+                      const disp = 0;
+                      const tiltVal = 0;
                       const isSelected = selectedDevice?.id === d.id;
                       const hasGps = d.latitude !== null && d.latitude !== undefined && d.latitude !== '' &&
                                      d.longitude !== null && d.longitude !== undefined && d.longitude !== '';

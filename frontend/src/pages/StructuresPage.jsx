@@ -530,8 +530,8 @@ export default function StructuresPage() {
                 ) : (
                   assetDevices.map(d => {
                     const isOnline = (d.status || 'ONLINE') === 'ONLINE';
-                    const disp = Number(d.totalDisplacement || d.displacement?.totalDisplacement_mm || 1.8);
-                    const tilt = Number(d.resultantTilt || d.tilt?.tilt || 0.4);
+                    const disp = 0;
+                    const tilt = 0;
                     const isSelected = selectedDeviceInAsset?.id === d.id;
                     const hasGps = d.latitude !== null && d.latitude !== undefined && d.latitude !== '' &&
                                    d.longitude !== null && d.longitude !== undefined && d.longitude !== '';

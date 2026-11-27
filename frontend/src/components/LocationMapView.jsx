@@ -1683,7 +1683,7 @@ export default function LocationMapView({
       {/* Search Input + Search Button */}
       <form onSubmit={handleSearchSubmit} className="flex items-center gap-1">
         <div className={`relative ${insideMap ? 'w-[115px] sm:w-[140px]' : 'min-w-[165px] max-w-[230px]'}`}>
-          <Search className={`${insideMap ? 'w-3 h-3 left-2 text-slate-300' : 'w-3.5 h-3.5 left-2.5 text-slate-400'} absolute top-1/2 -translate-y-1/2`} />
+          <Search className={`${insideMap ? 'w-3 h-3 left-2 text-white' : 'w-3.5 h-3.5 left-2.5 text-slate-400'} absolute top-1/2 -translate-y-1/2`} />
           <input
             type="text"
             value={searchInput}
@@ -1694,7 +1694,7 @@ export default function LocationMapView({
             placeholder="Search..."
             className={`w-full border font-medium focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs ${
               insideMap
-                ? 'h-7 pl-6 pr-5 rounded-lg text-[11px] bg-slate-800/90 border-white/15 text-white placeholder-slate-400'
+                ? 'h-7 pl-6 pr-5 rounded-lg text-[11px] bg-slate-800/90 border-white/15 text-white placeholder-white/80'
                 : 'pl-8 pr-6 py-1.5 rounded-xl text-xs bg-white border-slate-200 text-slate-900'
             }`}
           />
@@ -1705,7 +1705,7 @@ export default function LocationMapView({
                 setSearchInput('');
                 setSearchQuery('');
               }}
-              className={`absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer ${insideMap ? 'text-slate-300 hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
+              className={`absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer ${insideMap ? 'text-white hover:text-white' : 'text-slate-400 hover:text-slate-700'}`}
               title="Clear search"
             >
               <X className="w-3 h-3" />
@@ -1736,9 +1736,9 @@ export default function LocationMapView({
           }`}
           title="Select Location"
         >
-          <option value="ALL">All Locations ({sites.length})</option>
+          <option value="ALL" className={insideMap ? 'bg-slate-900 text-white' : ''}>All Locations ({sites.length})</option>
           {sites.map(s => (
-            <option key={s.id || s.siteId} value={s.id || s.siteId}>
+            <option key={s.id || s.siteId} value={s.id || s.siteId} className={insideMap ? 'bg-slate-900 text-white' : ''}>
               {s.name}
             </option>
           ))}
@@ -1754,16 +1754,16 @@ export default function LocationMapView({
             insideMap ? 'h-7 px-1.5 rounded-lg text-[11px] max-w-[108px]' : 'px-2.5 py-1.5 rounded-xl text-xs'
           } ${
             statusFilter === 'ALERT'
-              ? insideMap ? 'bg-rose-900/90 border-rose-400/50 text-rose-100' : 'bg-rose-50 border-rose-300 text-rose-800'
+              ? insideMap ? 'bg-rose-900/90 border-rose-400/50 text-white' : 'bg-rose-50 border-rose-300 text-rose-800'
               : statusFilter === 'NORMAL'
-              ? insideMap ? 'bg-emerald-900/90 border-emerald-400/50 text-emerald-100' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+              ? insideMap ? 'bg-emerald-900/90 border-emerald-400/50 text-white' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
               : insideMap ? 'bg-slate-800/90 border-white/15 text-white' : 'bg-white border-slate-200 text-slate-900'
           }`}
           title="Filter Devices (All / Alert / Normal)"
         >
-          <option value="ALL">Devices ({assignedDevices.length})</option>
-          <option value="ALERT">Alert ({alertDeviceCount})</option>
-          <option value="NORMAL">Normal ({normalDeviceCount})</option>
+          <option value="ALL" className={insideMap ? 'bg-slate-900 text-white' : ''}>Devices ({assignedDevices.length})</option>
+          <option value="ALERT" className={insideMap ? 'bg-slate-900 text-white' : ''}>Alert ({alertDeviceCount})</option>
+          <option value="NORMAL" className={insideMap ? 'bg-slate-900 text-white' : ''}>Normal ({normalDeviceCount})</option>
         </select>
       </div>
     </div>
@@ -2171,7 +2171,7 @@ export default function LocationMapView({
                         setShowStyleMenu(false);
                       }}
                       className={`px-2.5 py-1 rounded-lg text-left text-[11px] font-bold transition-colors cursor-pointer ${
-                        mapType === key ? 'bg-blue-600 text-white' : 'text-slate-200 hover:bg-white/10'
+                        mapType === key ? 'bg-blue-600 text-white' : 'text-white hover:bg-white/10'
                       }`}
                     >
                       {styleObj.name}

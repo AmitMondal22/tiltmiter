@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, X, CheckCircle2, FolderTree, AlertTriangle, MapPin, Building2, Camera, Upload } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import { getProjects, getOrganizations, getDevices, getSites, getAlarms, createProject, updateProject, deleteProject, formatAssetUrl } from '../api/apiClient';
 import { useAuth } from '../context/AuthContext';
 
@@ -180,9 +181,8 @@ export default function ProjectsPage() {
     <div className="space-y-4 font-sans text-black animate-fadeIn">
       {/* Toast */}
       {msg.text && (
-        <div className={`p-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold shadow-sm animate-fadeIn ${
-          msg.type === 'error' ? 'bg-red-50 border-red-300 text-red-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'
-        }`}>
+        <div className={`p-3.5 rounded-xl border flex items-center gap-2 text-xs font-bold shadow-sm animate-fadeIn ${msg.type === 'error' ? 'bg-red-50 border-red-300 text-red-950' : 'bg-emerald-50 border-emerald-300 text-emerald-950'
+          }`}>
           {msg.type === 'error' ? <AlertTriangle className="w-4 h-4 text-red-600" /> : <CheckCircle2 className="w-4 h-4 text-emerald-700" />}
           <span>{msg.text}</span>
         </div>
@@ -214,7 +214,7 @@ export default function ProjectsPage() {
 
       {/* Projects Card Grid */}
       {loading && projectsList.length === 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
           {Array.from({ length: 6 }).map((_, idx) => (
             <div key={`skel-${idx}`} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-xs">
               <div className="flex items-start justify-between gap-3">
@@ -238,7 +238,7 @@ export default function ProjectsPage() {
           <div className="text-xs text-slate-500 mt-1">Click "+ Add Project" to create one.</div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
           {projectsList.map(proj => {
             const org = orgsList.find(o => o.id === proj.organizationId || o.id === proj.Organization?.id);
             const projSites = sitesList.filter(s => String(s.projectId) === String(proj.id));
@@ -266,16 +266,29 @@ export default function ProjectsPage() {
                 (a.siteId && projSiteIds.has(String(a.siteId)))
               );
             });
+            const maintenanceDevices = projDevices.filter(
+              d => String(d.status || '').toUpperCase() === 'MAINTENANCE'
+            ).length;
             const criticalAlerts = projAlarms.filter(a => ['CRITICAL', 'EMERGENCY'].includes(String(a.severity || '').toUpperCase())).length;
-            const majorAlerts = projAlarms.filter(a => String(a.severity || '').toUpperCase() === 'MAJOR').length;
-            const minorAlerts = projAlarms.filter(a => String(a.severity || '').toUpperCase() === 'MINOR').length;
-            const warningAlerts = projAlarms.filter(a => !['CRITICAL', 'EMERGENCY', 'MAJOR', 'MINOR'].includes(String(a.severity || '').toUpperCase())).length;
+            const warningAlerts = projAlarms.filter(a => ['WARNING', 'MAJOR'].includes(String(a.severity || '').toUpperCase())).length;
+            const cautionAlerts = projAlarms.filter(a => ['CAUTION', 'MINOR', 'INFO'].includes(String(a.severity || '').toUpperCase())).length;
+            const offlineAlertCount = offlineDevices + projAlarms.filter(a => String(a.severity || '').toUpperCase() === 'OFFLINE').length;
+            const maintenanceAlertCount = maintenanceDevices + projAlarms.filter(a => String(a.severity || '').toUpperCase() === 'MAINTENANCE').length;
+            const alarmedDeviceIds = new Set(
+              projAlarms
+                .filter(a => String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && a.deviceId)
+                .map(a => String(a.deviceId))
+            );
+            const normalCount = projDevices.filter(d => {
+              const st = String(d.status || 'ONLINE').toUpperCase();
+              return st !== 'OFFLINE' && st !== 'MAINTENANCE' && !alarmedDeviceIds.has(String(d.id || d.deviceId || ''));
+            }).length;
             const totalAlerts = projAlarms.length;
 
             return (
               <div
                 key={proj.id}
-                className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between gap-4"
+                className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs hover:shadow-md hover:border-blue-200 transition-all flex flex-col justify-between gap-3"
               >
                 {/* Card Header: Project Name, Description, Status & Actions */}
                 <div className="flex items-start justify-between gap-3">
@@ -320,14 +333,14 @@ export default function ProjectsPage() {
 
                 {/* Project Image Under Title */}
                 {proj.imageUrl ? (
-                  <div className="relative w-full h-36 rounded-xl overflow-hidden border border-slate-200/80 bg-slate-100 group">
+                  <div className="relative w-full h-28 rounded-xl overflow-hidden border border-slate-200/80 bg-slate-100 group">
                     <img
                       src={formatAssetUrl(proj.imageUrl)}
                       alt={proj.name}
                       className="w-full h-full object-cover"
                     />
                     {canManageProjects && (
-                      <label className="absolute bottom-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-black/70 hover:bg-black text-white text-[11px] font-semibold backdrop-blur-xs opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs">
+                      <label className="absolute bottom-1.5 right-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/70 hover:bg-black text-white text-[10px] font-semibold backdrop-blur-xs opacity-90 group-hover:opacity-100 transition-opacity cursor-pointer shadow-xs">
                         <Upload className="w-3 h-3" />
                         <span>Update Image</span>
                         <input
@@ -340,9 +353,9 @@ export default function ProjectsPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="w-full h-24 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 flex items-center justify-center">
+                  <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50/70 flex items-center justify-center">
                     {canManageProjects ? (
-                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs">
+                      <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs">
                         <Camera className="w-3.5 h-3.5" />
                         <span>Upload Project Image</span>
                         <input
@@ -353,8 +366,8 @@ export default function ProjectsPage() {
                         />
                       </label>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
-                        <Camera className="w-4 h-4" />
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                        <Camera className="w-3.5 h-3.5" />
                         <span>No Project Image</span>
                       </div>
                     )}
@@ -363,168 +376,125 @@ export default function ProjectsPage() {
 
                 {/* Nodes Donut Chart & Summary */}
                 {(() => {
-                  const r = 30;
-                  const circumference = 2 * Math.PI * r;
-                  const gap = 4;
-                  const hasBoth = onlineDevices > 0 && offlineDevices > 0;
-                  const offlineLen = hasBoth
-                    ? Math.max(6, (offlineDevices / totalDevices) * circumference - gap)
-                    : 0;
-                  const onlineLen = hasBoth
-                    ? Math.max(6, circumference - offlineLen - gap * 2)
-                    : 0;
-                  const gradIdOnline = `proj-online-${proj.id}`;
-                  const gradIdOffline = `proj-offline-${proj.id}`;
+                  const rawChartData = [
+                    { name: 'Normal', value: normalCount, color: '#10b981' },
+                    { name: 'Caution', value: cautionAlerts, color: '#facc15' },
+                    { name: 'Warning', value: warningAlerts, color: '#fb923c' },
+                    { name: 'Critical', value: criticalAlerts, color: '#ef4444' },
+                    { name: 'Offline', value: offlineAlertCount, color: '#64748b' },
+                    { name: 'Maintenance', value: maintenanceAlertCount, color: '#0ea5e9' },
+                  ].filter(d => d.value > 0);
+                  const chartData = rawChartData.length > 0
+                    ? rawChartData
+                    : [{ name: 'No Nodes', value: 1, color: '#e2e8f0' }];
+                  const hasChartData = rawChartData.length > 0;
 
                   return (
-                    <div className="p-3.5 rounded-xl bg-slate-50/60 border border-slate-200/80 flex items-center gap-4">
-                      {/* Left: Donut Chart in circular white ring */}
-                      <div className="w-24 h-24 rounded-full bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0">
-                        <svg viewBox="0 0 84 84" className="w-[84px] h-[84px]">
-                          <defs>
-                            <linearGradient id={gradIdOnline} x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="#65a30d" />
-                              <stop offset="100%" stopColor="#84cc16" />
-                            </linearGradient>
-                            <linearGradient id={gradIdOffline} x1="0%" y1="0%" x2="0%" y2="100%">
-                              <stop offset="0%" stopColor="#fb7185" />
-                              <stop offset="100%" stopColor="#f97316" />
-                            </linearGradient>
-                          </defs>
-                          <g transform="rotate(-95 42 42)">
-                            {totalDevices === 0 ? (
-                              <circle
-                                cx="42"
-                                cy="42"
-                                r={r}
-                                fill="none"
-                                stroke="#e2e8f0"
-                                strokeWidth="14"
-                              />
-                            ) : hasBoth ? (
-                              <>
-                                <circle
-                                  cx="42"
-                                  cy="42"
-                                  r={r}
-                                  fill="none"
-                                  stroke={`url(#${gradIdOffline})`}
-                                  strokeWidth="14"
-                                  strokeDasharray={`${offlineLen} ${circumference}`}
-                                  strokeDashoffset={0}
-                                />
-                                <circle
-                                  cx="42"
-                                  cy="42"
-                                  r={r}
-                                  fill="none"
-                                  stroke={`url(#${gradIdOnline})`}
-                                  strokeWidth="14"
-                                  strokeDasharray={`${onlineLen} ${circumference}`}
-                                  strokeDashoffset={-(offlineLen + gap)}
-                                />
-                              </>
-                            ) : onlineDevices > 0 ? (
-                              <circle
-                                cx="42"
-                                cy="42"
-                                r={r}
-                                fill="none"
-                                stroke={`url(#${gradIdOnline})`}
-                                strokeWidth="14"
-                              />
-                            ) : (
-                              <circle
-                                cx="42"
-                                cy="42"
-                                r={r}
-                                fill="none"
-                                stroke={`url(#${gradIdOffline})`}
-                                strokeWidth="14"
-                              />
-                            )}
-                          </g>
-                        </svg>
+                    <div className="p-2.5 rounded-xl bg-slate-50/60 border border-slate-200/80 flex items-center gap-3">
+                      {/* Left: Recharts Donut Chart */}
+                      <div className="w-[74px] h-[74px] rounded-full bg-white border border-slate-100 shadow-sm flex items-center justify-center shrink-0">
+                        <PieChart width={70} height={70}>
+                          <Pie
+                            data={chartData}
+                            cx={35}
+                            cy={35}
+                            innerRadius={19}
+                            outerRadius={30}
+                            paddingAngle={chartData.length > 1 ? 4 : 0}
+                            dataKey="value"
+                            stroke="none"
+                            startAngle={95}
+                            endAngle={-265}
+                            isAnimationActive={false}
+                          >
+                            {chartData.map((entry, idx) => (
+                              <Cell key={`cell-${idx}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                          {hasChartData && (
+                            <Tooltip
+                              formatter={(value, name) => [value, name]}
+                              contentStyle={{
+                                fontSize: '11px',
+                                padding: '4px 8px',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                              }}
+                            />
+                          )}
+                        </PieChart>
                       </div>
 
-                      {/* Right: Total Nodes, Nodes Online, Nodes Offline */}
-                      <div className="flex-1 min-w-0 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[13px] font-bold text-[#155b94]">Total Nodes</span>
-                          <span className="text-[13px] font-bold text-[#155b94] tabular-nums">
+                      {/* Right: Total Nodes & Status / Alert Breakdown */}
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-200/70">
+                          <span className="text-xs font-bold text-[#155b94]">Total Nodes</span>
+                          <span className="text-xs font-bold text-[#155b94] tabular-nums">
                             : {totalDevices}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="flex items-center gap-2 text-slate-600">
-                            <span className="w-2 h-2 rounded-full bg-[#84cc16] shrink-0" />
-                            <span>Nodes Online</span>
-                          </span>
-                          <span className="font-semibold text-slate-800 tabular-nums">
-                            : {onlineDevices}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="flex items-center gap-2 text-slate-600">
-                            <span className="w-2 h-2 rounded-full bg-[#f97316] shrink-0" />
-                            <span>Nodes Offline</span>
-                          </span>
-                          <span className="font-semibold text-slate-800 tabular-nums">
-                            : {offlineDevices}
-                          </span>
+
+                        <div className="space-y-1 text-[11px]">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                              <span>Normal</span>
+                            </span>
+                            <span className="font-semibold text-emerald-700 tabular-nums">
+                              : {normalCount}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-yellow-700 font-medium">
+                              <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+                              <span>Caution</span>
+                            </span>
+                            <span className="font-semibold text-yellow-700 tabular-nums">
+                              : {cautionAlerts}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-orange-600 font-medium">
+                              <span className="w-2 h-2 rounded-full bg-orange-400 shrink-0" />
+                              <span>Warning</span>
+                            </span>
+                            <span className="font-semibold text-orange-600 tabular-nums">
+                              : {warningAlerts}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-red-600 font-medium">
+                              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                              <span>Critical</span>
+                            </span>
+                            <span className="font-semibold text-red-600 tabular-nums">
+                              : {criticalAlerts}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-slate-600 font-medium">
+                              <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0" />
+                              <span>Offline</span>
+                            </span>
+                            <span className="font-semibold text-slate-700 tabular-nums">
+                              : {offlineAlertCount}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-sky-700 font-medium">
+                              <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" />
+                              <span>Maintenance</span>
+                            </span>
+                            <span className="font-semibold text-sky-700 tabular-nums">
+                              : {maintenanceAlertCount}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   );
                 })()}
-
-                {/* Total Alerts & Color-Coded Alert Types */}
-                <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200/80 space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                      <AlertTriangle className={`w-3.5 h-3.5 ${totalAlerts > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-                      <span>All Alerts</span>
-                    </span>
-                    <span className={`font-black font-mono tabular-nums px-2 py-0.5 rounded-md border text-[11px] ${
-                      totalAlerts > 0
-                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-white text-slate-700 border-slate-200'
-                    }`}>
-                      {totalAlerts}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[10px] font-bold">
-                    <div className="px-2 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200/80 flex items-center justify-between gap-1">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                        <span>Crit</span>
-                      </span>
-                      <span className="font-mono">{criticalAlerts}</span>
-                    </div>
-                    <div className="px-2 py-1 rounded-lg bg-orange-50 text-orange-600 border border-orange-200/80 flex items-center justify-between gap-1">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                        <span>Major</span>
-                      </span>
-                      <span className="font-mono">{majorAlerts}</span>
-                    </div>
-                    <div className="px-2 py-1 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200/80 flex items-center justify-between gap-1">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" />
-                        <span>Minor</span>
-                      </span>
-                      <span className="font-mono">{minorAlerts}</span>
-                    </div>
-                    <div className="px-2 py-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-200/80 flex items-center justify-between gap-1">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                        <span>Warn</span>
-                      </span>
-                      <span className="font-mono">{warningAlerts}</span>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Card Footer: Organization & Sites Count */}
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">

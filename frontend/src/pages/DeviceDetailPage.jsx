@@ -1273,8 +1273,8 @@ export default function DeviceDetailPage() {
   const motionEvent = d.motionEvent || rawP.motionEvent || device?.motionEvent || null;
   const motionClassification = d.motionClassification || d.classification || motionEvent?.classification || rawP.motionEvent?.classification || device?.motionClassification || (hasData ? 'STABLE' : '--');
   const eventType = d.eventType || motionEvent?.eventType || rawP.motionEvent?.eventType || device?.eventType || (hasData ? 'NORMAL' : '--');
-  const isAlarmActive = Boolean(d.alarmActive ?? rockfallAlarm?.active ?? rawP.rockfallAlarm?.active ?? device?.alarmActive ?? false);
-  const isNewEvent = Boolean(d.newEvent ?? d.rockfallNewEvent ?? rockfallAlarm?.newEvent ?? rawP.rockfallAlarm?.newEvent ?? false);
+  const isAlarmActive = false;
+  const isNewEvent = false;
   const eventSequence = rockfallAlarm?.sequence ?? rawP.rockfallAlarm?.sequence ?? d.sequence ?? d.rockfallSequence ?? (hasData ? 0 : '--');
 
   // Filtered rows for the table: newest logs at the top

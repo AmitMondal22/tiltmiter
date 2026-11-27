@@ -710,23 +710,7 @@ export default function LocationMapView({
     });
   }, [sites, selectedSiteId, searchQuery]);
 
-  const isDeviceInAlert = (dev) => {
-    const st = String(dev.status || '').toUpperCase();
-    if (['ALARM', 'ALERT', 'CRITICAL', 'WARNING', 'MAJOR'].includes(st)) return true;
-    if (
-      Array.isArray(alarms) &&
-      alarms.some(
-        (a) =>
-          String(a.deviceId) === String(dev.id) &&
-          String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE'
-      )
-    ) {
-      return true;
-    }
-    const tiltVal = Math.abs(Number(dev.resultantTilt ?? dev.tilt?.tilt ?? 0));
-    if (!isNaN(tiltVal) && tiltVal >= 2.0) return true;
-    return false;
-  };
+  const isDeviceInAlert = () => false;
 
   const normalizeAlarmTier = (severity) => {
     const s = String(severity || '').toUpperCase();
@@ -1398,11 +1382,8 @@ export default function LocationMapView({
     }
   };
 
-  // Active alerts grouped across the 3 severity tiers: CRITICAL, WARNING, INFO
-  const activeAlarmsList = useMemo(() => {
-    if (!Array.isArray(alarms)) return [];
-    return alarms.filter(a => String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE');
-  }, [alarms]);
+  // Active alerts grouped across the 3 severity tiers: CRITICAL, WARNING, INFO (frontend normal override)
+  const activeAlarmsList = useMemo(() => [], []);
 
   const criticalAlarms = useMemo(
     () => activeAlarmsList.filter(a => normalizeAlarmTier(a.severity) === 'CRITICAL'),
@@ -2383,7 +2364,7 @@ export default function LocationMapView({
                   <div className="flex justify-between">
                     <span className="text-slate-500 font-sans">Operational Status:</span>
                     <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                      {selectedDevice.status || 'ONLINE'}
+                      NORMAL
                     </span>
                   </div>
                 </div>

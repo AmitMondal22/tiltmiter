@@ -145,8 +145,8 @@ export default function ReportsPage({ currentDevice }) {
       const zDisp = 0.0;
       const totalDisp = 0.0;
 
-      const rockfallActive = Boolean(rockfall.active ?? r.alarmActive ?? r.rockfallActive ?? false);
-      const rockfallNewEvent = Boolean(rockfall.newEvent ?? r.rockfallNewEvent ?? r.newEvent ?? false);
+      const rockfallActive = false;
+      const rockfallNewEvent = false;
       const rockfallSequence = typeof rockfall.sequence === 'number' ? rockfall.sequence : (typeof r.rockfallSequence === 'number' ? r.rockfallSequence : (typeof r.sequence === 'number' ? r.sequence : null));
       const motionClassification = motion.classification || r.motionClassification || 'STABLE';
       const motionEventType = motion.eventType || r.motionEventType || r.eventType || motionClassification;

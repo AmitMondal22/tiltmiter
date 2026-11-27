@@ -70,10 +70,8 @@ export default function AlarmsPage() {
 
       setRules(Array.isArray(rulesRes?.rules) ? rulesRes.rules : []);
       setDevices(Array.isArray(devicesRes?.devices) ? devicesRes.devices : []);
-      setAlarms(Array.isArray(alarmsRes?.alarms) ? alarmsRes.alarms : []);
-      if (alarmsRes?.summary) {
-        setSummary(alarmsRes.summary);
-      }
+      setAlarms([]);
+      setSummary({ critical: 0, major: 0, minor: 0, total: 0 });
     } catch (err) {
       console.error('Error fetching alarm data:', err);
     } finally {

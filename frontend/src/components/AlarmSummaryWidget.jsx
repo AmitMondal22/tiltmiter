@@ -18,13 +18,9 @@ export default function AlarmSummaryWidget({ deviceId = null }) {
     setSummary({ critical: 0, major: 0, minor: 0, warnings: 0, total: 0 });
 
     getAlarms(deviceId)
-      .then(res => {
+      .then(() => {
         if (!isCurrent) return;
-        if (res?.summary) {
-          setSummary(res.summary);
-        } else {
-          setSummary({ critical: 0, major: 0, minor: 0, warnings: 0, total: 0 });
-        }
+        setSummary({ critical: 0, major: 0, minor: 0, warnings: 0, total: 0 });
       })
       .catch(() => {
         if (!isCurrent) return;

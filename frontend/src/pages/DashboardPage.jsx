@@ -1234,7 +1234,7 @@ export default function DashboardPage({ devices = [], currentDevice, onSelectDev
           structures={structuresList}
           projects={projectsList}
           organizations={orgsList}
-          alarms={alarmsList}
+          alarms={[]}
           initialSelectedSiteId="ALL"
           onSelectSite={() => {}}
           pointOnlyMarkers={true}

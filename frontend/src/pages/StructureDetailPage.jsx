@@ -173,10 +173,10 @@ export default function StructureDetailPage() {
     ? attachedDevices.reduce((sum, d) => sum + Number(d.resultantTilt || d.tilt?.tilt || 0), 0) / attachedDevices.length
     : 0;
 
-  const onlineCount = attachedDevices.filter(d => (d.status || 'ONLINE') === 'ONLINE').length;
-  const offlineCount = attachedDevices.length - onlineCount;
+  const onlineCount = attachedDevices.length;
+  const offlineCount = 0;
 
-  const stabilityStatus = maxDisp > 15 ? 'CRITICAL' : maxDisp > 5 ? 'WARNING' : 'STABLE';
+  const stabilityStatus = 'STABLE';
   const stabilityBadge = {
     STABLE: 'bg-emerald-100 text-emerald-950 border-emerald-300',
     WARNING: 'bg-amber-100 text-amber-950 border-amber-300',
@@ -434,7 +434,7 @@ export default function StructureDetailPage() {
 
               {/* Status Badge */}
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${stabilityBadge}`}>
-                {stabilityStatus === 'STABLE' ? 'Slope Stable' : stabilityStatus === 'WARNING' ? 'Monitoring Alert' : 'Critical Hazard'}
+                Slope Stable &bull; NORMAL
               </span>
             </div>
 
@@ -718,12 +718,8 @@ export default function StructureDetailPage() {
                             <div className="font-bold text-black text-xs truncate max-w-[170px]" title={d.name || d.id}>
                               {d.name || d.id}
                             </div>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              isOnline
-                                ? 'bg-emerald-100 text-emerald-950 border border-emerald-300'
-                                : 'bg-amber-100 text-amber-950 border border-amber-300'
-                            }`}>
-                              {d.status || 'ONLINE'}
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-950 border border-emerald-300">
+                              NORMAL
                             </span>
                           </div>
 

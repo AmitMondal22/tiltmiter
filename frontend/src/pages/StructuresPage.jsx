@@ -548,10 +548,8 @@ export default function StructuresPage() {
                       >
                         <div className="flex justify-between items-center">
                           <div className="font-bold text-black">{d.id}</div>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            isOnline ? 'bg-emerald-100 text-emerald-950 border border-emerald-300' : 'bg-amber-100 text-amber-950 border border-amber-300'
-                          }`}>
-                            {d.status || 'ONLINE'}
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-950 border border-emerald-300">
+                            NORMAL
                           </span>
                         </div>
                         <div className="text-slate-700 text-[11px] font-sans font-semibold truncate">{d.name}</div>

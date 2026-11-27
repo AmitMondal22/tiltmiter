@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Loader2, Camera, Upload, Cpu
+  Plus, Edit, Trash2, Sliders, CheckCircle2, ChevronRight, X, AlertTriangle, Loader2, Camera, Upload, Cpu,
+  Eye, Wifi, Battery, RefreshCw, TrendingUp, Search, ArrowUpDown
 } from 'lucide-react';
 import { getDevices, getSites, getStructures, getOrganizations, getProjects, createDevice, updateDevice, deleteDevice, configureDeviceTelemetry, formatAssetUrl } from '../api/apiClient';
 import { formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
+import { formatFullDateTime } from '../utils/dateHelper';
 import { ddToDms, dmsToDd, formatLatLngPair, getStoredCoordFormat, setStoredCoordFormat } from '../utils/coordinateHelper';
 
 export default function DevicesPage() {
@@ -24,6 +26,9 @@ export default function DevicesPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [coordViewFormat, setCoordViewFormat] = useState(getStoredCoordFormat);
+  const [tableSearch, setTableSearch] = useState('');
+  const [entriesLimit, setEntriesLimit] = useState(10);
+  const [sortConfig, setSortConfig] = useState({ key: 'id', dir: 'asc' });
   const [coordInputType, setCoordInputType] = useState(() => getStoredCoordFormat());
   const [dmsLat, setDmsLat] = useState({ deg: '', min: '', sec: '', dir: 'N' });
   const [dmsLng, setDmsLng] = useState({ deg: '', min: '', sec: '', dir: 'E' });
@@ -405,133 +410,324 @@ export default function DevicesPage() {
         </div>
       </div>
 
-      {/* Devices Table */}
-      <div className={cardCls}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 uppercase text-[10px] tracking-wider">
-                <th className="py-3 px-3.5">Device ID & Name</th>
-                <th className="py-3 px-3.5">Attached Asset / Site</th>
-                <th className="py-3 px-3.5">Battery</th>
-                <th className="py-3 px-3.5">Signal (RSSI)</th>
-                <th className="py-3 px-3.5">Config (Sleep / Wake)</th>
-                <th className="py-3 px-3.5">Status</th>
-                <th className="py-3 px-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && devicesList.length === 0 ? (
-                Array.from({ length: 6 }).map((_, idx) => (
-                  <tr key={`skel-${idx}`}>
-                    <td colSpan={7} className="py-3 px-3.5">
-                      <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
-                    </td>
-                  </tr>
-                ))
-              ) : devicesList.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
-                    No devices registered yet. Click "+ Add Device" to add an inclinometer sensor node.
-                  </td>
-                </tr>
-              ) : (
-                devicesList.map(dev => {
-                  const struct = structuresList.find(s => s.id === dev.structureId);
-                  const site = sitesList.find(s => s.id === dev.siteId || s.siteId === dev.siteId);
+      {/* Devices Table (Summary Card) */}
+      {(() => {
+        const handleSort = (key) => {
+          setSortConfig((prev) =>
+            prev.key === key
+              ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+              : { key, dir: 'asc' }
+          );
+        };
 
-                  return (
-                    <tr
-                      key={dev.id}
-                      onClick={() => navigate(`/devices/${dev.id}`)}
-                      className="hover:bg-blue-50/40 transition-colors cursor-pointer group"
+        const q = tableSearch.trim().toLowerCase();
+        const filteredDevices = devicesList.filter((dev) => {
+          if (!q) return true;
+          return (
+            String(dev.id || '').toLowerCase().includes(q) ||
+            String(dev.name || '').toLowerCase().includes(q) ||
+            String(dev.sensorType || '').toLowerCase().includes(q)
+          );
+        });
+
+        const sortedDevices = [...filteredDevices].sort((a, b) => {
+          const dir = sortConfig.dir === 'asc' ? 1 : -1;
+          const key = sortConfig.key;
+          if (key === 'sleep_count') {
+            return ((Number(a.sleep_count) || 0) - (Number(b.sleep_count) || 0)) * dir;
+          }
+          if (key === 'lastSeen') {
+            const ta = new Date(a.lastSeen || a.updatedAt || 0).getTime() || 0;
+            const tb = new Date(b.lastSeen || b.updatedAt || 0).getTime() || 0;
+            return (ta - tb) * dir;
+          }
+          const va = String(a[key] || '').toLowerCase();
+          const vb = String(b[key] || '').toLowerCase();
+          return va.localeCompare(vb) * dir;
+        });
+
+        const visibleDevices = sortedDevices.slice(0, entriesLimit);
+
+        return (
+          <div className="rounded-2xl border border-slate-200 bg-white text-slate-800 shadow-xs overflow-hidden">
+            {/* Top Toolbar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-slate-100">
+              <h2 className="text-[15px] font-bold text-[#155b94] tracking-tight">Summary</h2>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <span>Show</span>
+                  <select
+                    value={entriesLimit}
+                    onChange={(e) => setEntriesLimit(Number(e.target.value))}
+                    className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#155b94] cursor-pointer"
+                  >
+                    {[10, 25, 50, 100].map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                  <span>Entries</span>
+                </div>
+
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    placeholder="Search"
+                    className="rounded-full border border-slate-300 bg-white pl-8 pr-3 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-[#155b94] w-44 sm:w-52"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/map')}
+                    title="View Devices on Map"
+                    className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 hover:bg-blue-50 text-[#155b94] flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadData}
+                    title="Refresh Device List"
+                    className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 hover:bg-blue-50 text-[#155b94] flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTableSearch('')}
+                    title="Clear Search"
+                    className="w-7 h-7 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-center text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-white text-[#155b94] font-semibold text-[12px]">
+                    <th
+                      onClick={() => handleSort('status')}
+                      className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-50/70 transition-colors"
                     >
-                      <td className="py-3.5 px-3.5">
-                        <div className="flex items-center gap-3">
-                          {dev.imageUrl ? (
-                            <div className="w-10 h-10 rounded-lg overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-2xs">
-                              <img
-                                src={formatAssetUrl(dev.imageUrl)}
-                                alt={dev.name || dev.id}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-400 shrink-0 shadow-2xs">
-                              <Camera className="w-4 h-4 text-slate-400" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
-                              <span className="truncate">{dev.name || dev.id}</span>
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 shrink-0" />
-                            </div>
-                            <div className="text-[11px] font-mono text-slate-500 mt-0.5">{dev.id}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-3.5">
-                        <div className="text-slate-800">{struct?.name || 'No Asset Attached'}</div>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
-                          <span>{site?.name || 'Standalone'}</span>
-                          {dev.latitude !== null && dev.latitude !== undefined && dev.longitude !== null && dev.longitude !== undefined && (
-                            <span className="font-mono text-[10px] text-slate-400">
-                              ({formatLatLngPair(dev.latitude, dev.longitude, coordViewFormat, 4)})
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-3.5 font-mono text-emerald-600 font-semibold">
-                        {formatBatteryPercentage(dev.battery ?? dev.batteryVoltage)}
-                      </td>
-                      <td className="py-3.5 px-3.5 font-mono text-blue-600 font-semibold">
-                        {formatCSQPercentage(dev.signal ?? dev.signalStrength)}
-                      </td>
-                      <td className="py-3.5 px-3.5 font-mono text-[11px]">
-                        {dev.sleep_count || 60}M / {dev.wake_count || 30}S
-                      </td>
-                      <td className="py-3.5 px-3.5">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[10px]">
-                          NORMAL
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-3.5 text-right" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={(e) => handleOpenConfig(dev, e)}
-                            title="Configure Sampling & Calibration"
-                            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Sliders className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => handleOpenEdit(dev, e)}
-                            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={(e) => handleDelete(dev.id, e)}
-                            disabled={deletingId === dev.id}
-                            title="Delete Device Node"
-                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                              deletingId === dev.id
-                                ? 'text-slate-400 bg-slate-100 cursor-not-allowed'
-                                : 'text-red-500 hover:bg-red-50'
-                            }`}
-                          >
-                            {deletingId === dev.id ? <Loader2 className="w-4 h-4 animate-spin text-red-500" /> : <Trash2 className="w-4 h-4" />}
-                          </button>
-                        </div>
+                      <span className="inline-flex items-center justify-center gap-1">
+                        Status
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      </span>
+                    </th>
+                    <th
+                      onClick={() => handleSort('id')}
+                      className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-50/70 transition-colors"
+                    >
+                      <span className="inline-flex items-center justify-center gap-1">
+                        Node ID
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      </span>
+                    </th>
+                    <th
+                      onClick={() => handleSort('name')}
+                      className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-50/70 transition-colors"
+                    >
+                      <span className="inline-flex items-center justify-center gap-1">
+                        Node Name
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      </span>
+                    </th>
+                    <th
+                      onClick={() => handleSort('sensorType')}
+                      className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-50/70 transition-colors"
+                    >
+                      <span className="inline-flex items-center justify-center gap-1">
+                        Node Type
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      </span>
+                    </th>
+                    <th
+                      onClick={() => handleSort('sleep_count')}
+                      className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-50/70 transition-colors"
+                    >
+                      <span className="inline-flex items-center justify-center gap-1">
+                        Sampling Rate(mins)
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      </span>
+                    </th>
+                    <th
+                      onClick={() => handleSort('lastSeen')}
+                      className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-50/70 transition-colors"
+                    >
+                      <span className="inline-flex items-center justify-center gap-1">
+                        Last Updated
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      </span>
+                    </th>
+                    <th className="py-3.5 px-4">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading && devicesList.length === 0 ? (
+                    Array.from({ length: 6 }).map((_, idx) => (
+                      <tr key={`skel-${idx}`}>
+                        <td colSpan={7} className="py-3 px-4">
+                          <div className="h-8 rounded-lg bg-slate-100 animate-pulse" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : visibleDevices.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-slate-400 text-xs">
+                        {devicesList.length === 0
+                          ? 'No devices registered yet. Click "+ Add Device" to add an inclinometer sensor node.'
+                          : 'No matching devices found.'}
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                  ) : (
+                    visibleDevices.map((dev) => {
+                      const isOnline = String(dev.status || 'ONLINE').toUpperCase() !== 'OFFLINE';
+                      const sigStr = formatCSQPercentage(dev.signal ?? dev.signalStrength);
+                      const sigNum = parseFloat(sigStr);
+                      const isSignalGood = isNaN(sigNum) ? true : sigNum >= 40;
+                      const batStr = formatBatteryPercentage(dev.battery ?? dev.batteryVoltage);
+                      const batNum = parseFloat(batStr);
+                      const isBatGood = isNaN(batNum) ? true : batNum >= 30;
+                      const updatedTs = dev.lastSeen || dev.updatedAt;
+
+                      return (
+                        <tr
+                          key={dev.id}
+                          onClick={() => navigate(`/devices/${dev.id}`)}
+                          className="hover:bg-blue-50/40 transition-colors cursor-pointer"
+                        >
+                          {/* Status: 3 circular outline icons */}
+                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="inline-flex items-center justify-center gap-2">
+                              <span
+                                title={isOnline ? 'Node Healthy (Online)' : 'Node Offline'}
+                                className={`w-6 h-6 rounded-full border flex items-center justify-center ${
+                                  isOnline
+                                    ? 'border-emerald-200 bg-emerald-50/40 text-emerald-500'
+                                    : 'border-amber-200 bg-amber-50/40 text-amber-500'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </span>
+                              <span
+                                title={`Signal: ${sigStr}`}
+                                className={`w-6 h-6 rounded-full border flex items-center justify-center ${
+                                  isSignalGood
+                                    ? 'border-emerald-200 bg-emerald-50/40 text-emerald-500'
+                                    : 'border-amber-200 bg-amber-50/40 text-amber-500'
+                                }`}
+                              >
+                                <Wifi className="w-3.5 h-3.5" />
+                              </span>
+                              <span
+                                title={`Battery: ${batStr}`}
+                                className={`w-6 h-6 rounded-full border flex items-center justify-center ${
+                                  isBatGood
+                                    ? 'border-emerald-200 bg-emerald-50/40 text-emerald-500'
+                                    : 'border-amber-200 bg-amber-50/40 text-amber-500'
+                                }`}
+                              >
+                                <Battery className="w-3.5 h-3.5" />
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Node ID */}
+                          <td className="py-3 px-4 text-slate-700 font-medium">
+                            {dev.id}
+                          </td>
+
+                          {/* Node Name */}
+                          <td className="py-3 px-4 text-slate-700 font-medium">
+                            {dev.name || dev.id}
+                          </td>
+
+                          {/* Node Type */}
+                          <td className="py-3 px-4 text-slate-600">
+                            {dev.sensorType || 'Tiltmeter'}
+                          </td>
+
+                          {/* Sampling Rate(mins) */}
+                          <td className="py-3 px-4 text-slate-700" onClick={(e) => e.stopPropagation()}>
+                            <div className="inline-flex items-center justify-center gap-2">
+                              <span>{dev.sleep_count ?? 60}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenConfig(dev, e)}
+                                title="Configure Sampling & Calibration"
+                                className="w-5 h-5 rounded-full bg-slate-100 hover:bg-blue-100 text-[#155b94] inline-flex items-center justify-center transition-colors cursor-pointer"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Last Updated */}
+                          <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
+                            {updatedTs ? formatFullDateTime(updatedTs) : '--'}
+                          </td>
+
+                          {/* Actions: 4 blue circular icon buttons */}
+                          <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                            <div className="inline-flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/devices/${dev.id}`)}
+                                title="View Device Details"
+                                className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-[#0e4470] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleOpenEdit(dev, e)}
+                                title="Edit Device Node"
+                                className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-[#0e4470] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDelete(dev.id, e)}
+                                disabled={deletingId === dev.id}
+                                title="Delete Device Node"
+                                className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-red-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                              >
+                                {deletingId === dev.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => navigate('/trends')}
+                                title="View Sensor Trends"
+                                className="w-7 h-7 rounded-full bg-[#155b94] hover:bg-[#0e4470] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
+                              >
+                                <TrendingUp className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal 1: Add / Edit Device (Fixed Medium Size & Scrollable) */}
       {modalOpen && (

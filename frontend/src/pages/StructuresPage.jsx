@@ -26,6 +26,7 @@ export default function StructuresPage() {
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [isCustomType, setIsCustomType] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [assetSearch, setAssetSearch] = useState('');
   const [msg, setMsg] = useState({ type: '', text: '' });
 
   const [formData, setFormData] = useState({
@@ -280,131 +281,157 @@ export default function StructuresPage() {
         </div>
       )}
 
-      {/* Top Header Row with View Mode Switcher */}
+      {/* Top Header Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-black text-black flex items-center gap-2">
-            <Layers className="w-5 h-5 text-blue-600" />
-            <span>Structural Assets</span>
+          <h2 className="text-xl font-bold text-slate-900">
+            Structural Assets
           </h2>
-          <p className="text-xs text-slate-700 font-medium mt-0.5">
-            {structuresList.length} registered geotechnical assets &bull; Coverage Areas ("aria"), Color Types & Live Inclinometers
+          <p className="text-xs text-slate-500 mt-0.5">
+            {structuresList.length} assets &bull; {devicesList.filter(d => Boolean(d.structureId)).length} assigned devices &bull; {devicesList.length} total deployed
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
           <button
             onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs hover:bg-neutral-800 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
             <span>Add Asset</span>
           </button>
         </div>
       </div>
 
       {/* Assets Table */}
-      <div className={cardCls}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b-2 border-slate-200 text-black font-extrabold uppercase text-[11px] tracking-wider">
-                  <th className="py-3 px-3.5">Asset Name</th>
-                  <th className="py-3 px-3.5">Type & Elevation</th>
-                  <th className="py-3 px-3.5">Site Location</th>
-                  <th className="py-3 px-3.5">Attached Devices</th>
-                  <th className="py-3 px-3.5 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 text-black font-medium">
-                {loading && structuresList.length === 0 ? (
-                  Array.from({ length: 5 }).map((_, idx) => (
-                    <tr key={`skel-${idx}`}>
-                      <td colSpan={5} className="py-3 px-3.5">
-                        <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
-                      </td>
-                    </tr>
-                  ))
-                ) : structuresList.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500 text-xs">
-                      No structural assets registered yet. Click "+ Add Asset" to create one.
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-xs space-y-3">
+        {/* Top-Right Search Input */}
+        <div className="flex justify-end">
+          <input
+            type="text"
+            value={assetSearch}
+            onChange={(e) => setAssetSearch(e.target.value)}
+            placeholder="Search by asset name, type or site..."
+            className="w-full sm:w-80 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-slate-200/80">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-700 text-[11px]">
+                <th className="py-3 px-3.5 w-10">#</th>
+                <th className="py-3 px-3.5">Asset Name</th>
+                <th className="py-3 px-3.5">Type &amp; Elevation</th>
+                <th className="py-3 px-3.5">Site Location</th>
+                <th className="py-3 px-3.5 text-center">Devices</th>
+                <th className="py-3 px-3.5 text-left pl-6">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-800">
+              {loading && structuresList.length === 0 ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={`skel-${idx}`}>
+                    <td colSpan={6} className="py-3 px-3.5">
+                      <div className="h-9 rounded-xl bg-slate-100 animate-pulse" />
                     </td>
                   </tr>
-                ) : (
-                  structuresList.map(st => {
-                    const site = sitesList.find(s => s.id === st.siteId || s.siteId === st.siteId);
-                    const attachedDevs = (st.Devices && st.Devices.length > 0)
-                      ? st.Devices
-                      : devicesList.filter(d => d.structureId === st.id);
-                    const typeConfig = getAssetTypeConfig(st.type);
+                ))
+              ) : (() => {
+                const q = assetSearch.trim().toLowerCase();
+                const filtered = structuresList.filter((st) => {
+                  if (!q) return true;
+                  const site = sitesList.find(s => s.id === st.siteId || s.siteId === st.siteId);
+                  return (
+                    String(st.name || '').toLowerCase().includes(q) ||
+                    String(st.type || '').toLowerCase().includes(q) ||
+                    String(site?.name || '').toLowerCase().includes(q)
+                  );
+                });
 
-                    return (
-                      <tr key={st.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-4 px-3.5">
-                          <div
-                            onClick={() => navigate(`/structures/${st.id}`)}
-                            className="font-bold text-black text-sm hover:text-blue-600 hover:underline cursor-pointer flex items-center gap-1.5"
-                            title="Open dedicated asset view"
-                          >
-                            <span>{st.name}</span>
-                            <ExternalLink className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          </div>
-                          <div className="text-[11px] text-slate-700 font-mono mt-0.5">{st.description || 'Structural Asset'}</div>
-                        </td>
-                        <td className="py-4 px-3.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: typeConfig.color }} />
-                            <span className="font-bold text-black">{st.type}</span>
-                          </div>
-                          <div className="text-[11px] text-slate-700 font-mono mt-0.5">{st.heightElevation}m</div>
-                        </td>
-                        <td className="py-4 px-3.5">
-                          <div className="font-bold text-black">{site?.name || 'Assigned Location'}</div>
-                        </td>
-                        <td className="py-4 px-3.5">
+                if (filtered.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-slate-500 text-xs">
+                        No structural assets found.
+                      </td>
+                    </tr>
+                  );
+                }
+
+                return filtered.map((st, idx) => {
+                  const site = sitesList.find(s => s.id === st.siteId || s.siteId === st.siteId);
+                  const attachedDevs = (st.Devices && st.Devices.length > 0)
+                    ? st.Devices
+                    : devicesList.filter(d => d.structureId === st.id);
+                  const typeConfig = getAssetTypeConfig(st.type);
+
+                  return (
+                    <tr
+                      key={st.id}
+                      onClick={() => navigate(`/structures/${st.id}`)}
+                      className="hover:bg-slate-50/80 transition-colors cursor-pointer"
+                    >
+                      <td className="py-3 px-3.5 text-slate-500">{idx + 1}</td>
+                      <td className="py-3 px-3.5 text-slate-900 whitespace-nowrap">
+                        {st.name}
+                      </td>
+                      <td className="py-3 px-3.5 text-slate-700 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: typeConfig.color }} />
+                          <span>{st.type}</span>
+                          {st.heightElevation != null && st.heightElevation !== '' && (
+                            <span className="text-slate-500">({st.heightElevation}m)</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3.5 text-slate-700">
+                        {site?.name || '--'}
+                      </td>
+                      <td className="py-3 px-3.5 text-center" onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDragLocationEnabled(false);
+                            setEditingMapDevice(null);
+                            setSelectedDeviceInAsset(null);
+                            setSelectedAsset({ ...st, Devices: attachedDevs });
+                          }}
+                          className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800 text-[11px] transition-colors cursor-pointer"
+                          title="Manage attached devices on map"
+                        >
+                          {attachedDevs.length}
+                        </button>
+                      </td>
+                      <td className="py-3 px-3.5 pl-6 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => {
-                              setDragLocationEnabled(false);
-                              setEditingMapDevice(null);
-                              setSelectedDeviceInAsset(null);
-                              setSelectedAsset({ ...st, Devices: attachedDevs });
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 hover:bg-slate-100 font-bold text-black text-[11px] shadow-2xs cursor-pointer"
+                            onClick={() => navigate(`/structures/${st.id}`)}
+                            className="px-3 py-1.5 rounded-lg border border-blue-300 bg-blue-50/70 hover:bg-blue-100 text-blue-600 text-[11px] transition-colors cursor-pointer"
                           >
-                            <Cpu className="w-3.5 h-3.5 text-black" />
-                            <span>{attachedDevs.length} Devices</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
+                            Open Asset
                           </button>
-                        </td>
-                        <td className="py-4 px-3.5 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Open Dedicated Asset View Action */}
-                            <button
-                              onClick={() => navigate(`/structures/${st.id}`)}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] shadow-2xs transition-colors cursor-pointer"
-                              title="Open dedicated asset view with map & devices"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              <span>Open Asset</span>
-                            </button>
-
-                            <button onClick={() => handleOpenEdit(st)} className="p-1.5 text-black hover:bg-slate-200 rounded-lg transition-colors cursor-pointer" title="Edit Asset">
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleDelete(st.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Delete Asset">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                          <button
+                            onClick={() => handleOpenEdit(st)}
+                            className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] transition-colors cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(st.id)}
+                            className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50/40 hover:bg-red-100 text-red-600 text-[11px] transition-colors cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                });
+              })()}
+            </tbody>
+          </table>
         </div>
+      </div>
 
       {/* Attach Device Modal / Detailed Attached Devices Panel (Scoped to selected Structural Asset) */}
       {selectedAsset && (() => {

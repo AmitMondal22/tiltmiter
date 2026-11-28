@@ -12,7 +12,7 @@ import { getDevice, getDeviceTelemetry, configureDeviceTelemetry, setDeviceRefer
 import { parseTelemetry, hasTelemetryData, formatSigned, formatPresent, formatBatteryPercentage, formatCSQPercentage } from '../utils/telemetryHelper';
 import { formatISTDatetimeLocal, istDatetimeToUTC, formatFullDateTime, formatTimeString, formatHHMM } from '../utils/dateHelper';
 import { formatLatLngPair, getStoredCoordFormat, setStoredCoordFormat } from '../utils/coordinateHelper';
-import TiltmeterChartsRow from '../components/TiltmeterChartsRow';
+import UnifiedTelemetryChart from '../components/UnifiedTelemetryChart';
 // 1. Interactive OpenStreetMap Component for Device Location (Small size with Full Screen Modal)
 function DeviceLocationMap({ device, deviceId, d }) {
   const mapRef = useRef(null);
@@ -1633,8 +1633,8 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
-      {/* Row 2: Live Historical Multi-Axis Time-Series Charts (4 Panels matching exact layout) */}
-      <TiltmeterChartsRow telemetryHistory={telemetryHistory} loading={loading} currentDevice={device} />
+      {/* Row 2: Unified Interactive Time-Series Chart (Line / Area / Bar + Metric Switcher) */}
+      <UnifiedTelemetryChart telemetryHistory={telemetryHistory} loading={loading} />
 
       {/* Row 3: Dedicated Device Historical Telemetry Data Table */}
       <div className={cardCls}>

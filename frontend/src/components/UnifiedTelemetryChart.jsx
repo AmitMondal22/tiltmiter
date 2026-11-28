@@ -38,6 +38,7 @@ export default function UnifiedTelemetryChart({ telemetryHistory = [], loading =
   const [metric, setMetric] = useState('tilt');
   const [chartType, setChartType] = useState('line');
   const [thickness, setThickness] = useState(2);
+  const [showDots, setShowDots] = useState(true);
   const [colorPrimary, setColorPrimary] = useState('#2563eb');
   const [colorSecondary, setColorSecondary] = useState('#10b981');
   const [colorTertiary, setColorTertiary] = useState('#8b5cf6');
@@ -142,7 +143,8 @@ export default function UnifiedTelemetryChart({ telemetryHistory = [], loading =
               fill={s.color}
               fillOpacity={0.18}
               strokeWidth={thickness}
-              dot={false}
+              dot={showDots ? { r: 3.5, fill: s.color, stroke: '#ffffff', strokeWidth: 1.5 } : false}
+              activeDot={{ r: 5.5, fill: s.color, stroke: '#ffffff', strokeWidth: 2 }}
               isAnimationActive={false}
             />
           ))}
@@ -180,7 +182,8 @@ export default function UnifiedTelemetryChart({ telemetryHistory = [], loading =
             name={s.name}
             stroke={s.color}
             strokeWidth={thickness}
-            dot={false}
+            dot={showDots ? { r: 3.5, fill: s.color, stroke: '#ffffff', strokeWidth: 1.5 } : false}
+            activeDot={{ r: 5.5, fill: s.color, stroke: '#ffffff', strokeWidth: 2 }}
             isAnimationActive={false}
           />
         ))}
@@ -268,13 +271,28 @@ export default function UnifiedTelemetryChart({ telemetryHistory = [], loading =
               className="w-20 accent-blue-600 cursor-pointer"
               title={`Thickness: ${thickness}px`}
             />
-            <span className="font-mono text-slate-800 w-7">{thickness}px</span>
+            <span className="text-slate-800 w-7">{thickness}px</span>
           </div>
+
+          {chartType !== 'bar' && (
+            <button
+              type="button"
+              onClick={() => setShowDots((prev) => !prev)}
+              className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-colors cursor-pointer ${
+                showDots
+                  ? 'bg-blue-50 border-blue-200 text-blue-700'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900'
+              }`}
+              title="Toggle data point dots"
+            >
+              Dots: {showDots ? 'ON' : 'OFF'}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Series Legend */}
-      <div className="flex items-center gap-3 text-[11px] font-mono">
+      <div className="flex items-center gap-3 text-[11px]">
         {seriesConfig.map((s) => (
           <span key={s.key} className="flex items-center gap-1.5 font-bold text-slate-700">
             <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: s.color }} />
